@@ -17,7 +17,7 @@ set(HSE_VALUE 12000000)
 set(TARGET_DIR taranis)
 set(PPM_LIMITS_SYMETRICAL YES)
 
-add_definitions(-DPCBFRSKY -DPCBTARANIS -DAUDIO -DVOICE)
+add_definitions(-DPCBTARANIS)
 
 if(PCB STREQUAL X9E)
   set(DEFAULT_INTERNAL_MODULE XJT_PXX1 CACHE STRING "Default internal module")
@@ -406,6 +406,7 @@ elseif(PCB STREQUAL X7)
     add_definitions(-DSTM32_SUPPORT_32BIT_TIMERS)
     set(PXX2 ON)
     set(ENABLE_SERIAL_PASSTHROUGH ON CACHE BOOL "Enable serial passthrough")
+    set(CSD203_SENSOR ON)
     if (NOT BLUETOOTH)
       set(AUX_SERIAL ON)
     endif()
@@ -421,6 +422,7 @@ elseif(PCB STREQUAL X7)
     add_definitions(-DSTM32_SUPPORT_32BIT_TIMERS)
     set(PXX2 ON)
     set(ENABLE_SERIAL_PASSTHROUGH ON CACHE BOOL "Enable serial passthrough")
+    set(CSD203_SENSOR ON)
     set(FLYSKY_GIMBAL ON)
     if (NOT BLUETOOTH)
       set(AUX_SERIAL ON)
@@ -453,7 +455,6 @@ elseif(PCB STREQUAL X9LITE)
   set(CPU_TYPE_FULL STM32F205xE)
   set(HAPTIC YES)
   set(FLAVOUR x9lite)
-  add_definitions(-DBOARD_NAME="x9lite")
   add_definitions(-DPCBX9LITE -DPCBX9 -DSOFTWARE_VOLUME -DHARDWARE_POWER_MANAGEMENT_UNIT)
   add_definitions(-DPWR_BUTTON_${PWR_BUTTON})
   set(PXX2 ON)
@@ -474,7 +475,6 @@ elseif(PCB STREQUAL X9LITES)
   set(CPU_TYPE_FULL STM32F205xE)
   set(HAPTIC YES)
   set(FLAVOUR x9lites)
-  add_definitions(-DBOARD_NAME="x9lites")
   add_definitions(-DPCBX9LITES -DPCBX9LITE -DPCBX9 -DSOFTWARE_VOLUME -DHARDWARE_POWER_MANAGEMENT_UNIT)
   add_definitions(-DPWR_BUTTON_${PWR_BUTTON})
   set(PXX2 ON)
@@ -542,7 +542,6 @@ elseif ((CPU_TYPE_FULL STREQUAL STM32F407xE) OR (CPU_TYPE_FULL STREQUAL STM32F40
   if (CPU_TYPE_FULL STREQUAL STM32F407xG)
     set(TARGET_FLASH_SIZE 1M)
     add_definitions(-DSTM32F407xG)
-    set(RTC_BACKUP_RAM YES)
   else()
     set(USBJ_EX OFF)
   endif()
@@ -553,6 +552,10 @@ elseif (CPU_TYPE_FULL STREQUAL STM32F413xG)
   set(TARGET_LINKER_DIR stm32f413)
 else()
   message(FATAL_ERROR "Unknown CPU_TYPE_FULL" )
+endif()
+
+if ((CPU_TYPE_FULL STREQUAL STM32F407xG) AND (NOT PCBREV STREQUAL MT12))
+  set(RTC_BACKUP_RAM YES)
 endif()
 
 if(FUNCTION_SWITCHES)
@@ -623,7 +626,7 @@ endif()
 # Bootloader board library
 add_library(board_bl OBJECT EXCLUDE_FROM_ALL
   ${BOARD_COMMON_SRC}
-  ${TARGET_SRC_DIR}/bootloader/boot_menu.cpp
+  ${RADIO_SRC_DIR}/gui/common/stdlcd/boot_menu.cpp
 )
 # add_dependencies(board_bl ${BITMAPS_TARGET})
 set(BOOTLOADER_SRC ${BOOTLOADER_SRC} $<TARGET_OBJECTS:board_bl>)
@@ -718,7 +721,7 @@ endif()
 
 set(FIRMWARE_SRC
   ${FIRMWARE_SRC}
-  targets/common/arm/loadboot.cpp
+  bootloader/loadboot.cpp
   )
 
 set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} ${BITMAPS_TARGET})

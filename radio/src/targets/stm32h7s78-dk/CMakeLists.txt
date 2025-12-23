@@ -19,7 +19,7 @@ set(SDCARD YES)
 set(STORAGE_MODELSLIST YES)
 # set(HAPTIC YES)
 set(GUI_DIR colorlcd)
-set(BITMAPS_DIR 480x272)
+set(BITMAPS_DIR 800x480)
 # set(RTC_BACKUP_RAM YES)
 set(PPM_LIMITS_SYMETRICAL YES)
 # set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
@@ -28,11 +28,11 @@ set(PPM_LIMITS_SYMETRICAL YES)
 # for size report script
 set(CPU_TYPE_FULL STM32H7S7xx)
 set(TARGET_LINKER_DIR stm32h7rs_sdram)
-set(TARGET_LINKER_PARAMS "-Wl,--defsym=__PSRAM_START__=0x90000000")
+set(TARGET_EXTRAM_START 0x90000000)
 set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM1=32768")
 set(FIRMWARE_FORMAT_UF2 YES)
 
-set(BITMAPS_TARGET bm480_bitmaps)
+set(BITMAPS_TARGET bm800_bitmaps)
 set(FONTS_TARGET x12_fonts)
 
 set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} ${BITMAPS_TARGET})
@@ -43,10 +43,10 @@ set(IMU ON)
 set(FIRMWARE_QSPI ON)
 
 add_definitions(
-  -DSTM32H7S7xx -DCORE_CM7 -DFIRMWARE_QSPI
-  -DSDRAM -DCOLORLCD -DLIBOPENUI -DPCBHORUS -DPCBX10 -DPCBFRSKY
+  -DSTM32H7S7xx -DFIRMWARE_QSPI
+  -DSDRAM -DPCBHORUS -DPCBX10 -DRADIO_H7RS
   -DHARDWARE_TOUCH -DSOFTWARE_KEYBOARD
-  -DAUDIO -DVOICE -DSOFTWARE_VOLUME
+  -DSOFTWARE_VOLUME
 )
 
 # Make malloc() thread-safe
@@ -55,7 +55,7 @@ add_definitions(-DTHREADSAFE_MALLOC)
 set(SDRAM ON)
 set(FIRMWARE_STRIP_BOOTLOADER ON)
 
-# add_definitions(-DAUDIO -DVOICE -DRTCLOCK)
+# add_definitions(-DRTCLOCK)
 
 # VCP CLI
 set(CLI ON CACHE BOOL "Enable CLI")
@@ -68,7 +68,6 @@ set(TARGET_SRC_DIR targets/${TARGET_DIR})
 
 set(BOARD_COMMON_SRC
   ${TARGET_SRC_DIR}/board.cpp
-  ${TARGET_SRC_DIR}/system_init.cpp
   ${TARGET_SRC_DIR}/lcd_driver.cpp
   ${TARGET_SRC_DIR}/backlight_driver.cpp
   # ${TARGET_SRC_DIR}/seesaw.cpp
@@ -87,11 +86,12 @@ set(BOARD_COMMON_SRC
 # Bootloader board library
 add_library(board_bl OBJECT EXCLUDE_FROM_ALL
   ${BOARD_COMMON_SRC}
-  ${TARGET_SRC_DIR}/system_clock.cpp
   ${TARGET_SRC_DIR}/extram_driver.cpp
-  ${TARGET_SRC_DIR}/bootloader/boot_menu.cpp
+  ${RADIO_SRC_DIR}/gui/colorlcd/boot_menu.cpp
 )
 set(BOOTLOADER_SRC ${BOOTLOADER_SRC} $<TARGET_OBJECTS:board_bl>)
+
+set(CMSIS_SRC ${TARGET_SRC_DIR}/system_clock.c)
 
 # Firmware board library
 add_library(board OBJECT EXCLUDE_FROM_ALL
@@ -111,6 +111,6 @@ include_directories(${RADIO_SRC_DIR}/fonts/colorlcd gui/${GUI_DIR} gui/${GUI_DIR
 if(BOOTLOADER)
   set(FIRMWARE_TARGET_SRC
     ${FIRMWARE_TARGET_SRC}
-    ../common/arm/loadboot.cpp
+    ../../bootloader/loadboot.cpp
   )
 endif()

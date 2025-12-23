@@ -22,7 +22,6 @@
 #include "radio_diaganas.h"
 
 #include "hal/adc_driver.h"
-#include "libopenui.h"
 #include "edgetx.h"
 #include "etx_lv_theme.h"
 
@@ -32,11 +31,11 @@
 
 #define STATSDEPTH 8  // ideally a value of power of 2
 
-#if !PORTRAIT_LCD
+#if LANDSCAPE
 
 static const lv_coord_t col_dsc[] = {
-  LV_GRID_FR(32), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40),
-  LV_GRID_FR(32), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40),
+  LV_GRID_FR(34), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40),
+  LV_GRID_FR(34), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40), LV_GRID_FR(40),
   LV_GRID_TEMPLATE_LAST
 };
 
@@ -58,9 +57,9 @@ class AnaViewWindow : public Window
       grid(col_dsc, row_dsc, PAD_ZERO)
   {
     parent->padAll(PAD_ZERO);
-    padAll(PAD_SMALL);
-    padLeft(PAD_LARGE);
-    padRight(PAD_LARGE);
+    padAll(PAD_TINY);
+    padLeft(PAD_SMALL);
+    padRight(PAD_SMALL);
     setFlexLayout();
 
     line = newLine(grid);
@@ -78,13 +77,13 @@ class AnaViewWindow : public Window
       if (i >= pot_offset && (POT_CONFIG(i - pot_offset) == FLEX_NONE))
         continue;
 
-#if !PORTRAIT_LCD
+#if LANDSCAPE
       if ((i & 1) == 0) line = newLine(grid);
 #else
       line = newLine(grid);
 #endif
 
-      lv_obj_set_style_pad_column(line->getLvObj(), 8, 0);
+      lv_obj_set_style_pad_column(line->getLvObj(), PAD_SMALL, LV_PART_MAIN);
       if (((adcGetInputMask() & (1 << i)) != 0) && i < adcGetMaxInputs(ADC_INPUT_MAIN))
         sprintf(s, "D%d :", i + 1);
       else
@@ -92,16 +91,15 @@ class AnaViewWindow : public Window
 
       new StaticText(line, rect_t{}, s);
 
-      auto lbl = new DynamicText(
-          line, rect_t{},
+      auto lbl = new DynamicText(line, rect_t{},
           [=]() {
             return std::to_string((int16_t)calibratedAnalogs[i] * 25 / 256);
-          });
-      etx_obj_add_style(lbl->getLvObj(), styles->text_align_right, LV_PART_MAIN);
+          }, COLOR_THEME_PRIMARY1_INDEX, RIGHT);
 
-      lbl = new DynamicText(
-          line, rect_t{}, [=]() { return std::to_string((int16_t)column3(i)); });
-      etx_obj_add_style(lbl->getLvObj(), styles->text_align_right, LV_PART_MAIN);
+      lbl = new DynamicText(line, rect_t{},
+          [=]() {
+            return std::to_string((int16_t)column3(i));
+          }, COLOR_THEME_PRIMARY1_INDEX, RIGHT);
 
       if (column4size() > 0) {
         lbl = new DynamicText(
@@ -109,9 +107,8 @@ class AnaViewWindow : public Window
             [=]() {
               return std::string(column4prefix()) +
                      std::to_string((int16_t)column4(i));
-            });
-        etx_obj_add_style(lbl->getLvObj(), (column4size() == 2) ? styles->text_align_left : styles->text_align_right, LV_PART_MAIN);
-#if !PORTRAIT_LCD
+            }, COLOR_THEME_PRIMARY1_INDEX, (column4size() == 2) ? 0 : RIGHT);
+#if LANDSCAPE
         lv_obj_set_grid_cell(lbl->getLvObj(), LV_GRID_ALIGN_STRETCH,
                              3 + (i & 1) * 5, column4size(),
                              LV_GRID_ALIGN_CENTER, 0, 1);
@@ -127,11 +124,31 @@ class AnaViewWindow : public Window
         lbl = new DynamicText(
             line, rect_t{},
             [=]() { return std::to_string((int16_t)column5(i)); });
-        etx_obj_add_style(lbl->getLvObj(), styles->text_align_left, LV_PART_MAIN);
       } else {
         grid.nextCell();
       }
     }
+
+#if defined(IMU_ICM4207C) && LANDSCAPE
+    line = newLine(grid);
+    lv_obj_set_style_pad_column(line->getLvObj(), PAD_SMALL, LV_PART_MAIN);
+
+    new StaticText(line, rect_t{}, "Tilt X");
+    new DynamicText(
+           line, rect_t{},
+           [=]() {
+             return std::to_string((int16_t) gyro.scaledX());
+           }, COLOR_THEME_PRIMARY1_INDEX, RIGHT);
+
+    for (int i = 0; i < 3; i++) {grid.nextCell();}
+
+    new StaticText(line, rect_t{}, "Tilt Y");
+    new DynamicText(
+           line, rect_t{},
+           [=]() {
+             return std::to_string((int16_t) gyro.scaledY());
+           }, COLOR_THEME_PRIMARY1_INDEX, RIGHT);
+#endif
   }
 
   void checkEvents() override { Window::checkEvents(); }
@@ -166,8 +183,8 @@ class AnaCalibratedViewWindow : public AnaViewWindow
     lv_obj_add_flag(touchLines[1], LV_OBJ_FLAG_HIDDEN);
 
     line = newLine(grid);
-#if PORTRAIT_LCD
-    line->padTop(20);
+#if PORTRAIT
+    line->padTop(PAD_LARGE * 2 + PAD_SMALL);
 #else
     line->padTop(PAD_TINY);
 #endif
@@ -195,7 +212,7 @@ class AnaCalibratedViewWindow : public AnaViewWindow
     lv_obj_set_grid_cell(lbl2->getLvObj(), LV_GRID_ALIGN_STRETCH, 0, 5,
                          LV_GRID_ALIGN_CENTER, 0, 1);
 
-#if PORTRAIT_LCD
+#if PORTRAIT
     line = newLine(grid);
 #endif
     lbl2 = new StaticText(line, rect_t{},
@@ -241,7 +258,7 @@ class AnaCalibratedViewWindow : public AnaViewWindow
   }
 #endif
 
-  static LAYOUT_VAL2(TSI2CEventsCol, 5, 0)
+  static LAYOUT_SIZE(TSI2CEventsCol, 5, 0)
 
  protected:
 #if defined(HARDWARE_TOUCH)
@@ -447,13 +464,17 @@ class AnaMinMaxViewWindow : public AnaViewWindow
     AnaViewWindow::checkEvents();
   }
 
-  static LAYOUT_VAL2(GRIDCOLS, 10, 5)
+  static LAYOUT_SIZE(GRIDCOLS, 10, 5)
 };
 
-class AnaCalibratedViewPage : public PageTab
+class AnaCalibratedViewPage : public PageGroupItem
 {
  public:
-  AnaCalibratedViewPage() : PageTab(STR_ANADIAGS_CALIB, ICON_STATS_ANALOGS) {}
+  AnaCalibratedViewPage(QMPage qmPage) :
+    PageGroupItem(STR_ANADIAGS_CALIB, qmPage)
+  {
+    icon = ICON_STATS;
+  }
 
  protected:
   void build(Window* window) override
@@ -462,12 +483,13 @@ class AnaCalibratedViewPage : public PageTab
   }
 };
 
-class AnaFilteredDevViewPage : public PageTab
+class AnaFilteredDevViewPage : public PageGroupItem
 {
  public:
-  AnaFilteredDevViewPage() :
-      PageTab(STR_ANADIAGS_FILTRAWDEV, ICON_STATS_THROTTLE_GRAPH)
+  AnaFilteredDevViewPage(QMPage qmPage) :
+      PageGroupItem(STR_ANADIAGS_FILTRAWDEV, qmPage)
   {
+    icon = ICON_STATS;
   }
 
  protected:
@@ -477,12 +499,13 @@ class AnaFilteredDevViewPage : public PageTab
   }
 };
 
-class AnaUnfilteredRawViewPage : public PageTab
+class AnaUnfilteredRawViewPage : public PageGroupItem
 {
  public:
-  AnaUnfilteredRawViewPage() :
-      PageTab(STR_ANADIAGS_UNFILTRAW, ICON_RADIO_HARDWARE)
+  AnaUnfilteredRawViewPage(QMPage qmPage) :
+      PageGroupItem(STR_ANADIAGS_UNFILTRAW, qmPage)
   {
+    icon = ICON_STATS;
   }
 
  protected:
@@ -492,10 +515,14 @@ class AnaUnfilteredRawViewPage : public PageTab
   }
 };
 
-class AnaMinMaxViewPage : public PageTab
+class AnaMinMaxViewPage : public PageGroupItem
 {
  public:
-  AnaMinMaxViewPage() : PageTab(STR_ANADIAGS_MINMAX, ICON_RADIO_CALIBRATION) {}
+  AnaMinMaxViewPage(QMPage qmPage) :
+      PageGroupItem(STR_ANADIAGS_MINMAX, qmPage)
+  {
+    icon = ICON_STATS;
+  }
 
  protected:
   void build(Window* window) override
@@ -504,11 +531,11 @@ class AnaMinMaxViewPage : public PageTab
   }
 };
 
-RadioAnalogsDiagsViewPageGroup::RadioAnalogsDiagsViewPageGroup() :
-    TabsGroup(ICON_STATS)
+RadioAnalogsDiagsViewPageGroup::RadioAnalogsDiagsViewPageGroup(QMPage qmPage) :
+    TabsGroup(ICON_STATS, STR_ANALOGS_BTN)
 {
-  addTab(new AnaCalibratedViewPage());
-  addTab(new AnaFilteredDevViewPage());
-  addTab(new AnaUnfilteredRawViewPage());
-  addTab(new AnaMinMaxViewPage());
+  addTab(new AnaCalibratedViewPage(qmPage));
+  addTab(new AnaFilteredDevViewPage(qmPage));
+  addTab(new AnaUnfilteredRawViewPage(qmPage));
+  addTab(new AnaMinMaxViewPage(qmPage));
 }

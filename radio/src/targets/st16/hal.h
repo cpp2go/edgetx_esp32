@@ -21,6 +21,22 @@
 
 #pragma once
 
+// DMA streams:
+// 
+// - LEDs       TIM2_UP: DMA1 stream 0
+// - Audio      SPI1_TX: DMA1 stream 1
+// - Gimbals  USART2_RX: DMA1 stream 2
+// - Telemetry UART5_RX: DMA1 stream 3
+// - Telemetry UART5_TX: DMA1 stream 7
+// 
+// - ADC3:               DMA2 stream 0
+// - ADC1:               DMA2 stream 4
+// - Ext. Mod. UART4_RX: DMA2 stream 5
+// - Ext. Mod. UART4_TX: DMA2 stream 6
+// - Ext. Mod.  TIM4_UP: DMA2 stream 6
+// 
+
+
 #define CPU_FREQ                400000000
 
 #define PERI1_FREQUENCY         100000000
@@ -63,12 +79,30 @@
 
 
 // function switches
-#define FUNCTION_SWITCH_1               I2C
-#define FUNCTION_SWITCH_2               I2C
-#define FUNCTION_SWITCH_3               I2C
-#define FUNCTION_SWITCH_4               I2C
-#define FUNCTION_SWITCH_5               I2C
-#define FUNCTION_SWITCH_6               I2C
+#define FUNCTION_SWITCH_1               SK
+#define SWITCHES_GPIO_REG_K
+#define SWITCHES_GPIO_PIN_K             PCA95XX_PIN_0
+#define SWITCHES_K_CFS_IDX              0
+#define FUNCTION_SWITCH_2               SL
+#define SWITCHES_GPIO_REG_L
+#define SWITCHES_GPIO_PIN_L             PCA95XX_PIN_1
+#define SWITCHES_L_CFS_IDX              1
+#define FUNCTION_SWITCH_3               SM
+#define SWITCHES_GPIO_REG_M
+#define SWITCHES_GPIO_PIN_M             PCA95XX_PIN_2
+#define SWITCHES_M_CFS_IDX              2
+#define FUNCTION_SWITCH_4               SN
+#define SWITCHES_GPIO_REG_N
+#define SWITCHES_GPIO_PIN_N             PCA95XX_PIN_3
+#define SWITCHES_N_CFS_IDX              3
+#define FUNCTION_SWITCH_5               SO
+#define SWITCHES_GPIO_REG_O
+#define SWITCHES_GPIO_PIN_O             PCA95XX_PIN_4
+#define SWITCHES_O_CFS_IDX              4
+#define FUNCTION_SWITCH_6               SP
+#define SWITCHES_GPIO_REG_P
+#define SWITCHES_GPIO_PIN_P             PCA95XX_PIN_5
+#define SWITCHES_P_CFS_IDX              5
 
 // Direct switches
 
@@ -76,15 +110,15 @@
 #define STORAGE_SWITCH_G
 #define HARDWARE_SWITCH_G
 #define SWITCHES_G_2POS
-//#define SWITCHES_GPIO_REG_G           GPIOI
-//#define SWITCHES_GPIO_PIN_G           LL_GPIO_PIN_3  // PI.03
+#define SWITCHES_GPIO_REG_G
+#define SWITCHES_GPIO_PIN_G             PCA95XX_PIN_6
 
 // Key 2
 #define STORAGE_SWITCH_H
 #define HARDWARE_SWITCH_H
 #define SWITCHES_H_2POS
-//#define SWITCHES_GPIO_REG_H           GPIOI
-//#define SWITCHES_GPIO_PIN_H           LL_GPIO_PIN_11 // PI.11
+#define SWITCHES_GPIO_REG_H
+#define SWITCHES_GPIO_PIN_H             PCA95XX_PIN_7
 
 
 // Key 3
@@ -171,13 +205,13 @@
 #define ADC_DMA_STREAM                  LL_DMA_STREAM_4
 #define ADC_DMA_STREAM_IRQ              DMA2_Stream4_IRQn
 #define ADC_DMA_STREAM_IRQHandler       DMA2_Stream4_IRQHandler
-#define ADC_SAMPTIME                    LL_ADC_SAMPLINGTIME_64CYCLES_5
+#define ADC_SAMPTIME                    LL_ADC_SAMPLINGTIME_8CYCLES_5
 
 #define ADC_EXT                         ADC3
-#define ADC_EXT_CHANNELS                                                \
-  {                                                                     \
-    ADC_CHANNEL_SWA, ADC_CHANNEL_SWB, ADC_CHANNEL_SWC, ADC_CHANNEL_SWD, \
-        ADC_CHANNEL_SWE, ADC_CHANNEL_SWF, ADC_CHANNEL_BATT              \
+#define ADC_EXT_CHANNELS                                                    \
+  {                                                                         \
+    ADC_CHANNEL_SWA, ADC_CHANNEL_SWB, ADC_CHANNEL_SWC, ADC_CHANNEL_SWD,     \
+    ADC_CHANNEL_SWE, ADC_CHANNEL_SWF, ADC_CHANNEL_BATT, ADC_CHANNEL_RTC_BAT \
   }
 
 #define ADC_EXT_DMA                     DMA2
@@ -185,7 +219,7 @@
 #define ADC_EXT_DMA_STREAM              LL_DMA_STREAM_0
 #define ADC_EXT_DMA_STREAM_IRQ          DMA2_Stream0_IRQn
 #define ADC_EXT_DMA_STREAM_IRQHandler   DMA2_Stream0_IRQHandler
-#define ADC_EXT_SAMPTIME                LL_ADC_SAMPLINGTIME_64CYCLES_5
+#define ADC_EXT_SAMPTIME                LL_ADC_SAMPLINGTIME_8CYCLES_5
 
 #define ADC_VREF_PREC2                  329
 
@@ -211,7 +245,8 @@
 #define PWR_ON_GPIO                 GPIO_PIN(GPIOI, 8)  // PE.04
 
 // Chargers (USB and wireless)
-#define UCHARGER_GPIO               GPIO_PIN(GPIOD, 4)  // PD.02 input
+#define UCHARGER_GPIO               GPIO_PIN(GPIOC, 0) // PC.00
+#define UCHARGER_CHARGE_END_GPIO    GPIO_PIN(GPIOD, 4) // PD.04
 
 // TODO! Check IOLL1 to PI.01 connectivity!
 
@@ -341,6 +376,9 @@
 #define AUDIO_SPI_SCK_GPIO            GPIO_PIN(GPIOA, 5)  // PA.05
 #define AUDIO_SPI_MISO_GPIO           GPIO_PIN(GPIOG, 9)  // PG.09
 #define AUDIO_SPI_MOSI_GPIO           GPIO_PIN(GPIOD, 7)  // PD.07
+#define AUDIO_SPI_DMA                 DMA1
+#define AUDIO_SPI_DMA_REQ             LL_DMAMUX1_REQ_SPI1_TX
+#define AUDIO_SPI_DMA_STREAM          LL_DMA_STREAM_1
 #define AUDIO_MUTE_GPIO               0
 #define AUDIO_UNMUTE_DELAY            180  // ms
 #define AUDIO_MUTE_DELAY              200  // ms
@@ -377,11 +415,16 @@
 
 #define FLYSKY_HALL_SERIAL_DMA                   DMA1
 #define FLYSKY_HALL_DMA_Stream_RX                LL_DMA_STREAM_2
+#define FLYSKY_HALL_DMA_Stream_TX                LL_DMA_STREAM_4
 #define FLYSKY_HALL_DMA_Channel                  LL_DMAMUX1_REQ_USART2_RX
 
 // LED Strip
 #define LED_STRIP_LENGTH                  24
-#define LED_STRIP_RESERVED_AT_END         12
+#define BLING_LED_STRIP_START             0
+#define BLING_LED_STRIP_LENGTH            12
+#define CFS_LED_STRIP_START               12
+#define CFS_LED_STRIP_LENGTH              12
+#define CFS_LEDS_PER_SWITCH               2
 #define LED_STRIP_GPIO                    GPIO_PIN(GPIOA, 15)  // PA.15 / TIM2_CH1
 #define LED_STRIP_GPIO_AF                 LL_GPIO_AF_1         // TIM1/2/16/17
 #define LED_STRIP_TIMER                   TIM2
@@ -394,6 +437,8 @@
 #define LED_STRIP_TIMER_DMA_IRQHandler    DMA1_Stream0_IRQHandler
 #define LED_STRIP_REFRESH_PERIOD          50 //ms
 #define STATUS_LEDS
+#define LED_CHARGING_START                12
+#define LED_CHARGING_END                  23
 
 
 // Internal Module
@@ -411,27 +456,18 @@
 //#define INTMODULE_RX_DMA                DMA1
 #define INTMODULE_RX_DMA_STREAM         LL_DMA_STREAM_3
 #define INTMODULE_RX_DMA_CHANNEL        LL_DMA_CHANNEL_5
-// #define INTMODULE_RX_DMA_Stream_IRQn    DMA1_Stream3_IRQn
-// #define INTMODULE_RX_DMA_Stream_IRQHandler DMA1_Stream_IRQHandler
-
-// #define INTMODULE_TIMER                 TIM3
-// #define INTMODULE_TIMER_IRQn            TIM3_IRQn
-// #define INTMODULE_TIMER_IRQHandler      TIM3_IRQHandler
-// #define INTMODULE_TIMER_FREQ            (PERI1_FREQUENCY * TIMER_MULT_APB1)
 
 // External Module
 #define EXTMODULE
 #define EXTMODULE_PULSES
 #define EXTMODULE_TX_GPIO               GPIO_PIN(GPIOB, 9)  // PB.09
 #define EXTMODULE_RX_GPIO               GPIO_PIN(GPIOI, 9)  // PI.09
-#define EXTMODULE_TX_GPIO_AF            LL_GPIO_AF_3 // TIM8_CH1
-#define EXTMODULE_TIMER                 TIM8
-#define EXTMODULE_TIMER_Channel         LL_TIM_CHANNEL_CH1
-#define EXTMODULE_TIMER_IRQn            TIM8_UP_TIM13_IRQn
-#define EXTMODULE_TIMER_IRQHandler      TIM8_UP_TIM13_IRQHandler
-#define EXTMODULE_TIMER_FREQ            (PERI2_FREQUENCY * TIMER_MULT_APB2)
-#define EXTMODULE_TIMER_TX_GPIO_AF      LL_GPIO_AF_3
-
+#define EXTMODULE_TIMER                 TIM4
+#define EXTMODULE_TIMER_Channel         LL_TIM_CHANNEL_CH4
+#define EXTMODULE_TIMER_IRQn            TIM4_IRQn
+#define EXTMODULE_TIMER_IRQHandler      TIM4_IRQHandler
+#define EXTMODULE_TIMER_FREQ            (PERI1_FREQUENCY * TIMER_MULT_APB1)
+#define EXTMODULE_TIMER_TX_GPIO_AF      LL_GPIO_AF_2 // TIM4_CH4
 
 //USART
 #define EXTMODULE_USART                    UART4
@@ -442,18 +478,17 @@
 #define EXTMODULE_USART_TX_DMA_STREAM      LL_DMA_STREAM_6
 
 #define EXTMODULE_USART_RX_DMA_CHANNEL     LL_DMAMUX1_REQ_UART4_RX
-#define EXTMODULE_USART_RX_DMA_STREAM      LL_DMA_STREAM_4
+#define EXTMODULE_USART_RX_DMA_STREAM      LL_DMA_STREAM_5
 
 #define EXTMODULE_USART_IRQHandler         UART4_IRQHandler
 #define EXTMODULE_USART_IRQn               UART4_IRQn
 
 //TIMER
-// TODO
-#define EXTMODULE_TIMER_DMA_CHANNEL        LL_DMAMUX1_REQ_TIM8_CH1
+#define EXTMODULE_TIMER_DMA_CHANNEL        LL_DMAMUX1_REQ_TIM4_UP
 #define EXTMODULE_TIMER_DMA                DMA2
-#define EXTMODULE_TIMER_DMA_STREAM         LL_DMA_STREAM_1
-#define EXTMODULE_TIMER_DMA_STREAM_IRQn    DMA2_Stream1_IRQn
-#define EXTMODULE_TIMER_DMA_IRQHandler     DMA2_Stream1_IRQHandler
+#define EXTMODULE_TIMER_DMA_STREAM         LL_DMA_STREAM_6
+#define EXTMODULE_TIMER_DMA_STREAM_IRQn    DMA2_Stream6_IRQn
+#define EXTMODULE_TIMER_DMA_IRQHandler     DMA2_Stream6_IRQHandler
 
 // Trainer Port
 #define TRAINER_RCC_AHB1Periph          (RCC_AHB1Periph_GPIOD)
@@ -511,11 +546,6 @@
 #define MIXER_SCHEDULER_TIMER_FREQ           (PERI1_FREQUENCY * TIMER_MULT_APB1)
 #define MIXER_SCHEDULER_TIMER_IRQn           TIM8_BRK_TIM12_IRQn
 #define MIXER_SCHEDULER_TIMER_IRQHandler     TIM8_BRK_TIM12_IRQHandler
-
-#define LANDSCAPE_LCD_SML false
-#define LANDSCAPE_LCD_STD true
-#define LANDSCAPE_LCD_LRG false
-#define PORTRAIT_LCD false
 
 #define LCD_W                           480
 #define LCD_H                           320

@@ -23,12 +23,13 @@
 
 #include "layer.h"
 #include "menu.h"
-#include "menu_screen.h"
 #include "myeeprom.h"
 #include "storage/storage.h"
 #include "etx_lv_theme.h"
 #include "view_main.h"
 #include "widget_settings.h"
+#include "pagegroup.h"
+#include "screen_setup.h"
 
 SetupWidgetsPageSlot::SetupWidgetsPageSlot(Window* parent, const rect_t& rect,
                                            WidgetsContainer* container,
@@ -57,10 +58,10 @@ SetupWidgetsPageSlot::SetupWidgetsPageSlot(Window* parent, const rect_t& rect,
   etx_obj_add_style(lvobj, styles->border_color[COLOR_THEME_FOCUS_INDEX], LV_STATE_FOCUSED);
 
   lv_style_init(&borderStyle);
-  lv_style_set_line_width(&borderStyle, 2);
+  lv_style_set_line_width(&borderStyle, PAD_BORDER);
   lv_style_set_line_opa(&borderStyle, LV_OPA_COVER);
-  lv_style_set_line_dash_width(&borderStyle, 2);
-  lv_style_set_line_dash_gap(&borderStyle, 2);
+  lv_style_set_line_dash_width(&borderStyle, PAD_BORDER);
+  lv_style_set_line_dash_gap(&borderStyle, PAD_BORDER);
   lv_style_set_line_color(&borderStyle, makeLvColor(COLOR_THEME_SECONDARY2));
 
   borderPts[0] = {1, 1};
@@ -118,7 +119,7 @@ void SetupWidgetsPageSlot::addNewWidget(WidgetsContainer* container,
 SetupWidgetsPage::SetupWidgetsPage(uint8_t customScreenIdx) :
     Window(ViewMain::instance(), rect_t{}), customScreenIdx(customScreenIdx)
 {
-  Layer::push(this);
+  pushLayer();
 
   // attach this custom screen here so we can display it
   auto screen = customScreens[customScreenIdx];
@@ -151,12 +152,15 @@ void SetupWidgetsPage::onClicked()
   // block event forwarding (window is transparent)
 }
 
-void SetupWidgetsPage::onCancel() { deleteLater(); }
+void SetupWidgetsPage::onCancel()
+{
+  deleteLater();
+  QuickMenu::openPage((QMPage)(QM_UI_SCREEN1 + customScreenIdx));
+}
 
 void SetupWidgetsPage::deleteLater(bool detach, bool trash)
 {
-  // restore screen setting tab on top
-  Layer::pop(this);
+  Window::deleteLater(detach, trash);
 
   // and continue async deletion...
   auto screen = customScreens[customScreenIdx];
@@ -165,8 +169,6 @@ void SetupWidgetsPage::deleteLater(bool detach, bool trash)
     viewMain->setCurrentMainView(savedView);
     viewMain->showTopBarEdgeTxButton();
   }
-  Window::deleteLater(detach, trash);
-  new ScreenMenu(customScreenIdx + 1);
 
   storageDirty(EE_MODEL);
 }

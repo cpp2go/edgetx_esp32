@@ -7,6 +7,7 @@ option(GHOST "Ghost TX Module" ON)
 option(MODULE_SIZE_STD "Standard size TX Module" ON)
 option(LUA_MIXER "Enable LUA mixer/model scripts support" ON)
 option(DISK_CACHE "Enable SD card disk cache" ON)
+option(STICK_DEAD_ZONE "Enable sticks dead zone" YES)
 
 set(FIRMWARE_QSPI YES)
 set(FIRMWARE_FORMAT_UF2 YES)
@@ -19,7 +20,7 @@ set(HAPTIC YES)
 set(GUI_DIR colorlcd)
 set(BITMAPS_DIR 480x272)
 set(TARGET_DIR st16)
-# set(RTC_BACKUP_RAM YES)
+set(RTC_BACKUP_RAM YES)
 set(PPM_LIMITS_SYMETRICAL YES)
 set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
 set(HARDWARE_EXTERNAL_MODULE YES)
@@ -27,15 +28,14 @@ set(INTERNAL_MODULE_AFHDS3 YES)
 set(ROTARY_ENCODER YES)
 set(FUNCTION_SWITCHES_WITH_RGB YES)
 
-#option(STICKS_DEAD_ZONE "Enable sticks dead zone" YES)
-
 # IMU support
 set(IMU ON)
 
 # for size report script
 set(CPU_TYPE_FULL STM32H750xB)
 set(TARGET_LINKER_DIR stm32h750_sdram)
-set(TARGET_SDRAM_START 0xC0000000)
+set(TARGET_EXTRAM_START 0xC0000000)
+
 set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM1=8192")
 set(FIRMWARE_STRIP_BOOTLOADER YES)
 
@@ -67,18 +67,20 @@ set(FUNCTION_SWITCHES ON)
 add_definitions(
   -DSTM32H750IBTx -DSTM32H750xx
   -DSDRAM -DCCMRAM
-  -DCOLORLCD -DLIBOPENUI
   -DHARDWARE_TOUCH -DHARDWARE_KEYS -DSOFTWARE_KEYBOARD
   -DWS2812_MAX_LEDS=24
 )
 
 set(SDRAM ON)
 
-add_definitions(-DAUDIO -DVOICE -DRTCLOCK)
-add_definitions(-DGPS_USART_BAUDRATE=${INTERNAL_GPS_BAUDRATE})
+add_definitions(-DRTCLOCK)
 add_definitions(-DPWR_BUTTON_${PWR_BUTTON})
 
-if(STICKS_DEAD_ZONE)
+if(INTERNAL_GPS)
+  add_definitions(-DGPS_USART_BAUDRATE=${INTERNAL_GPS_BAUDRATE})
+endif()
+
+if(STICK_DEAD_ZONE)
   add_definitions(-DSTICK_DEAD_ZONE)
 endif()
 
@@ -113,7 +115,6 @@ set(BOARD_COMMON_SRC
   ${TARGET_SRC_DIR}/board.cpp
   ${TARGET_SRC_DIR}/bsp_io.cpp
   ${TARGET_SRC_DIR}/key_driver.cpp
-  ${TARGET_SRC_DIR}/system_init.cpp
   ${TARGET_SRC_DIR}/lcd_driver.cpp
   ${TARGET_SRC_DIR}/backlight_driver.cpp
   ${TARGET_SRC_DIR}/haptic_driver.cpp
@@ -132,20 +133,22 @@ set(BOARD_COMMON_SRC
 # Bootloader board library
 add_library(board_bl OBJECT EXCLUDE_FROM_ALL
   ${BOARD_COMMON_SRC}
-  ${TARGET_SRC_DIR}/system_clock.cpp
   ${TARGET_SRC_DIR}/sdram_driver.cpp
-  ${TARGET_SRC_DIR}/bootloader/boot_menu.cpp
+  ${RADIO_SRC_DIR}/gui/colorlcd/boot_menu.cpp
   targets/common/arm/stm32/stm32_qspi.cpp
   targets/common/arm/stm32/stm32_pulse_driver.cpp
 )
 add_dependencies(board_bl minimal_board_lib)
 set(BOOTLOADER_SRC ${BOOTLOADER_SRC} $<TARGET_OBJECTS:board_bl>)
 
+set(CMSIS_SRC ${TARGET_SRC_DIR}/system_clock.c)
+
 # Firmware board library
 add_library(board OBJECT EXCLUDE_FROM_ALL
   ${BOARD_COMMON_SRC}
   ${TARGET_SRC_DIR}/led_driver.cpp
   ${TARGET_SRC_DIR}/touch_driver.cpp
+  ${TARGET_SRC_DIR}/battery_driver.cpp  
   targets/common/arm/stm32/heartbeat_driver.cpp
   targets/common/arm/stm32/lsm6ds_driver.cpp
   targets/common/arm/stm32/mixer_scheduler_driver.cpp
@@ -166,7 +169,7 @@ include_directories(${RADIO_SRC_DIR}/fonts/colorlcd gui/${GUI_DIR} gui/${GUI_DIR
 if(BOOTLOADER)
   set(FIRMWARE_TARGET_SRC
     ${FIRMWARE_TARGET_SRC}
-    ../common/arm/loadboot.cpp
+    ../../bootloader/loadboot.cpp
     )
 endif()
 

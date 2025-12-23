@@ -21,10 +21,10 @@
 
 #include "radio_ghost_module_config.h"
 
-#include "libopenui.h"
 #include "edgetx.h"
 #include "telemetry/ghost.h"
 #include "telemetry/ghost_menu.h"
+#include "os/sleep.h"
 
 class GhostModuleConfigWindow : public Window
 {
@@ -32,8 +32,6 @@ class GhostModuleConfigWindow : public Window
   GhostModuleConfigWindow(Window* parent, const rect_t& rect) :
       Window(parent, rect)
   {
-    constexpr coord_t yOffset = 20;
-    constexpr coord_t lineSpacing = 25;
     coord_t h = getFontHeight(FONT(L));
 
     for (int i = 0; i < GHST_MENU_LINES; i += 1) {
@@ -52,15 +50,13 @@ class GhostModuleConfigWindow : public Window
           COLOR_THEME_PRIMARY1_INDEX, FONT(L));
       etx_txt_color(menuLines[i][1]->getLvObj(), COLOR_THEME_SECONDARY1_INDEX,
                     LV_PART_MAIN);
-      etx_solid_bg(menuLines[i][1]->getLvObj(), COLOR_THEME_FOCUS_INDEX,
-                   LV_STATE_USER_1);
-      etx_txt_color(menuLines[i][1]->getLvObj(), COLOR_THEME_SECONDARY3_INDEX,
-                    LV_STATE_USER_1);
     }
   }
 
-  static LAYOUT_VAL(xOffset, 140, 20, LS(140))
-  static LAYOUT_VAL(xOffset2, 260, 140, LS(260))
+  static LAYOUT_SIZE_SCALED(xOffset, 140, 20)
+  static LAYOUT_VAL_SCALED(yOffset, 20)
+  static LAYOUT_SIZE_SCALED(xOffset2, 260, 140)
+  static LAYOUT_VAL_SCALED(lineSpacing, 25)
 
  protected:
   StaticText* menuLines[GHST_MENU_LINES][2];
@@ -68,29 +64,33 @@ class GhostModuleConfigWindow : public Window
   void checkEvents() override
   {
     for (uint8_t i = 0; i < GHST_MENU_LINES; i += 1) {
-      if (reusableBuffer.ghostMenu.line[i].splitLine) {
-        menuLines[i][0]->setText(reusableBuffer.ghostMenu.line[i].menuText);
-        if (reusableBuffer.ghostMenu.line[i].lineFlags &
-            GHST_LINE_FLAGS_LABEL_SELECT)
-          lv_obj_add_state(menuLines[i][0]->getLvObj(), LV_STATE_USER_1);
+      menuLines[i][1]->setText("");
 
-        menuLines[i][1]->setText(reusableBuffer.ghostMenu.line[i].menuText +
-                                 reusableBuffer.ghostMenu.line[i].splitLine);
-        if (reusableBuffer.ghostMenu.line[i].lineFlags &
-            GHST_LINE_FLAGS_VALUE_SELECT)
-          lv_obj_add_state(menuLines[i][1]->getLvObj(), LV_STATE_USER_1);
+      if (reusableBuffer.ghostMenu.line[i].splitLine) {
+        if (reusableBuffer.ghostMenu.line[i].lineFlags & (GHST_LINE_FLAGS_LABEL_SELECT | GHST_LINE_FLAGS_VALUE_SELECT)) {
+          lv_obj_add_state(menuLines[i][0]->getLvObj(), LV_STATE_USER_1);
+        } else {
+          lv_obj_clear_state(menuLines[i][0]->getLvObj(), LV_STATE_USER_1);
+        }
+
+        if (reusableBuffer.ghostMenu.line[i].lineFlags & GHST_LINE_FLAGS_VALUE_SELECT) {
+          menuLines[i][0]->setText(reusableBuffer.ghostMenu.line[i].menuText +
+                                   reusableBuffer.ghostMenu.line[i].splitLine);
+        } else {
+          menuLines[i][0]->setText(reusableBuffer.ghostMenu.line[i].menuText);
+          menuLines[i][1]->setText(reusableBuffer.ghostMenu.line[i].menuText +
+                                   reusableBuffer.ghostMenu.line[i].splitLine);
+        }
       } else {
-        if (reusableBuffer.ghostMenu.line[i].lineFlags &
-                GHST_LINE_FLAGS_VALUE_EDIT &&
-            BLINK_ON_PHASE)
+        if (reusableBuffer.ghostMenu.line[i].lineFlags & GHST_LINE_FLAGS_VALUE_EDIT && BLINK_ON_PHASE)
           menuLines[i][0]->setText("");
         else
           menuLines[i][0]->setText(reusableBuffer.ghostMenu.line[i].menuText);
-        if (reusableBuffer.ghostMenu.line[i].lineFlags &
-            GHST_LINE_FLAGS_LABEL_SELECT)
-          lv_obj_add_state(menuLines[i][0]->getLvObj(), LV_STATE_USER_1);
 
-        menuLines[i][1]->setText("");
+        if (reusableBuffer.ghostMenu.line[i].lineFlags & GHST_LINE_FLAGS_LABEL_SELECT)
+          lv_obj_add_state(menuLines[i][0]->getLvObj(), LV_STATE_USER_1);
+        else
+          lv_obj_clear_state(menuLines[i][0]->getLvObj(), LV_STATE_USER_1);
       }
     }
   }
@@ -166,7 +166,7 @@ void RadioGhostModuleConfig::onLongPressRTN()
   reusableBuffer.ghostMenu.buttonAction = GHST_BTN_NONE;
   reusableBuffer.ghostMenu.menuAction = GHST_MENU_CTRL_CLOSE;
   moduleState[EXTERNAL_MODULE].counter = GHST_MENU_CONTROL;
-  RTOS_WAIT_MS(10);
+  sleep_ms(10);
 #if defined(TRIMS_EMULATE_BUTTONS)
   setHatsAsKeys(false);  // switch trims back to normal
 #endif
@@ -183,7 +183,7 @@ void RadioGhostModuleConfig::checkEvents()
     reusableBuffer.ghostMenu.menuAction = GHST_MENU_CTRL_OPEN;
     moduleState[EXTERNAL_MODULE].counter = GHST_MENU_CONTROL;
   } else if (reusableBuffer.ghostMenu.menuStatus == GHST_MENU_STATUS_CLOSING) {
-    RTOS_WAIT_MS(10);
+    sleep_ms(10);
     deleteLater();
 #if defined(TRIMS_EMULATE_BUTTONS)
     setHatsAsKeys(false);  // switch trims back to normal

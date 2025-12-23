@@ -65,6 +65,14 @@ void ModuleData::convert(RadioDataConversionState & cstate)
   }
 }
 
+void ModuleData::clear()
+{
+  memset(reinterpret_cast<void *>(this), 0, sizeof(ModuleData));
+  protocol = PULSES_OFF;
+  channelsCount = 8;
+  ppm.delay = 300;
+}
+
 //  moved from OpenTxFirmware EdgeTX v2.9
 //  only called by ModuleData::convert
 //  TODO: merge with ModuleData::isProtocolAvailable as share much of the same logic
@@ -85,9 +93,9 @@ bool ModuleData::isAvailable(PulsesProtocol proto, int port)
             return true;
           case PULSES_PXX_XJT_X16:
           case PULSES_PXX_XJT_LR12:
-            return !IS_ACCESS_RADIO(board, id) && !IS_FAMILY_T16(board) && !IS_FAMILY_T12(board) && !IS_FLYSKY_NV14(board);
+            return !IS_ACCESS_RADIO(board, id) && !IS_FAMILY_T16(board) && !IS_FAMILY_T12(board) && !IS_FLYSKY_NV14(board) && !IS_FLYSKY_EL18(board) && !IS_FLYSKY_PL18(board) && !IS_FLYSKY_ST16(board);
           case PULSES_PXX_XJT_D8:
-            return !(IS_ACCESS_RADIO(board, id)  || id.contains("eu")) && !IS_FAMILY_T16(board) && !IS_FAMILY_T12(board) && !IS_FLYSKY_NV14(board);
+            return !(IS_ACCESS_RADIO(board, id) || id.contains("eu")) && !IS_FAMILY_T16(board) && !IS_FAMILY_T12(board) && !IS_FLYSKY_NV14(board) && !IS_FLYSKY_EL18(board) && !IS_FLYSKY_PL18(board) && !IS_FLYSKY_ST16(board);
           case PULSES_ACCESS_ISRM:
           case PULSES_ACCST_ISRM_D16:
             return IS_ACCESS_RADIO(board, id);
@@ -98,7 +106,7 @@ bool ModuleData::isAvailable(PulsesProtocol proto, int port)
           case PULSES_FLYSKY_AFHDS2A:
             return IS_FLYSKY_NV14(board);
           case PULSES_FLYSKY_AFHDS3:
-            return IS_FLYSKY_EL18(board);
+            return (IS_FLYSKY_EL18(board) || IS_FAMILY_PL18(board));
           default:
             return false;
         }
@@ -124,7 +132,7 @@ bool ModuleData::isAvailable(PulsesProtocol proto, int port)
           case PULSES_GHOST:
             return true;
           case PULSES_ACCESS_R9M:
-            return IS_ACCESS_RADIO(board, id)  || (IS_FAMILY_HORUS_OR_T16(board) && id.contains("externalaccessmod"));
+            return IS_ACCESS_RADIO(board, id) || (IS_FAMILY_HORUS_OR_T16(board) && id.contains("externalaccessmod"));
           case PULSES_PXX_R9M_LITE:
           case PULSES_ACCESS_R9M_LITE:
           case PULSES_ACCESS_R9M_LITE_PRO:
@@ -144,37 +152,6 @@ bool ModuleData::isAvailable(PulsesProtocol proto, int port)
             return false;
         }
 
-      default:
-        return false;
-    }
-  }
-  else if (IS_SKY9X(board)) {
-    switch (port) {
-      case 0:
-        switch (proto) {
-          case PULSES_PPM:
-          case PULSES_PXX_XJT_X16:
-          case PULSES_PXX_XJT_D8:
-          case PULSES_PXX_XJT_LR12:
-          case PULSES_PXX_R9M:
-          case PULSES_LP45:
-          case PULSES_DSM2:
-          case PULSES_DSMX:
-          case PULSES_SBUS:
-          case PULSES_MULTIMODULE:
-            return true;
-          default:
-            return false;
-        }
-        break;
-      case 1:
-        switch (proto) {
-          case PULSES_PPM:
-            return true;
-          default:
-            return false;
-        }
-        break;
       default:
         return false;
     }
@@ -629,37 +606,6 @@ bool ModuleData::isProtocolAvailable(int moduleidx, unsigned int protocol, Gener
             return false;
         }
 
-      default:
-        return false;
-    }
-  }
-  else if (IS_SKY9X(board)) {
-    switch (moduleidx) {
-      case 0:
-        switch (protocol) {
-          case PULSES_PPM:
-          case PULSES_PXX_XJT_X16:
-          case PULSES_PXX_XJT_D8:
-          case PULSES_PXX_XJT_LR12:
-          case PULSES_PXX_R9M:
-          case PULSES_LP45:
-          case PULSES_DSM2:
-          case PULSES_DSMX:
-          case PULSES_SBUS:
-          case PULSES_MULTIMODULE:
-            return true;
-          default:
-            return false;
-        }
-        break;
-      case 1:
-        switch (protocol) {
-          case PULSES_PPM:
-            return true;
-          default:
-            return false;
-        }
-        break;
       default:
         return false;
     }

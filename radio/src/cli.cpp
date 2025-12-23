@@ -32,6 +32,9 @@
 #include "hal/watchdog_driver.h"
 
 #include "edgetx.h"
+#include "os/sleep.h"
+#include "os/time.h"
+#include "os/task.h"
 #include "timers_driver.h"
 
 #if defined(BLUETOOTH)
@@ -58,8 +61,8 @@
 
 #define CLI_PRINT_BUFFER_SIZE 128
 
-RTOS_TASK_HANDLE cliTaskId;
-RTOS_DEFINE_STACK(cliTaskId, cliStack, CLI_STACK_SIZE);
+task_handle_t cliTaskId;
+TASK_DEFINE_STACK(cliStack, CLI_STACK_SIZE);
 
 static uint8_t cliRxBufferStorage[CLI_RX_BUFFER_SIZE];
 static StaticStreamBuffer_t cliRxBufferStatic;
@@ -188,9 +191,9 @@ static uint32_t cliGetBaudRate()
 char cliLastLine[CLI_COMMAND_MAX_LEN+1];
 
 typedef int (* CliFunction) (const char ** args);
-int cliExecLine(char * line);
-int cliExecCommand(const char ** argv);
-int cliHelp(const char ** argv);
+static int cliExecLine(char * line);
+static int cliExecCommand(const char ** argv);
+static int cliHelp(const char ** argv);
 
 struct CliCommand
 {
@@ -388,6 +391,104 @@ int cliReadSD(const char ** argv)
   return 0;
 }
 
+#if defined(DEBUG)
+FIL sdtest_File __DMA;
+
+int cliTestFatFsSD(const char ** argv)
+{
+  constexpr char filename[] = "cliTestFile";
+  constexpr int bufferSize = 512;
+  uint8_t buffer[bufferSize];
+
+  // Create a file
+  auto result = f_open(&sdtest_File, filename, FA_OPEN_ALWAYS | FA_WRITE | FA_OPEN_APPEND);
+  if (result != FR_OK) {
+    cliSerialPrint("Cannot create file");
+  } else {
+	cliSerialPrint("Test file created");
+  }
+
+  // Write to file
+  unsigned int written;
+  memset(buffer, 0xFF, bufferSize);
+
+  if (f_write(&sdtest_File, buffer, bufferSize, &written) == FR_OK) {
+    cliSerialPrint("%d bytes written", bufferSize);
+  } else {
+    cliSerialPrint("Cannot write to file");
+  }
+
+  // Close file
+  if (f_close(&sdtest_File) != FR_OK) {
+    // close failed, forget file
+	cliSerialPrint("Cannot close file");
+  } else {
+	cliSerialPrint("Test file closed successfully");
+  }
+
+  // Open for append
+  result = f_open(&sdtest_File, filename, FA_WRITE | FA_OPEN_APPEND);
+  if (result != FR_OK) {
+    cliSerialPrint("Cannot open file for append");
+  } else {
+	cliSerialPrint("Test file opened for append");
+  }
+
+  // Write to file
+  if (f_write(&sdtest_File, buffer, bufferSize, &written) == FR_OK) {
+    cliSerialPrint("%d bytes appended", bufferSize);
+  } else {
+    cliSerialPrint("Cannot write to file");
+  }
+
+  // Close file
+  if (f_close(&sdtest_File) != FR_OK) {
+	cliSerialPrint("Cannot close file");
+  } else {
+	cliSerialPrint("Test file closed successfully");
+  }
+
+  // Open for read
+  result = f_open(&sdtest_File, filename, FA_READ);
+  if (result != FR_OK) {
+     cliSerialPrint("Cannot open file for read");
+  } else {
+	 cliSerialPrint("Test file opened for read");
+  }
+
+  // Check file content
+  uint8_t data = 0;
+  for(int n=0; n<bufferSize*2; n++) {
+    if(f_read(&sdtest_File, &data, 1, &written) != FR_OK) {
+      cliSerialPrint("Cannot read from file");
+    } else {
+	  if(data != 0xFF) {
+		cliSerialPrint("File contains data errors");
+	  }
+	}
+  }
+  cliSerialPrint("File read completed");
+
+  // Close file
+  if (f_close(&sdtest_File) != FR_OK) {
+    // close failed, forget file
+	cliSerialPrint("Cannot close file");
+  } else {
+	cliSerialPrint("Test file closed successfully");
+  }
+
+  // Delete file
+  if (f_unlink(filename) != FR_OK) {
+    // close failed, forget file
+	cliSerialPrint("Cannot delete file");
+  } else {
+	cliSerialPrint("Test file deleted successfully");
+  }
+  cliSerialCrlf();
+  return 0;
+}
+#endif
+
 int cliTestSD(const char ** argv)
 {
   // Do the read test on the SD card and report back the result
@@ -466,7 +567,7 @@ int cliTestNew()
 {
   char * tmp = nullptr;
   cliSerialPrint("Allocating 1kB with new()");
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
   tmp = new char[1024];
   if (tmp) {
     cliSerialPrint("\tsuccess");
@@ -478,7 +579,7 @@ int cliTestNew()
   }
 
   cliSerialPrint("Allocating 10MB with (std::nothrow) new()");
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
   tmp = new (std::nothrow) char[1024*1024*10];
   if (tmp) {
     cliSerialPrint("\tFAILURE, tmp = %p", tmp);
@@ -490,7 +591,7 @@ int cliTestNew()
   }
 
   cliSerialPrint("Allocating 10MB with new()");
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
   tmp = new char[1024*1024*10];
   if (tmp) {
     cliSerialPrint("\tFAILURE, tmp = %p", tmp);
@@ -569,10 +670,10 @@ void testClear() { lcdClear(); }
 float runTimedFunctionTest(timedTestFunc_t func, const char *name,
                            uint32_t runtime, uint16_t step)
 {
-  const uint32_t start = RTOS_GET_MS();
+  const uint32_t start = time_get_ms();
   uint32_t noRuns = 0;
   uint32_t actualRuntime = 0;
-  while ((actualRuntime = RTOS_GET_MS() - start) < runtime) {
+  while ((actualRuntime = time_get_ms() - start) < runtime) {
     for (uint16_t n = 0; n < step; n++) {
       func();
     }
@@ -583,14 +684,14 @@ float runTimedFunctionTest(timedTestFunc_t func, const char *name,
   cliSerialPrint("Test %s speed: %lu.%02u, (%lu runs in %lu ms)", name,
               uint32_t(result), uint16_t((result - uint32_t(result)) * 100.0f),
               noRuns, actualRuntime);
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
   return result;
 }
 
 int cliTestGraphics()
 {
   cliSerialPrint("Starting graphics performance test...");
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
 
   watchdogSuspend(6000 /*60s*/);
   if (pulsesStarted()) {
@@ -723,7 +824,7 @@ void testMemoryCopyFrom_SDRAM_to_SDRAM_8bit()
 int cliTestMemorySpeed()
 {
   cliSerialPrint("Starting memory speed test...");
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
 
   watchdogSuspend(6000 /*60s*/);
   if (pulsesStarted()) {
@@ -744,7 +845,7 @@ int cliTestMemorySpeed()
 
   LTDC_Cmd(DISABLE);
   cliSerialPrint("Disabling LCD...");
-  RTOS_WAIT_MS(200);
+  sleep_ms(200);
 
   result += RUN_MEMORY_TEST(testMemoryReadFrom_RAM_8bit, 200);
   result += RUN_MEMORY_TEST(testMemoryReadFrom_RAM_32bit, 200);
@@ -783,7 +884,7 @@ int cliTestModelsList()
   int count = 0;
 
   cliSerialPrint("Starting fetching RF data 100x...");
-  const uint32_t start = RTOS_GET_MS();
+  const uint32_t start = time_get_ms();
 
   const list<ModelsCategory *> &cats = modList.getCategories();
   while (1) {
@@ -803,7 +904,7 @@ int cliTestModelsList()
 
 done:
   cliSerialPrint("Done fetching %ix RF data: %lu ms", count,
-              (RTOS_GET_MS() - start));
+              (time_get_ms() - start));
 
   return 0;
 }
@@ -858,14 +959,21 @@ int cliTrace(const char ** argv)
 
 int cliStackInfo(const char ** argv)
 {
-  cliSerialPrint("[MAIN] %d available / %d bytes", mainStackAvailable()*4, stackSize()*4);
-  cliSerialPrint("[MENUS] %d available / %d bytes", menusStack.available()*4, menusStack.size());
-  cliSerialPrint("[MIXER] %d available / %d bytes", mixerStack.available()*4, mixerStack.size());
+  cliSerialPrint("[MENUS] %d available / %d bytes",
+                 task_get_stack_usage(&menusTaskId) * 4,
+                 task_get_stack_size(&menusTaskId));
+  cliSerialPrint("[MIXER] %d available / %d bytes",
+                 task_get_stack_usage(&mixerTaskId) * 4,
+                 task_get_stack_size(&mixerTaskId));
 #if defined(AUDIO)
-  cliSerialPrint("[AUDIO] %d available / %d bytes", audioStack.available()*4, audioStack.size());
+  cliSerialPrint("[AUDIO] %d available / %d bytes",
+                 task_get_stack_usage(&audioTaskId) * 4,
+                 task_get_stack_size(&audioTaskId));
 #endif
 #if defined(CLI)
-  cliSerialPrint("[CLI] %d available / %d bytes", cliStack.available()*4, cliStack.size());
+  cliSerialPrint("[CLI] %d available / %d bytes",
+                 task_get_stack_usage(&cliTaskId),
+                 task_get_stack_size(&cliTaskId));
 #endif
   return 0;
 }
@@ -1115,7 +1223,7 @@ static void spGimbalDeInit(int port_n)
 {
   (void)port_n;
   _sp_drv->deinit(_sp_ctx);
-  flysky_gimbal_init(true);
+  flysky_gimbal_force_init();
 }
 #endif
 
@@ -1344,11 +1452,11 @@ int cliDisplay(const char ** argv)
       cliSerialPrint("[Trim %s] = %s", getTrimLabel(i),
                      keysGetTrimState(i) ? "on" : "off");
     }
-    for (int i = 0; i < switchGetMaxSwitches(); i++) {
+    for (int i = 0; i < switchGetMaxAllSwitches(); i++) {
       if (SWITCH_EXISTS(i)) {
         static const char * const SWITCH_POSITIONS[] = { "up", "mid", "down" };
         auto pos = switchGetPosition(i);
-        cliSerialPrint("[%s] = %s", switchGetName(i), SWITCH_POSITIONS[pos]);
+        cliSerialPrint("[%s] = %s", switchGetDefaultName(i), SWITCH_POSITIONS[pos]);
       }
     }
   }
@@ -1470,11 +1578,10 @@ int cliRepeat(const char ** argv)
   int interval = 0;
   int counter = 0;
   if (toInt(argv, 1, &interval) > 0 && argv[2]) {
-    interval *= 50;
     counter = interval;
 
     uint8_t c;
-    const TickType_t xTimeout = 20 / RTOS_MS_PER_TICK;
+    const TickType_t xTimeout = portTICK_PERIOD_MS;
     while (!xStreamBufferReceive(cliRxBuffer, &c, 1, xTimeout)
            || !(c == '\r' || c == '\n' || c == ' ')) {
 
@@ -1610,9 +1717,9 @@ int cliCrypt(const char ** argv)
   mixerTaskStop();
   perMainEnabled = false;
 
-  uint32_t startMs = RTOS_GET_MS();
+  uint32_t startMs = time_get_ms();
   testAccessDenied(100000);
-  cliSerialPrintf("access_denied: %f us/run\r\n", (RTOS_GET_MS() - startMs)*1000.0f / 100000.0f);
+  cliSerialPrintf("access_denied: %f us/run\r\n", (time_get_ms() - startMs)*1000.0f / 100000.0f);
 
   cliSerialPrint("Decrypted (SW):");
   dumpBody(cryptOutput, sizeof(cryptOutput));
@@ -1628,6 +1735,17 @@ int cliCrypt(const char ** argv)
   return 0;
 }
 #endif
+
+int cliTriggerEM(const char** argv)
+{
+  // Wait USB unplug since that could interfere
+  cliSerialPrint("Please unplug USB");
+  while (usbPlugged()) {}
+  // Prevent task switching
+  vTaskSuspendAll();
+  // Trigger watchdog
+  while(1);
+}
 
 #if defined(TP_GT911)
 // from tp_gt911.cpp
@@ -1682,7 +1800,8 @@ const CliCommand cliCommands[] = {
   { "test", cliTest, "new | graphics | memspd" },
   { "trace", cliTrace, "on | off" },
   { "debugvars", cliDebugVars, "" },
-  { "repeat", cliRepeat, "<interval> <command>" },
+  { "repeat", cliRepeat, "<interval in ms> <command>" },
+  { "testfatfs", cliTestFatFsSD, "" },
 #endif
   { "help", cliHelp, "[<command>]" },
 #if defined(JITTER_MEASURE)
@@ -1703,10 +1822,11 @@ const CliCommand cliCommands[] = {
 #if defined(TP_GT911)
   { "reset_gt911", cliResetGT911, ""},
 #endif
+  { "trigger_watchdog_reset", cliTriggerEM, ""},
   { nullptr, nullptr, nullptr }  /* sentinel */
 };
 
-int cliHelp(const char ** argv)
+static int cliHelp(const char ** argv)
 {
   for (const CliCommand * command = cliCommands; command->name != nullptr; command++) {
     if (argv[1][0] == '\0' || !strcmp(command->name, argv[0])) {
@@ -1722,7 +1842,7 @@ int cliHelp(const char ** argv)
   return -1;
 }
 
-int cliExecCommand(const char ** argv)
+static int cliExecCommand(const char ** argv)
 {
   if (argv[0][0] == '\0')
     return 0;
@@ -1736,7 +1856,7 @@ int cliExecCommand(const char ** argv)
   return -1;
 }
 
-int cliExecLine(char * line)
+static int cliExecLine(char * line)
 {
   int len = strlen(line);
   const char * argv[CLI_COMMAND_MAX_ARGS];
@@ -1759,7 +1879,7 @@ int cliExecLine(char * line)
 #define CHAR_CR         0x0D
 #define CHAR_DEL        0x7F
 
-void cliTask(void * pdata)
+static void cliTask()
 {
   char line[CLI_COMMAND_MAX_LEN+1];
   int pos = 0;
@@ -1773,7 +1893,7 @@ void cliTask(void * pdata)
     //       of going byte-by-byte.
     
     /* Block for max 100ms. */
-    const TickType_t xTimeout = 100 / RTOS_MS_PER_TICK;
+    const TickType_t xTimeout = 100 / portTICK_PERIOD_MS;
     size_t xReceivedBytes = xStreamBufferReceive(cliRxBuffer, &c, 1, xTimeout);
 
     if (!mixerTaskRunning()) {
@@ -1811,8 +1931,7 @@ void cliTask(void * pdata)
       if (pos == 0 && cliLastLine[0]) {
         // execute (repeat) last command
         strcpy(line, cliLastLine);
-      }
-      else {
+      } else {
         // save new command
         strcpy(cliLastLine, line);
       }
@@ -1843,6 +1962,6 @@ void cliStart()
   // Setup consumer callback
   cliReceiveCallBack = cliDefaultRx;
 
-  RTOS_CREATE_TASK(cliTaskId, cliTask, "CLI", cliStack, CLI_STACK_SIZE,
-                   CLI_TASK_PRIO);
+  task_create(&cliTaskId, cliTask, "CLI", cliStack, CLI_STACK_SIZE,
+              CLI_TASK_PRIO);
 }

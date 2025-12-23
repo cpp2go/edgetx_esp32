@@ -38,7 +38,7 @@
 #include "usbd_msc_conf.h"
 #endif
 
-#if defined(LIBOPENUI)
+#if defined(COLORLCD)
   #include "libopenui.h"
 #else
   #include "lib_file.h"
@@ -205,14 +205,6 @@ extern void cancelSplash();
 
 extern uint8_t heartbeat;
 
-#define LEN_STD_CHARS 40
-
-#if defined(TRANSLATIONS_CZ)
-#define ZCHAR_MAX (LEN_STD_CHARS)
-#else
-#define ZCHAR_MAX (LEN_STD_CHARS + LEN_SPECIAL_CHARS)
-#endif
-
 #include "keys.h"
 #include "pwr.h"
 
@@ -251,6 +243,8 @@ inline void ALERT(const char *title, const char *msg, uint8_t sound)
 }
 
 #else // !COLORLCD && GUI
+
+#include "popups.h"
 
 inline void RAISE_ALERT(const char *title, const char *msg, const char *info,
                         uint8_t sound)
@@ -318,7 +312,7 @@ bool setTrimValue(uint8_t phase, uint8_t idx, int trim);
 
 void flightReset(uint8_t check=true);
 
-#define DURATION_MS_PREC2(x) ((x)/20)
+#define DURATION_MS_PREC2(x) ((x)/10)
 
 #if defined(THRTRACE)
   #if defined(COLORLCD)
@@ -353,6 +347,7 @@ uint16_t isqrt32(uint32_t n);
 
 void setDefaultOwnerId();
 void generalDefault();
+void generalDefaultSwitches();
 
 uint32_t hash(const void * ptr, uint32_t size);
 
@@ -502,30 +497,24 @@ enum AUDIO_SOUNDS {
   AU_STICK2_MIDDLE,
   AU_STICK3_MIDDLE,
   AU_STICK4_MIDDLE,
-#if defined(PCBFRSKY)
   AU_POT1_MIDDLE,
   AU_POT2_MIDDLE,
 #if defined(PCBX9E)
   AU_POT3_MIDDLE,
   AU_POT4_MIDDLE,
-#endif
+#endif //X9E
 #if defined(PCBX10)
   AU_POT4_MIDDLE,
   AU_POT5_MIDDLE,
   AU_POT6_MIDDLE,
   AU_POT7_MIDDLE,
-#endif
+#endif //X10
   AU_SLIDER1_MIDDLE,
   AU_SLIDER2_MIDDLE,
 #if defined(PCBX9E)
   AU_SLIDER3_MIDDLE,
   AU_SLIDER4_MIDDLE,
-#endif
-#else
-  AU_POT1_MIDDLE,
-  AU_POT2_MIDDLE,
-  AU_POT3_MIDDLE,
-#endif
+#endif // X9E
   AU_MIX_WARNING_1,
   AU_MIX_WARNING_2,
   AU_MIX_WARNING_3,
@@ -559,8 +548,7 @@ enum AUDIO_SOUNDS {
 #include "audio.h"
 #endif
 
-#include "buzzer.h"
-#include "translations.h"
+#include "translations/translations.h"
 
 #if defined(HAPTIC)
 #include "haptic.h"
@@ -670,7 +658,7 @@ union ReusableBuffer
     char originalName[SD_SCREEN_FILE_LENGTH+1];
 #if defined(PXX2)
     OtaUpdateInformation otaUpdateInformation;
-    char otaReceiverVersion[sizeof(TR_CURRENT_VERSION) + 12];
+    char otaReceiverVersion[64];  // Large enough for TR_CURRENT_VERSION string plus version number
 #endif
   } sdManager;
 
@@ -723,6 +711,7 @@ union ReusableBuffer
   struct {
     uint8_t bars[LCD_W];
     uint8_t max[LCD_W];
+    uint8_t peak[LCD_W];
     uint32_t freq;
     uint32_t span;
     uint32_t step;
@@ -819,11 +808,7 @@ constexpr uint32_t EARTH_RADIUS = 6371009;
 
 void varioWakeup();
 
-#if defined(AUDIO) && defined(BUZZER)
-  #define IS_SOUND_OFF() (g_eeGeneral.buzzerMode==e_mode_quiet && g_eeGeneral.beepMode==e_mode_quiet)
-#else
-  #define IS_SOUND_OFF() (g_eeGeneral.beepMode == e_mode_quiet)
-#endif
+#define IS_SOUND_OFF() (g_eeGeneral.beepMode == e_mode_quiet)
 
 #define IS_IMPERIAL_ENABLE() (g_eeGeneral.imperial)
 

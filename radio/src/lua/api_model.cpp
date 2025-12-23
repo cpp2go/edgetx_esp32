@@ -613,11 +613,11 @@ static int luaModelGetInput(lua_State *L)
     lua_pushtablenstring(L, "inputName", g_model.inputNames[chn]);
     lua_pushtableinteger(L, "source", expo->srcRaw);
     lua_pushtableinteger(L, "scale", expo->scale);
-    lua_pushtableinteger(L, "weight", expo->weight);
-    lua_pushtableinteger(L, "offset", expo->offset);
+    lua_pushtableinteger(L, "weight", sourceNumValToLuaInt(expo->weight));
+    lua_pushtableinteger(L, "offset", sourceNumValToLuaInt(expo->offset));
     lua_pushtableinteger(L, "switch", expo->swtch);
     lua_pushtableinteger(L, "curveType", expo->curve.type);
-    lua_pushtableinteger(L, "curveValue", expo->curve.value);
+    lua_pushtableinteger(L, "curveValue", sourceNumValToLuaInt(expo->curve.value));
     lua_pushtableinteger(L, "trimSource", - expo->trimSource);
     lua_pushtableinteger(L, "side", expo->mode);
     lua_pushtableinteger(L, "flightModes", expo->flightModes);
@@ -680,18 +680,10 @@ static int luaModelInsertInput(lua_State *L)
         expo->mode = luaL_checkinteger(L, -1);
       }
       else if (!strcmp(key, "weight")) {
-        int val = luaL_checkinteger(L, -1);
-        SourceNumVal v;
-        v.isSource = (abs(val) >= 1024);
-        v.value = val;
-        expo->weight = v.rawValue;
+        expo->weight = luaIntToSourceNumval(luaL_checkinteger(L, -1));
       }
       else if (!strcmp(key, "offset")) {
-        int val = luaL_checkinteger(L, -1);
-        SourceNumVal v;
-        v.isSource = (abs(val) >= 1024);
-        v.value = val;
-        expo->offset = v.rawValue;
+        expo->offset = luaIntToSourceNumval(luaL_checkinteger(L, -1));
       }
       else if (!strcmp(key, "switch")) {
         expo->swtch = luaL_checkinteger(L, -1);
@@ -700,11 +692,7 @@ static int luaModelInsertInput(lua_State *L)
         expo->curve.type = luaL_checkinteger(L, -1);
       }
       else if (!strcmp(key, "curveValue")) {
-        int val = luaL_checkinteger(L, -1);
-        SourceNumVal v;
-        v.isSource = (abs(val) >= 1024);
-        v.value = val;
-        expo->curve.value = v.rawValue;
+        expo->curve.value = luaIntToSourceNumval(luaL_checkinteger(L, -1));
       }
       else if (!strcmp(key, "trimSource")) {
         expo->trimSource = - luaL_checkinteger(L, -1);
@@ -831,8 +819,8 @@ Get configuration for specified Mix
 @retval table mix data:
  * `name` (string) mix line name
  * `source` (number) source index
- * `weight` (number) weight (1024 == 100%) value or GVAR1..9 = 4096..4011, -GVAR1..9 = 4095..4087
- * `offset` (number) offset value or GVAR1..9 = 4096..4011, -GVAR1..9 = 4095..4087
+ * `weight` (number) weight value (-512 to 511) or source (>= 1024 or <= -1024)
+ * `offset` (number) offset value (-512 to 511) or source (>= 1024 or <= -1024)
  * `switch` (number) switch index
  * `multiplex` (number) multiplex (0 = ADD, 1 = MULTIPLY, 2 = REPLACE)
  * `curveType` (number) curve type (function, expo, custom curve)
@@ -860,11 +848,11 @@ static int luaModelGetMix(lua_State *L)
     lua_newtable(L);
     lua_pushtablenstring(L, "name", mix->name);
     lua_pushtableinteger(L, "source", mix->srcRaw);
-    lua_pushtableinteger(L, "weight", mix->weight);
-    lua_pushtableinteger(L, "offset", mix->offset);
+    lua_pushtableinteger(L, "weight", sourceNumValToLuaInt(mix->weight));
+    lua_pushtableinteger(L, "offset", sourceNumValToLuaInt(mix->offset));
     lua_pushtableinteger(L, "switch", mix->swtch);
     lua_pushtableinteger(L, "curveType", mix->curve.type);
-    lua_pushtableinteger(L, "curveValue", mix->curve.value);
+    lua_pushtableinteger(L, "curveValue", sourceNumValToLuaInt(mix->curve.value));
     lua_pushtableinteger(L, "multiplex", mix->mltpx);
     lua_pushtableinteger(L, "flightModes", mix->flightModes);
     lua_pushtableboolean(L, "carryTrim", mix->carryTrim);
@@ -919,18 +907,10 @@ static int luaModelInsertMix(lua_State *L)
         mix->srcRaw = luaL_checkinteger(L, -1);
       }
       else if (!strcmp(key, "weight")) {
-        int val = luaL_checkinteger(L, -1);
-        SourceNumVal v;
-        v.isSource = (abs(val) >= 1024);
-        v.value = val;
-        mix->weight = v.rawValue;
+        mix->weight = luaIntToSourceNumval(luaL_checkinteger(L, -1));
       }
       else if (!strcmp(key, "offset")) {
-        int val = luaL_checkinteger(L, -1);
-        SourceNumVal v;
-        v.isSource = (abs(val) >= 1024);
-        v.value = val;
-        mix->offset = v.rawValue;
+        mix->offset = luaIntToSourceNumval(luaL_checkinteger(L, -1));
       }
       else if (!strcmp(key, "switch")) {
         mix->swtch = luaL_checkinteger(L, -1);
@@ -939,11 +919,7 @@ static int luaModelInsertMix(lua_State *L)
         mix->curve.type = luaL_checkinteger(L, -1);
       }
       else if (!strcmp(key, "curveValue")) {
-        int val = luaL_checkinteger(L, -1);
-        SourceNumVal v;
-        v.isSource = (abs(val) >= 1024);
-        v.value = val;
-        mix->curve.value = v.rawValue;
+        mix->curve.value = luaIntToSourceNumval(luaL_checkinteger(L, -1));
       }
       else if (!strcmp(key, "multiplex")) {
         mix->mltpx = luaL_checkinteger(L, -1);
@@ -1037,8 +1013,10 @@ Get Logical Switch parameters
  * `and` (number) AND switch index
  * `delay` (number) delay (time in 1/10 s)
  * `duration` (number) duration (time in 1/10 s)
+ * `state` (boolean) current state of the logical switch
+ * `persistent` (boolean) if true then the state is persistent across reboot of the radio
 
-@status current Introduced in 2.0.0
+@status current Introduced in 2.0.0, state and persistent added in 2.11.2
 */
 static int luaModelGetLogicalSwitch(lua_State *L)
 {
@@ -1052,7 +1030,9 @@ static int luaModelGetLogicalSwitch(lua_State *L)
     lua_pushtableinteger(L, "v3", sw->v3);
     lua_pushtableinteger(L, "and", sw->andsw);
     lua_pushtableinteger(L, "delay", sw->delay);
-    lua_pushtableinteger(L, "duration", sw->duration);
+    lua_pushtableinteger(L, "duration", sw->duration); 
+    lua_pushtableboolean(L, "state", sw->lsState);
+    lua_pushtableboolean(L, "persistent", sw->lsPersist);
   }
   else {
     lua_pushnil(L);
@@ -1075,7 +1055,7 @@ that parameter remains unchanged.
 @notice To set the `and` member (which is Lua keyword)
 use the following syntax: `model.setLogicalSwitch(30, {func=4,v1=1,v2=-99, ["and"]=24})`
 
-@status current Introduced in 2.0.0
+@status current Introduced in 2.0.0, state and persistent added in 2.11.2
 */
 static int luaModelSetLogicalSwitch(lua_State *L)
 {
@@ -1107,6 +1087,12 @@ static int luaModelSetLogicalSwitch(lua_State *L)
       }
       else if (!strcmp(key, "duration")) {
         sw->duration = luaL_checkinteger(L, -1);
+      }
+      else if (!strcmp(key, "state")) {
+        sw->lsState = lua_toboolean(L, -1);
+      }
+      else if (!strcmp(key, "persistent")) {
+        sw->lsPersist = lua_toboolean(L, -1);
       }
     }
     storageDirty(EE_MODEL);
@@ -1284,10 +1270,11 @@ static int luaModelSetCurve(lua_State *L)
     }
   }
   // Check how many points are set
-  uint8_t numPoints=0;
-  do {
-    numPoints++;
-  } while (yPoints[numPoints]!=-127 && numPoints < MAX_POINTS_PER_CURVE);
+  int numPoints = 0;
+  for (numPoints = 0; numPoints < MAX_POINTS_PER_CURVE; numPoints += 1) {
+    if (yPoints[numPoints] == -127)
+      break;
+  }
   newCurveHeader.points = numPoints - 5;
 
   if (numPoints < MIN_POINTS_PER_CURVE || numPoints > MAX_POINTS_PER_CURVE) {
@@ -1864,6 +1851,7 @@ static int luaModelSetSwashRing(lua_State *L)
 }
 #endif // HELI
 
+extern "C" {
 LROT_BEGIN(modellib, NULL, 0)
   LROT_FUNCENTRY( getInfo, luaModelGetInfo )
   LROT_FUNCENTRY( setInfo, luaModelSetInfo )
@@ -1907,3 +1895,4 @@ LROT_BEGIN(modellib, NULL, 0)
   LROT_FUNCENTRY( setSwashRing, luaModelSetSwashRing )
 #endif
 LROT_END(modellib, NULL, 0)
+}

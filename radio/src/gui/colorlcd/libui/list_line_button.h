@@ -23,7 +23,7 @@
 
 #include "button.h"
 #include "edgetx_types.h"
-#include "tabsgroup.h"
+#include "pagegroup.h"
 
 class ListLineButton : public ButtonBase
 {
@@ -57,30 +57,41 @@ class InputMixButtonBase : public ListLineButton
   void setOpts(const char* s);
   void setFlightModes(uint16_t modes);
 
+  void updateHeight();
   virtual void updatePos(coord_t x, coord_t y) = 0;
   virtual void swapLvglGroup(InputMixButtonBase* line2) = 0;
 
-  // total: 90 x 17
-  static LAYOUT_VAL(FM_CANVAS_HEIGHT, 17, 17, LS(17))
-  static LAYOUT_VAL(FM_CANVAS_WIDTH, 90, 90, 57)
+  void checkEvents() override;
 
-  static LAYOUT_VAL(LN_X, 73, 73, LS(73))
+  // total: 90 x 17
+  static LAYOUT_VAL_SCALED(FM_CANVAS_HEIGHT, 17)
+  static LAYOUT_VAL_SCALED(FM_CANVAS_WIDTH, 90)
+
+#if WIDE_LAYOUT
+  static LAYOUT_VAL_SCALED(LN_X, 78)
+#else
+  static LAYOUT_VAL_SCALED(LN_X, 73)
+#endif
   static constexpr coord_t BTN_W = ListLineButton::GRP_W - LN_X - PAD_BORDER * 2 - PAD_OUTLINE;
   static constexpr coord_t WGT_X = PAD_TINY;
   static constexpr coord_t WGT_Y = PAD_TINY;
-  static LAYOUT_VAL(WGT_W, 50, 50, LS(50))
-  static LAYOUT_VAL(WGT_H, 21, 21, LS(21))
+  static LAYOUT_VAL_SCALED(WGT_W, 50)
+  static LAYOUT_VAL_SCALED(WGT_H, 21)
   static constexpr coord_t SRC_X = WGT_X + WGT_W + PAD_TINY;
   static constexpr coord_t SRC_Y = WGT_Y;
-  static LAYOUT_VAL(SRC_W, 70, 69, LS(70))
+#if WIDE_LAYOUT
+  static LAYOUT_VAL_SCALED(SRC_W, 80)
+#else
+  static LAYOUT_VAL_SCALED(SRC_W, 72)
+#endif
   static constexpr coord_t SRC_H = WGT_H;
   static constexpr coord_t OPT_X = SRC_X + SRC_W + PAD_TINY;
   static constexpr coord_t OPT_Y = WGT_Y;
-  static LAYOUT_VAL2(OPT_W, BTN_W - PAD_BORDER * 2 - WGT_W - SRC_W - FM_CANVAS_WIDTH - PAD_TINY * 5, 99)
+  static LAYOUT_SIZE(OPT_W, BTN_W - PAD_BORDER * 2 - WGT_W - SRC_W - FM_CANVAS_WIDTH - PAD_TINY * 5, BTN_W - PAD_BORDER * 2 - WGT_W - SRC_W - PAD_TINY * 4)
   static constexpr coord_t OPT_H = WGT_H;
-  static LAYOUT_VAL2(FM_X, BTN_W - PAD_BORDER * 2 - PAD_TINY - FM_CANVAS_WIDTH, 12)
-  static LAYOUT_VAL2(FM_Y, (WGT_Y + PAD_TINY), (WGT_Y + WGT_H + PAD_TINY))
-  static LAYOUT_VAL(FM_W, 8, 8, 5)
+  static LAYOUT_SIZE(FM_X, BTN_W - PAD_BORDER * 2 - PAD_TINY - FM_CANVAS_WIDTH, PAD_LARGE + PAD_SMALL)
+  static LAYOUT_SIZE(FM_Y, (WGT_Y + PAD_TINY), (WGT_Y + WGT_H + PAD_TINY))
+  static LAYOUT_VAL_SCALED(FM_W, 8)
 
  protected:
 
@@ -113,10 +124,10 @@ class InputMixGroupBase : public Window
   std::list<InputMixButtonBase*> lines;
 };
 
-class InputMixPageBase : public PageTab
+class InputMixPageBase : public PageGroupItem
 {
  public:
-  InputMixPageBase(const char* title, EdgeTxIcon icon) : PageTab(title, icon) {}
+  InputMixPageBase(PageDef& pageDef) : PageGroupItem(pageDef) {}
 
  protected:
   std::list<InputMixButtonBase*> lines;

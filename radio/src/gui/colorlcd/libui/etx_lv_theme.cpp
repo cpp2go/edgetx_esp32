@@ -24,6 +24,7 @@
  *********************/
 #include "etx_lv_theme.h"
 
+#include "window.h"
 #include "../colors.h"
 #include "fonts.h"
 
@@ -41,6 +42,7 @@ LV_STYLE_CONST_SINGLE_INIT(EdgeTxStyles::bg_opacity_20, LV_STYLE_BG_OPA,
 LV_STYLE_CONST_SINGLE_INIT(EdgeTxStyles::bg_opacity_50, LV_STYLE_BG_OPA,
                            LV_OPA_50);
 LV_STYLE_CONST_SINGLE_INIT(EdgeTxStyles::bg_opacity_75, LV_STYLE_BG_OPA, 187);
+LV_STYLE_CONST_SINGLE_INIT(EdgeTxStyles::bg_opacity_90, LV_STYLE_BG_OPA, 230);
 LV_STYLE_CONST_SINGLE_INIT(EdgeTxStyles::bg_opacity_cover, LV_STYLE_BG_OPA,
                            LV_OPA_COVER);
 LV_STYLE_CONST_SINGLE_INIT(EdgeTxStyles::fg_opacity_transparent, LV_STYLE_OPA,
@@ -215,6 +217,23 @@ const lv_style_const_prop_t disabled_props[] = {
 };
 LV_STYLE_CONST_MULTI_INIT(EdgeTxStyles::disabled, disabled_props);
 
+static lv_color_t qm_disabled_filter_cb(const lv_color_filter_dsc_t* f,
+                                 lv_color_t color, lv_opa_t opa)
+{
+  LV_UNUSED(f);
+  return lv_color_mix(makeLvColor(COLOR_THEME_QM_FG_INDEX), color, opa);
+}
+
+const lv_color_filter_dsc_t qm_disabled_filter = {.filter_cb = qm_disabled_filter_cb,
+                                           .user_data = 0};
+
+const lv_style_const_prop_t qm_disabled_props[] = {
+    LV_STYLE_CONST_COLOR_FILTER_DSC(&qm_disabled_filter),
+    LV_STYLE_CONST_COLOR_FILTER_OPA(LV_OPA_60),
+    LV_STYLE_PROP_INV,
+};
+LV_STYLE_CONST_MULTI_INIT(EdgeTxStyles::qmdisabled, qm_disabled_props);
+
 /**********************
  *   Variable Styles
  **********************/
@@ -240,6 +259,7 @@ EdgeTxStyles::EdgeTxStyles()
   lv_style_init(&graph_position_line);
   lv_style_init(&div_line);
   lv_style_init(&div_line_edit);
+  lv_style_init(&div_line_warn);
   lv_style_init(&div_line_black);
   lv_style_init(&div_line_white);
 
@@ -263,6 +283,9 @@ EdgeTxStyles::EdgeTxStyles()
 
   lv_style_set_line_width(&div_line_edit, 1);
   lv_style_set_line_opa(&div_line_edit, LV_OPA_COVER);
+
+  lv_style_set_line_width(&div_line_warn, 1);
+  lv_style_set_line_opa(&div_line_warn, LV_OPA_COVER);
 
   lv_style_set_line_width(&div_line_black, 1);
   lv_style_set_line_opa(&div_line_black, LV_OPA_COVER);
@@ -292,6 +315,14 @@ void EdgeTxStyles::init()
   applyColors();
 }
 
+void EdgeTxStyles::setFonts()
+{
+  // Fonts
+  for (int i = FONT_STD_INDEX; i < FONTS_COUNT; i += 1) {
+    lv_style_set_text_font(&font[i], getFont(i << 8));
+  }
+}
+
 void EdgeTxStyles::applyColors()
 {
   // Always update colors in case theme changes
@@ -313,6 +344,7 @@ void EdgeTxStyles::applyColors()
                           makeLvColor(COLOR_THEME_ACTIVE));
   lv_style_set_line_color(&div_line, makeLvColor(COLOR_THEME_SECONDARY1));
   lv_style_set_line_color(&div_line_edit, makeLvColor(COLOR_THEME_EDIT));
+  lv_style_set_line_color(&div_line_warn, makeLvColor(COLOR_THEME_WARNING));
   lv_style_set_line_color(&div_line_black, makeLvColor(COLOR_THEME_PRIMARY1));
   lv_style_set_line_color(&div_line_white, makeLvColor(COLOR_THEME_PRIMARY2));
 
@@ -329,6 +361,14 @@ void EdgeTxStyles::applyColors()
 static EdgeTxStyles* mainStyles = nullptr;
 static EdgeTxStyles* previewStyles = nullptr;
 EdgeTxStyles* styles = nullptr;
+
+#if defined(ALL_LANGS)
+void setAllFonts()
+{
+  if (mainStyles) mainStyles->setFonts();
+  if (previewStyles) previewStyles->setFonts();
+}
+#endif
 
 /**********************
  *   GLOBAL FUNCTIONS
@@ -358,6 +398,18 @@ void useMainStyle()
  **********************/
 
 // Object constructor helpers
+
+lv_obj_t* etx_label_create(lv_obj_t* parent, FontIndex fontIdx)
+{
+  lv_obj_t* lvobj = lv_label_create(parent);
+  etx_obj_add_style(lvobj, styles->font[fontIdx], LV_PART_MAIN);
+  return lvobj;
+}
+
+lv_obj_t* etx_label_create(Window* parent, FontIndex fontIdx)
+{
+  return etx_label_create(parent->getLvObj(), fontIdx);
+}
 
 void etx_solid_bg(lv_obj_t* obj, LcdColorIndex bg_color,
                   lv_style_selector_t selector)

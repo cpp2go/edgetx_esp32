@@ -35,6 +35,17 @@
 
 #include <string.h>
 
+#if defined(FLASHSIZE)
+  #define UF2_MAX_FW_SIZE FLASHSIZE
+#else
+  #define UF2_MAX_FW_SIZE (2 * 1024 * 1024)
+#endif
+
+#define UF2_MAX_BLOCKS (UF2_MAX_FW_SIZE / 256)
+
+#define UF2_ERASE_BLOCK_SIZE (4 * 1024)
+#define UF2_ERASE_BLOCKS (UF2_MAX_FW_SIZE / UF2_ERASE_BLOCK_SIZE)
+
 typedef struct {
     uint8_t JumpInstruction[3];
     uint8_t OEMInfo[8];
@@ -174,8 +185,17 @@ static_assert(ARRAY_SIZE(indexFile) < 512);
 #define NUM_FILES (ARRAY_SIZE(info))
 #define NUM_DIRENTRIES (NUM_FILES + 1) // Code adds volume label as first root directory entry
 
+#ifndef BOOTLOADER_ADDRESS
+#define BOOTLOADER_ADDRESS FIRMWARE_ADDRESS
+#endif
 
-#define UF2_SIZE           (current_flash_size() * 2 + 512)
+#if BOOTLOADER_ADDRESS == FIRMWARE_ADDRESS
+#define REBOOT_BLOCK 0
+#else
+#define REBOOT_BLOCK 1
+#endif
+
+#define UF2_SIZE           (current_flash_size() * 2 + 512 * REBOOT_BLOCK)
 #define UF2_SECTORS        (UF2_SIZE / 512)
 #define UF2_FIRST_SECTOR   (NUM_FILES + 1) // WARNING -- code presumes each non-UF2 file content fits in single sector
 #define UF2_LAST_SECTOR    (UF2_FIRST_SECTOR + UF2_SECTORS - 1)
@@ -195,7 +215,6 @@ static_assert(ARRAY_SIZE(indexFile) < 512);
 
 static_assert(NUM_DIRENTRIES < DIRENTRIES_PER_SECTOR * ROOT_DIR_SECTORS);
 
-
 static FAT_BootBlock const BootBlock = {
     .JumpInstruction      = {0xeb, 0x3c, 0x90},
     .OEMInfo              = {'M','S','W','I','N','4','.','1'},
@@ -204,11 +223,12 @@ static FAT_BootBlock const BootBlock = {
     .ReservedSectors      = RESERVED_SECTORS,
     .FATCopies            = 2,
     .RootDirectoryEntries = (ROOT_DIR_SECTORS * DIRENTRIES_PER_SECTOR),
-    .TotalSectors16       = NUM_FAT_BLOCKS - 2,
+    .TotalSectors16       = 0,
     .MediaDescriptor      = 0xF8,
     .SectorsPerFAT        = SECTORS_PER_FAT,
     .SectorsPerTrack      = 1,
     .Heads                = 1,
+    .TotalSectors32       = NUM_FAT_BLOCKS - 2,
     .PhysicalDriveNum     = 0x80, // to match MediaDescriptor of 0xF8
     .ExtendedBootSig      = 0x29,
     .VolumeSerialNumber   = 0x00000000,
@@ -217,10 +237,17 @@ static FAT_BootBlock const BootBlock = {
 };
 
 static uf2_fat_write_state_t _uf2_write_state;
+static uint32_t _flash_sz;
+
+static uint32_t _written_mask[UF2_MAX_BLOCKS / sizeof(uint32_t)];
+static uint32_t _erased_mask[UF2_ERASE_BLOCKS / sizeof(uint32_t)];
 
 void uf2_fat_reset_state()
 {
+  _flash_sz = 0;
   memset(&_uf2_write_state, 0, sizeof(_uf2_write_state));
+  memset(_written_mask, 0, sizeof(_written_mask));
+  memset(_erased_mask, 0, sizeof(_erased_mask));
 }
 
 const uf2_fat_write_state_t* uf2_fat_get_state()
@@ -248,24 +275,26 @@ static inline bool is_firmware_valid(firmware_description_t const* fw_desc)
 // get current.uf2 flash size in bytes, round up to 256 bytes
 static uint32_t current_flash_size(void)
 {
-  static uint32_t flash_sz = 0;
-  uint32_t result = flash_sz; // presumes atomic 32-bit read/write and static result
+  uint32_t result = _flash_sz; // presumes atomic 32-bit read/write and static result
 
   // only need to compute once
   if ( result == 0 ) {
     firmware_description_t const *fw_desc =
-        (firmware_description_t const *)FIRMWARE_ADDRESS;
+        (firmware_description_t const *)APP_START_ADDRESS;
 
     if (is_firmware_valid(fw_desc)) {
       // round up to 256 bytes
       result = (fw_desc->length + BOOTLOADER_SIZE + 255U) & (~255U);
+      // Sometime corrupted firmware return very large size, leave not enough space to flash a fix
+      if (result >= UF2_MAX_FW_SIZE)
+        result = UF2_MAX_FW_SIZE;
     } else {
       result = UF2_MAX_FW_SIZE;
     }
-    flash_sz = result; // presumes atomic 32-bit read/write and static result
+    _flash_sz = result; // presumes atomic 32-bit read/write and static result
   }
 
-  return flash_sz;
+  return _flash_sz;
 }
 
 static void padded_memcpy (char *dst, char const *src, int len)
@@ -357,28 +386,28 @@ void uf2_fat_read_block(uint32_t block_no, uint8_t *data)
             sectionIdx -= NUM_FILES - 1;
 
             uint32_t addr = 0;
-            if (sectionIdx >= UF2_MAX_FW_SIZE / 256) return;
+            if (sectionIdx >= UF2_MAX_FW_SIZE / 256 + REBOOT_BLOCK) return;
 
             UF2_Block *bl = (UF2_Block *)data;
             bl->magicStart0 = UF2_MAGIC_START0;
             bl->magicStart1 = UF2_MAGIC_START1;
             bl->magicEnd = UF2_MAGIC_END;
             bl->blockNo = sectionIdx;
-            bl->numBlocks = current_flash_size() / 256 + 1;
+            bl->numBlocks = current_flash_size() / 256 + REBOOT_BLOCK;
             bl->flags = 0;
             bl->reserved = 0;
 
-            if (sectionIdx == BOOTLOADER_SIZE / 256) {
+            if (REBOOT_BLOCK && (sectionIdx == BOOTLOADER_SIZE / 256)) {
                 writeUF2RebootBlock(bl);
                 writeUF2FirmwareVersion(bl);
             } else {
                 if (sectionIdx < BOOTLOADER_SIZE / 256) {
-                    addr = 0x08000000 + sectionIdx * 256;
+                    addr = BOOTLOADER_ADDRESS + sectionIdx * 256;
                 } else {
-                    sectionIdx -= BOOTLOADER_SIZE / 256 + 1;
-                    addr = FIRMWARE_ADDRESS + sectionIdx * 256;
+                    sectionIdx -= BOOTLOADER_SIZE / 256 + REBOOT_BLOCK;
+                    addr = APP_START_ADDRESS + sectionIdx * 256;
                 }
-            
+
                 bl->targetAddr = addr;
                 bl->payloadSize = 256;
                 memcpy(bl->data, (void *)addr, bl->payloadSize);
@@ -422,14 +451,14 @@ int uf2_fat_write_block(uint32_t block_no, uint8_t *data)
         // to reset properly
     } else {
         uint32_t wr_block = bl->blockNo;
-        if (wr_block >= BOOTLOADER_SIZE / 256) wr_block--;
+        if (REBOOT_BLOCK && (wr_block >= BOOTLOADER_SIZE / 256)) wr_block--;
 
         uint32_t erase_sector = wr_block / (UF2_ERASE_BLOCK_SIZE / 256);
         uint32_t mask = 1 << (erase_sector & 0x1F);
         uint32_t pos = erase_sector >> 5;
 
         uint32_t addr = bl->targetAddr;
-        if (wr_st && !(wr_st->erased_mask[pos] & mask)) {
+        if (wr_st && !(_erased_mask[pos] & mask)) {
             TRACE_DEBUG("[UF2] erase 0x%08x\n", bl->targetAddr);
 
             auto drv = flashFindDriver(addr);
@@ -446,7 +475,7 @@ int uf2_fat_write_block(uint32_t block_no, uint8_t *data)
                 while (erased_sectors-- != 0) {
                     pos = erase_sector >> 5;
                     mask = 1 << (erase_sector & 0x1F);
-                    wr_st->erased_mask[pos] |= mask;
+                    _erased_mask[pos] |= mask;
                     erase_sector++;
                 }
             }
@@ -473,11 +502,11 @@ int uf2_fat_write_block(uint32_t block_no, uint8_t *data)
         if (bl->blockNo < UF2_MAX_BLOCKS) {
             uint32_t mask = 1 << (bl->blockNo & 0x1F);
             uint32_t pos = bl->blockNo >> 5;
-            if (!(wr_st->written_mask[pos] & mask)) {
-                wr_st->written_mask[pos] |= mask;
+            if (!(_written_mask[pos] & mask)) {
+                _written_mask[pos] |= mask;
                 wr_st->num_written++;
                 TRACE_DEBUG("[UF2] wr #%d (%d / %d)\n", bl->blockNo,
-                            state->num_written, bl->numBlocks);
+                            wr_st->num_written, bl->numBlocks);
             }
             if (wr_st->num_written >= wr_st->num_blocks) {
                 TRACE_DEBUG("[UF2] done: reboot\n");

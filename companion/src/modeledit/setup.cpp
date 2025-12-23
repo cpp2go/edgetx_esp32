@@ -180,7 +180,7 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
 
   if (!firmware->getCapability(HasDisplayText)) {
     ui->displayText->hide();
-    ui->editText->hide();
+    ui->editChecklist->hide();
   }
 
   if (!firmware->getCapability(GlobalFunctions)) {
@@ -199,8 +199,8 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
   const int ttlFlexInputs = Boards::getBoardCapability(board, Board::FlexInputs);
   const int ttlInputs = ttlSticks + ttlFlexInputs;
 
-  for (int i = 0; i < ttlInputs + firmware->getCapability(RotaryEncoders); i++) {
-    RawSource src((i < ttlInputs) ? SOURCE_TYPE_INPUT : SOURCE_TYPE_ROTARY_ENCODER, (i < ttlInputs) ? i + 1 : i - ttlInputs);
+  for (int i = 0; i < ttlInputs; i++) {
+    RawSource src(SOURCE_TYPE_INPUT, i + 1);
     QCheckBox * checkbox = new QCheckBox(this);
     checkbox->setProperty("index", i);
     checkbox->setText(src.toString(&model, &generalSettings));
@@ -219,12 +219,7 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
 
   // Startup switches warnings
   for (int i = 0; i < Boards::getBoardCapability(board, Board::Switches); i++) {
-    GeneralSettings::SwitchConfig &swcfg = generalSettings.switchConfig[i];
-
-    if (Boards::isSwitchFunc(i, board) || !generalSettings.isSwitchAvailable(i) || swcfg.type == Board::SWITCH_TOGGLE) {
-      model.switchWarningEnable |= (1 << i);
-      continue;
-    }
+    Board::SwitchType swType = model.getSwitchType(i, generalSettings);
 
     RawSource src(RawSourceType::SOURCE_TYPE_SWITCH, i + 1);
     QLabel * label = new QLabel(this);
@@ -242,7 +237,7 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
     slider->setPageStep(1);
     slider->setTickInterval(1);
     label->setText(src.toString(&model, &generalSettings));
-    slider->setMaximum(swcfg.type == Board::SWITCH_3POS ? 2 : 1);
+    slider->setMaximum(swType == Board::SWITCH_3POS ? 2 : 1);
     cb->setProperty("index", i);
     ui->switchesStartupLayout->addWidget(label, 0, i + 1);
     ui->switchesStartupLayout->setAlignment(label, Qt::AlignCenter);
@@ -252,6 +247,7 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
     ui->switchesStartupLayout->setAlignment(cb, Qt::AlignCenter);
     connect(slider, SIGNAL(valueChanged(int)), this, SLOT(startupSwitchEdited(int)));
     connect(cb, SIGNAL(toggled(bool)), this, SLOT(startupSwitchToggled(bool)));
+    startupSwitchesLabels << label;
     startupSwitchesSliders << slider;
     startupSwitchesCheckboxes << cb;
     QWidget::setTabOrder(prevFocus, slider);
@@ -326,8 +322,6 @@ SetupPanel::SetupPanel(QWidget * parent, ModelData & model, GeneralSettings & ge
     }
   }
 
-  disableMouseScrolling();
-
   lock = false;
 }
 
@@ -336,6 +330,12 @@ SetupPanel::~SetupPanel()
   delete ui;
   delete panelFilteredModels;
   delete panelItemModels;
+}
+
+bool SetupPanel::canSwitchHaveWarning(int sw)
+{
+  Board::SwitchType type = model->getSwitchType(sw, generalSettings);
+  return (type == Board::SWITCH_2POS) || (type == Board::SWITCH_3POS);
 }
 
 void SetupPanel::on_extendedLimits_toggled(bool checked)
@@ -510,23 +510,20 @@ void SetupPanel::updateStartupSwitches()
   uint64_t value;
 
   for (int i = 0; i < startupSwitchesSliders.size(); i++) {
+    QLabel * label = startupSwitchesLabels[i];
     QSlider * slider = startupSwitchesSliders[i];
     QCheckBox * cb = startupSwitchesCheckboxes[i];
     int index = slider->property("index").toInt();
-    bool enabled = !(model->switchWarningEnable & (1 << index));
-    if (IS_HORUS_OR_TARANIS(firmware->getBoard())) {
-      value = (switchStates >> (2 * index)) & 0x03;
-      if (generalSettings.switchConfig[index].type != Board::SWITCH_3POS && value == 2) {
-        value = 1;
-      }
-    }
-    else {
-      value = (i == 0 ? switchStates & 0x3 : switchStates & 0x1);
-      switchStates >>= (i == 0 ? 2 : 1);
-    }
-    slider->setValue(value);
+    value = (switchStates >> (2 * index)) & 0x03;
+    bool enabled = value != 0;
+    if (model->getSwitchType(i, generalSettings) == Board::SWITCH_2POS && value == 3) value = 2;
+    slider->setValue((value > 0) ? value - 1 : 0);
     slider->setEnabled(enabled);
     cb->setChecked(enabled);
+    bool vis = canSwitchHaveWarning(i);
+    label->setVisible(vis);
+    slider->setVisible(vis);
+    cb->setVisible(vis);
   }
 
   lock = false;
@@ -539,31 +536,14 @@ void SetupPanel::startupSwitchEdited(int value)
     uint64_t mask;
     int index = sender()->property("index").toInt();
 
-    if (IS_HORUS_OR_TARANIS(firmware->getBoard())) {
-      shift = index * 2;
-      mask = 0x03ull << shift;
-    }
-    else {
-      if (index == 0) {
-        mask = 0x03;
-      }
-      else {
-        shift = index + 1;
-        mask = 0x01ull << shift;
-      }
-    }
+    shift = index * 2;
+    mask = 0x03ull << shift;
 
     model->switchWarningStates &= ~mask;
 
-    if (IS_HORUS_OR_TARANIS(firmware->getBoard()) && generalSettings.switchConfig[index].type != Board::SWITCH_3POS) {
-      if (value == 1) {
-        value = 2;
-      }
-    }
+    if (model->getSwitchType(index, generalSettings) == Board::SWITCH_2POS && value == 1) value = 2;
 
-    if (value) {
-      model->switchWarningStates |= ((uint64_t)value << shift);
-    }
+    model->switchWarningStates |= ((uint64_t)(value + 1) << shift);
 
     updateStartupSwitches();
     emit modified();
@@ -576,9 +556,9 @@ void SetupPanel::startupSwitchToggled(bool checked)
     int index = sender()->property("index").toInt();
 
     if (checked)
-      model->switchWarningEnable &= ~(1 << index);
+      model->switchWarningStates |= (1 << (index * 2));
     else
-      model->switchWarningEnable |= (1 << index);
+      model->switchWarningStates &= ~(3 << (index * 2));
 
     updateStartupSwitches();
     emit modified();
@@ -664,17 +644,12 @@ void SetupPanel::onBeepCenterToggled(bool checked)
   }
 }
 
-void SetupPanel::on_editText_clicked()
+void SetupPanel::on_editChecklist_clicked()
 {
-  const QString path = Helpers::getChecklistsPath();
-  QDir d(path);
-  if (!d.exists()) {
-    QMessageBox::critical(this, tr("Profile Settings"), tr("SD structure path not specified or invalid"));
-  }
-  else {
-    ChecklistDialog *g = new ChecklistDialog(this, model);
-    g->exec();
-  }
+  ChecklistDialog *chk = new ChecklistDialog(this, model);
+  connect(chk, &ChecklistDialog::updated, [this]() { emit modified(); });
+  chk->exec();
+  chk->deleteLater();
 }
 
 void SetupPanel::onTimerCustomContextMenuRequested(QPoint pos)
@@ -866,5 +841,6 @@ void SetupPanel::onModuleUpdateItemModels()
 
 void SetupPanel::onFunctionSwitchesUpdateItemModels()
 {
+  updateStartupSwitches();
   sharedItemModels->update(AbstractItemModel::IMUE_FunctionSwitches);
 }

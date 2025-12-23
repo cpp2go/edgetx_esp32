@@ -22,10 +22,6 @@
 #include "board.h"
 #define SIMPGMSPC_USE_QT    0
 
-#if defined(SIMU_AUDIO)
-  #include <SDL.h>
-#endif
-
 #include "edgetx.h"
 #include "simulcd.h"
 
@@ -33,6 +29,10 @@
 #include "hal/rotary_encoder.h"
 #include "hal/usb_driver.h"
 #include "hal/audio_driver.h"
+
+#include "os/sleep.h"
+#include "os/task.h"
+#include "os/timer_native_impl.h"
 
 #include <errno.h>
 #include <stdarg.h>
@@ -69,35 +69,8 @@ void lcdCopy(void * dest, void * src);
 
 uint64_t simuTimerMicros(void)
 {
-#if SIMPGMSPC_USE_QT
-  static QElapsedTimer ticker;
-  if (!ticker.isValid())
-    ticker.start();
-  return ticker.nsecsElapsed() / 1000;
-
-#elif defined(_MSC_VER)
-  static double freqScale = 0.0;
-  static LARGE_INTEGER firstTick;
-  LARGE_INTEGER newTick;
-
-  if (!freqScale) {
-    LARGE_INTEGER frequency;
-    // get ticks per second
-    QueryPerformanceFrequency(&frequency);
-    // 1us resolution
-    freqScale = 1e6 / frequency.QuadPart;
-    // init timer
-    QueryPerformanceCounter(&firstTick);
-    TRACE_SIMPGMSPACE("microsTimer() init: first tick = %llu @ %llu Hz", firstTick.QuadPart, frequency.QuadPart);
-  }
-  // read the timer
-  QueryPerformanceCounter(&newTick);
-  // compute the elapsed time
-  return (newTick.QuadPart - firstTick.QuadPart) * freqScale;
-#else  // GNUC
   auto now = std::chrono::steady_clock::now();
   return (uint64_t) std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
-#endif
 }
 
 uint16_t getTmr16KHz()
@@ -123,6 +96,8 @@ void simuInit()
 
   // Init ADC driver callback
   adcInit(&simu_adc_driver);
+  // Switches
+  switchInit();
 }
 
 bool keysStates[MAX_KEYS] = { false };
@@ -201,12 +176,6 @@ void simuStart(bool tests, const char * sdPath, const char * settingsPath)
   }
 #endif
 
-#if defined(SIMU_EXCEPTIONS)
-  signal(SIGFPE, sig);
-  signal(SIGSEGV, sig);
-  try {
-#endif
-
   // Init LCD callbacks
   lcdInit();
 
@@ -224,16 +193,13 @@ void simuStart(bool tests, const char * sdPath, const char * settingsPath)
 #endif
 
   simu_running = true;
-
-#if defined(SIMU_EXCEPTIONS)
-  }
-  catch (...) {
-  }
-#endif
 }
 
-extern RTOS_TASK_HANDLE mixerTaskId;
-extern RTOS_TASK_HANDLE menusTaskId;
+extern task_handle_t mixerTaskId;
+extern task_handle_t menusTaskId;
+#if defined(AUDIO)
+extern task_handle_t audioTaskId;
+#endif
 
 void simuStop()
 {
@@ -241,174 +207,15 @@ void simuStop()
     return;
 
   simu_shutdown = true;
-
-  pthread_join(mixerTaskId, nullptr);
-  pthread_join(menusTaskId, nullptr);
+  task_shutdown_all();
 
   simu_running = false;
 }
-
-struct SimulatorAudio {
-  int volumeGain;
-  int currentVolume;
-  int16_t leftoverData[AUDIO_BUFFER_SIZE];
-  int leftoverLen;
-  bool threadRunning;
-  pthread_t threadPid;
-} simuAudio;
 
 bool simuIsRunning()
 {
   return simu_running;
 }
-
-uint8_t simuSleep(uint32_t ms)
-{
-  for (uint32_t i = 0; i < ms; ++i){
-    if (simu_shutdown || !simu_running)
-      return 1;
-    sleep(1);
-  }
-  return 0;
-}
-
-void audioConsumeCurrentBuffer()
-{
-}
-
-void audioSetVolume(uint8_t volume)
-{
-  simuAudio.currentVolume = 127 * volume * simuAudio.volumeGain / VOLUME_LEVEL_MAX / 10;
-  // TRACE_SIMPGMSPACE("setVolume(): in: %u, out: %u", volume, simuAudio.currentVolume);
-}
-
-#if defined(SIMU_AUDIO)
-void copyBuffer(void* dest, const int16_t* buff, unsigned samples)
-{
-  int16_t* i16_dst = (int16_t*)dest;
-  for (unsigned i = 0; i < samples; i++) {
-    int32_t sample = (((int32_t)buff[i] * (int32_t)simuAudio.currentVolume) / 127);
-    if (sample > INT16_MAX) sample = INT16_MAX;
-    else if (sample < INT16_MIN) sample = INT16_MIN;
-    *(i16_dst++) = (int16_t)sample;
-  }
-}
-
-void fillAudioBuffer(void *udata, Uint8 *stream, int len)
-{
-  SDL_memset(stream, 0, len);
-
-  if (simuAudio.leftoverLen) {
-    int len1 = min(len/2, simuAudio.leftoverLen);
-    copyBuffer(stream, simuAudio.leftoverData, len1);
-    len -= len1*2;
-    stream += len1*2;
-    simuAudio.leftoverLen -= len1;
-    // putchar('l');
-    if (simuAudio.leftoverLen) return;		// buffer fully filled
-  }
-
-  if (audioQueue.buffersFifo.filledAtleast(len / (AUDIO_BUFFER_SIZE * 2) + 1)) {
-    while (true) {
-      const AudioBuffer* nextBuffer =
-          audioQueue.buffersFifo.getNextFilledBuffer();
-      if (nextBuffer) {
-        if (len >= nextBuffer->size * 2) {
-          copyBuffer(stream, nextBuffer->data, nextBuffer->size);
-          stream += nextBuffer->size * 2;
-          len -= nextBuffer->size * 2;
-          // putchar('+');
-          audioQueue.buffersFifo.freeNextFilledBuffer();
-        } else {
-          // partial
-          copyBuffer(stream, nextBuffer->data, len / 2);
-          simuAudio.leftoverLen = (nextBuffer->size - len / 2);
-          memcpy(simuAudio.leftoverData, &nextBuffer->data[len / 2],
-                 simuAudio.leftoverLen * 2);
-          len = 0;
-          // putchar('p');
-          audioQueue.buffersFifo.freeNextFilledBuffer();
-          break;
-        }
-      } else {
-        break;
-      }
-    }
-  }
-
-  //fill the rest of buffer with silence
-  if (len > 0) {
-    SDL_memset(stream, 0x8000, len);  // make sure this is silence.
-    // putchar('.');
-  }
-}
-
-void * audioThread(void *)
-{
-  /*
-    Checking here if SDL audio was initialized is wrong, because
-    the SDL_CloseAudio() de-initializes it.
-
-    if ( !SDL_WasInit(SDL_INIT_AUDIO) ) {
-      fprintf(stderr, "ERROR: couldn't initialize SDL audio support\n");
-      return 0;
-    }
-  */
-
-  SDL_AudioSpec wanted, have;
-
-  /* Set the audio format */
-  wanted.freq = AUDIO_SAMPLE_RATE;
-  wanted.format = AUDIO_S16SYS;
-  wanted.channels = 1;    /* 1 = mono, 2 = stereo */
-  wanted.samples =
-      AUDIO_BUFFER_SIZE * 2; /* Good low-latency value for callback */
-  wanted.callback = fillAudioBuffer;
-  wanted.userdata = nullptr;
-
-  /*
-    SDL_OpenAudio() internally calls SDL_InitSubSystem(SDL_INIT_AUDIO),
-    which initializes SDL Audio subsystem if necessary
-  */
-  if ( SDL_OpenAudio(&wanted, &have) < 0 ) {
-    fprintf(stderr, "Couldn't open audio: %s\n", SDL_GetError());
-    return nullptr;
-  }
-  SDL_PauseAudio(0);
-
-  while (simuAudio.threadRunning) {
-    audioQueue.wakeup();
-    sleep(1);
-  }
-  SDL_CloseAudio();
-  return nullptr;
-}
-
-void startAudioThread(int volumeGain)
-{
-  simuAudio.leftoverLen = 0;
-  simuAudio.threadRunning = true;
-  simuAudio.volumeGain = volumeGain;
-  TRACE_SIMPGMSPACE("startAudioThread(%d)", volumeGain);
-  audioSetVolume(VOLUME_LEVEL_DEF);
-
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  struct sched_param sp;
-  sp.sched_priority = SCHED_RR;
-  pthread_attr_setschedparam(&attr, &sp);
-  pthread_create(&simuAudio.threadPid, &attr, &audioThread, nullptr);
-#ifdef __linux__
-  pthread_setname_np(simuAudio.threadPid, "audio");
-#endif
-}
-
-void stopAudioThread()
-{
-  simuAudio.threadRunning = false;
-  pthread_join(simuAudio.threadPid, nullptr);
-}
-#endif // #if defined(SIMU_AUDIO)
 
 #if !defined(COLORLCD)
 void lcdSetRefVolt(uint8_t val)
@@ -424,6 +231,7 @@ void lcdSetInvert(bool invert)
 
 void boardInit()
 {
+  switchInit();
 }
 
 uint32_t pwrCheck() { return simu_shutdown ? e_power_off : e_power_on; }
@@ -459,6 +267,10 @@ bool getHatsAsKeys()
   return (trimsAsButtons || lua);
 }
 #endif
+
+void pollKeys()
+{
+}
 
 uint32_t readKeys()
 {
@@ -496,7 +308,7 @@ void delay_us(uint16_t us) { }
 
 void flashWrite(uint32_t *address, const uint32_t *buffer)
 {
-  simuSleep(10);
+  sleep_ms(10);
 }
 
 uint32_t isBootloaderStart(const uint8_t * block)
@@ -573,6 +385,7 @@ static void* null_drv_init(void* hw_def, const etx_serial_init* dev) { return nu
 static void null_drv_deinit(void* ctx) { }
 static void null_drv_send_byte(void* ctx, uint8_t b) { }
 static void null_drv_send_buffer(void* ctx, const uint8_t* b, uint32_t l) { }
+static bool null_drv_tx_completed(void* ctx) { return true; }
 static int null_drv_get_byte(void* ctx, uint8_t* b) { return 0; }
 static void null_drv_set_baudrate(void* ctx, uint32_t baudrate) { }
 
@@ -581,7 +394,7 @@ const etx_serial_driver_t null_drv = {
   .deinit = null_drv_deinit,
   .sendByte = null_drv_send_byte,
   .sendBuffer = null_drv_send_buffer,
-  .txCompleted = nullptr,
+  .txCompleted = null_drv_tx_completed,
   .waitForTxCompleted = nullptr,
   .enableRx = nullptr,
   .getByte = null_drv_get_byte,
@@ -652,6 +465,12 @@ const etx_serial_port_t* auxSerialGetPort(int port_nr)
 struct TouchState simTouchState = {};
 bool simTouchOccured = false;
 
+bool touchPanelInit()
+{
+  simTouchState.x = simTouchState.y = 0;
+  return true;
+}
+
 bool touchPanelEventOccured()
 {
   if(simTouchOccured)
@@ -660,6 +479,20 @@ bool touchPanelEventOccured()
     return true;
   }
   return false;
+}
+
+void touchPanelDown(short x, short y)
+{
+  simTouchState.x = x;
+  simTouchState.y = y;
+  simTouchState.event = TE_DOWN;
+  simTouchOccured = true;
+}
+
+void touchPanelUp()
+{
+  simTouchState.event = TE_UP;
+  simTouchOccured = true;
 }
 
 struct TouchState touchPanelRead()
@@ -675,6 +508,3 @@ struct TouchState getInternalTouchState()
   return simTouchState;
 }
 #endif
-
-void telemetryStart() {}
-void telemetryStop() {}

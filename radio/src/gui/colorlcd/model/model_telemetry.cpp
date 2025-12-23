@@ -22,7 +22,6 @@
 #include "model_telemetry.h"
 
 #include "fullscreen_dialog.h"
-#include "libopenui.h"
 #include "list_line_button.h"
 #include "edgetx.h"
 #include "page.h"
@@ -36,7 +35,7 @@
 
 std::string getSensorCustomValue(uint8_t sensor, int32_t value, LcdFlags flags);
 
-#if (PORTRAIT_LCD) || defined(TRANSLATIONS_CZ)
+#if PORTRAIT || defined(TRANSLATIONS_CZ)
 #define TWOCOLBUTTONS 1
 #else
 #define TWOCOLBUTTONS 0
@@ -84,11 +83,11 @@ class TSStyle
 
   lv_style_t tsFreshStyle;
 
-  static LAYOUT_VAL(NUM_W, 36, 36, LS(36))
-  static LAYOUT_VAL(NAME_W, 56, 56, LS(56))
-  static LAYOUT_VAL(ID_Y, 17, 17, LS(17))
-  static LAYOUT_VAL(ID_H, 11, 11, LS(11))
-  static LAYOUT_VAL(FRSH_Y, 10, 10, LS(10))
+  static LAYOUT_VAL_SCALED(NUM_W, 36)
+  static LAYOUT_VAL_SCALED(NAME_W, 56)
+  static LAYOUT_VAL_SCALED(ID_Y, 16)
+  static LAYOUT_VAL_SCALED(ID_H, 12)
+  static LAYOUT_VAL_SCALED(FRSH_Y, 10)
 
  private:
   bool styleInitDone;
@@ -203,64 +202,6 @@ lv_obj_t* TSStyle::newValue(lv_obj_t* parent)
   return obj;
 }
 
-static void ts_fresh_icon_constructor(const lv_obj_class_t* class_p,
-                                      lv_obj_t* obj)
-{
-#if LANDSCAPE_LCD_SML
-  static uint8_t const freshBitmap[] = {
-      0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
-  };
-#elif LANDSCAPE_LCD_LRG
-  static uint8_t const freshBitmap[] = {
-      0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
-  };
-#else
-  static uint8_t const freshBitmap[] = {
-      0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00,
-      0x00, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00, 0x00,
-  };
-#endif
-
-  etx_obj_add_style(obj, tsStyle.tsFreshStyle, LV_PART_MAIN);
-  lv_canvas_set_buffer(obj, (void*)freshBitmap, PAD_LARGE, PAD_LARGE, LV_IMG_CF_ALPHA_8BIT);
-  lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
-}
-
-static const lv_obj_class_t ts_fresh_icon_class = {
-    .base_class = &lv_canvas_class,
-    .constructor_cb = ts_fresh_icon_constructor,
-    .destructor_cb = nullptr,
-    .user_data = nullptr,
-    .event_cb = nullptr,
-    .width_def = PAD_LARGE,
-    .height_def = PAD_LARGE,
-    .editable = LV_OBJ_CLASS_EDITABLE_FALSE,
-    .group_def = LV_OBJ_CLASS_GROUP_DEF_INHERIT,
-    .instance_size = sizeof(lv_canvas_t),
-};
-
 class SensorButton : public ListLineButton
 {
  public:
@@ -268,16 +209,14 @@ class SensorButton : public ListLineButton
       ListLineButton(parent, index)
   {
     padAll(PAD_ZERO);
-    setHeight(EdgeTxStyles::UI_ELEMENT_HEIGHT);
+    setHeight(EdgeTxStyles::UI_ELEMENT_HEIGHT + PAD_SMALL);
 
     check(isActive());
 
-    lv_obj_add_event_cb(lvobj, SensorButton::on_draw, LV_EVENT_DRAW_MAIN_BEGIN,
-                        nullptr);
+    delayLoad();
   }
 
  protected:
-  bool init = false;
   bool showId = false;
   lv_obj_t* numLabel = nullptr;
   lv_obj_t* idLabel = nullptr;
@@ -285,16 +224,6 @@ class SensorButton : public ListLineButton
   lv_obj_t* fresh = nullptr;
   uint32_t lastRefresh = 0;
   std::string valString;
-
-  static void on_draw(lv_event_t* e)
-  {
-    lv_obj_t* target = lv_event_get_target(e);
-    auto line = (SensorButton*)lv_obj_get_user_data(target);
-    if (line) {
-      if (!line->init)
-        line->delayed_init();
-    }
-  }
 
   bool isActive() const override { return telemetryItems[index].isAvailable(); }
 
@@ -318,16 +247,14 @@ class SensorButton : public ListLineButton
     refresh();
   }
 
-  void delayed_init()
+  void delayedInit() override
   {
     char s[20];
-
-    init = true;
 
     lv_obj_enable_style_refresh(false);
 
     numLabel = tsStyle.newNum(lvobj, index);
-    lv_obj_set_pos(numLabel, PAD_TINY, PAD_MEDIUM/2);
+    lv_obj_set_pos(numLabel, PAD_TINY, PAD_TINY);
 
     TelemetrySensor* sensor = &g_model.telemetrySensors[index];
     if (sensor->type == TELEM_TYPE_CUSTOM) {
@@ -343,11 +270,14 @@ class SensorButton : public ListLineButton
     lv_obj_t* nm = tsStyle.newName(lvobj, s);
     lv_obj_set_pos(nm, TSStyle::NUM_W + PAD_SMALL, PAD_MEDIUM/2);
 
-    fresh = etx_create(&ts_fresh_icon_class, lvobj);
-    lv_obj_set_pos(fresh, TSStyle::NUM_W + TSStyle::NAME_W + PAD_MEDIUM, TSStyle::FRSH_Y);
+    auto mask = getBuiltinIcon(ICON_DOT);
+    fresh = lv_canvas_create(lvobj);
+    lv_obj_set_pos(fresh, TSStyle::NUM_W + TSStyle::NAME_W + PAD_MEDIUM, PAD_LARGE);
+    lv_canvas_set_buffer(fresh, (void*)mask->data, mask->width, mask->height, LV_IMG_CF_ALPHA_8BIT);
+    lv_obj_add_flag(fresh, LV_OBJ_FLAG_HIDDEN);
 
     valLabel = tsStyle.newValue(lvobj);
-    lv_obj_set_pos(valLabel, TSStyle::NUM_W + TSStyle::NAME_W + PAD_LARGE * 2, PAD_MEDIUM/2);
+    lv_obj_set_pos(valLabel, TSStyle::NUM_W + TSStyle::NAME_W + PAD_LARGE * 3, PAD_MEDIUM/2);
 
     lv_obj_update_layout(lvobj);
   
@@ -357,7 +287,7 @@ class SensorButton : public ListLineButton
 
   void refresh() override
   {
-    if (!init) return;
+    if (!loaded) return;
 
     if (showId != g_model.showInstanceIds) setNumIdState();
 
@@ -367,7 +297,7 @@ class SensorButton : public ListLineButton
     else
       lv_obj_add_flag(fresh, LV_OBJ_FLAG_HIDDEN);
 
-    uint32_t now = RTOS_GET_MS();
+    uint32_t now = lv_tick_get();
     TelemetryItem& telemetryItem = telemetryItems[index];
 
     // Update value
@@ -479,7 +409,7 @@ class SensorEditWindow : public SubPage
 
   void checkEvents() override
   {
-    uint32_t now = RTOS_GET_MS();
+    uint32_t now = lv_tick_get();
     TelemetryItem& telemetryItem = telemetryItems[index];
 
     if ((now - lastRefresh >= 200) || telemetryItem.isFresh()) {
@@ -815,11 +745,11 @@ class SensorEditWindow : public SubPage
     updateSensorParameters();
   }
 
-  static LAYOUT_VAL2(NUM_EDIT_W, EdgeTxStyles::EDIT_FLD_WIDTH_NARROW, 80)
+  static LAYOUT_SIZE(NUM_EDIT_W, EdgeTxStyles::EDIT_FLD_WIDTH_NARROW, LAYOUT_SCALE(80))
 };
 
-ModelTelemetryPage::ModelTelemetryPage() :
-    PageTab(STR_MENUTELEMETRY, ICON_MODEL_TELEMETRY)
+ModelTelemetryPage::ModelTelemetryPage(PageDef& pageDef) :
+    PageGroupItem(pageDef)
 {
   tsStyle.init();
 }
@@ -828,25 +758,26 @@ void ModelTelemetryPage::checkEvents()
 {
   int _lastKnownIndex = availableTelemetryIndex();
 
-  if (lastKnownIndex >= 0 && lastKnownIndex != _lastKnownIndex) {
-    rebuild(window);
+  if (_lastKnownIndex < 0) {
+    if (discover->checked()) {
+      buildSensorList(-1);
+      discover->setText(STR_DISCOVER_SENSORS);
+      discover->check(false);
+      POPUP_WARNING(STR_TELEMETRYFULL);
+    }
+  } else if (lastKnownIndex != _lastKnownIndex) {
+    buildSensorList(-1);
     lastKnownIndex = _lastKnownIndex;
   }
 
-  PageTab::checkEvents();
+  PageGroupItem::checkEvents();
 }
 
-void ModelTelemetryPage::rebuild(Window* window, int8_t focusSensorIndex)
-{
-  buildSensorList(focusSensorIndex);
-  lastKnownIndex = availableTelemetryIndex();
-}
-
-void ModelTelemetryPage::editSensor(Window* window, uint8_t index)
+void ModelTelemetryPage::editSensor(uint8_t index)
 {
   lastKnownIndex = -1;
   Window* editWindow = new SensorEditWindow(index);
-  editWindow->setCloseHandler([=]() { rebuild(window, index); });
+  editWindow->setCloseHandler([=]() { buildSensorList(index); });
 }
 
 void ModelTelemetryPage::buildSensorList(int8_t focusSensorIndex)
@@ -864,7 +795,7 @@ void ModelTelemetryPage::buildSensorList(int8_t focusSensorIndex)
 
       button->setPressHandler([=]() -> uint8_t {
         Menu* menu = new Menu();
-        menu->addLine(STR_EDIT, [=]() { editSensor(window, idx); });
+        menu->addLine(STR_EDIT, [=]() { editSensor(idx); });
         menu->addLine(STR_COPY, [=]() {
           auto newIndex = availableTelemetryIndex();
           if (newIndex >= 0) {
@@ -875,26 +806,26 @@ void ModelTelemetryPage::buildSensorList(int8_t focusSensorIndex)
             TelemetryItem& newItem = telemetryItems[newIndex];
             newItem = sourceItem;
             SET_DIRTY();
-            rebuild(window, newIndex);
+            buildSensorList(newIndex);
           } else {
-            new FullScreenDialog(WARNING_TYPE_ALERT, "", STR_TELEMETRYFULL);
+            POPUP_WARNING(STR_TELEMETRYFULL);
           }
         });
         menu->addLine(STR_DELETE, [=]() {
           delTelemetryIndex(idx);  // calls setDirty internally
           for (uint8_t i = idx + 1; i < MAX_TELEMETRY_SENSORS; i += 1) {
             if (g_model.telemetrySensors[i].isAvailable()) {
-              rebuild(window, i);
+              buildSensorList(i);
               return;
             }
           }
           for (int8_t i = idx - 1; i >= 0; i -= 1) {
             if (g_model.telemetrySensors[i].isAvailable()) {
-              rebuild(window, i);
+              buildSensorList(i);
               return;
             }
           }
-          rebuild(window, -1);
+          buildSensorList(-1);
         });
         return 0;
       });
@@ -914,6 +845,11 @@ void ModelTelemetryPage::buildSensorList(int8_t focusSensorIndex)
 
   uint8_t sensorsCount = getTelemetrySensorsCount();
   deleteAll->show(sensorsCount > 0);
+
+  if (availableTelemetryIndex() >= 0)
+    lastKnownIndex = availableTelemetryIndex();
+  else
+    lastKnownIndex = MAX_TELEMETRY_SENSORS;
 }
 
 void ModelTelemetryPage::build(Window* window)
@@ -921,8 +857,6 @@ void ModelTelemetryPage::build(Window* window)
   window->padAll(PAD_TINY);
   window->padBottom(PAD_LARGE);
   window->setFlexLayout(LV_FLEX_FLOW_COLUMN, PAD_ZERO);
-
-  this->window = window;
 
   // Sensors
   new Subtitle(window, STR_TELEMETRY_SENSORS);
@@ -957,9 +891,9 @@ void ModelTelemetryPage::build(Window* window)
       new TextButton(line, rect_t{}, STR_TELEMETRY_NEWSENSOR, [=]() -> uint8_t {
         int idx = availableTelemetryIndex();
         if (idx >= 0)
-          editSensor(window, idx);
+          editSensor(idx);
         else
-          new FullScreenDialog(WARNING_TYPE_ALERT, "", STR_TELEMETRYFULL);
+          POPUP_WARNING(STR_TELEMETRYFULL);
         return 0;
       });
   lv_obj_set_grid_cell(b->getLvObj(), LV_GRID_ALIGN_STRETCH, 1, 1,

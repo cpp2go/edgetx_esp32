@@ -388,8 +388,9 @@ class ModuleWindow : public Window
     if (isModuleRFAccess(moduleIdx)) {
       for (uint8_t receiverIdx = 0; receiverIdx < PXX2_MAX_RECEIVERS_PER_MODULE;
           receiverIdx++) {
-        char label[] = TR_RECEIVER " X";
-        label[sizeof(label) - 2] = '1' + receiverIdx;
+        char label[40];
+        char* s = strAppend(label, STR_RECEIVER);
+        strAppendUnsigned(s, receiverIdx + 1);
 
         auto line = newLine(grid);
         new StaticText(line, rect_t{}, label);
@@ -569,14 +570,15 @@ class ModuleSubTypeChoice : public Choice
 
   int getSubTypeValue()
   {
-    if (isModuleXJT(moduleIdx) || isModuleDSM2(moduleIdx) || isModuleR9MNonAccess(moduleIdx)
+    if (isModuleXJT(moduleIdx) || isModuleDSM2(moduleIdx) ||
+        isModuleR9MNonAccess(moduleIdx) || isModuleSBUS(moduleIdx)
 #if defined(PPM)
         || isModulePPM(moduleIdx)
 #endif
 #if defined(PXX2)
         || isModuleISRM(moduleIdx)
 #endif
-       ) {
+    ) {
       return g_model.moduleData[moduleIdx].subType;
     } else {
       return g_model.moduleData[moduleIdx].multi.rfProtocol;
@@ -609,8 +611,8 @@ class ModuleSubTypeChoice : public Choice
       MultiModuleStatus& status = getMultiModuleStatus(moduleIdx);
       status.invalidate();
 
-      uint32_t startUpdate = RTOS_GET_MS();
-      while (!status.isValid() && (RTOS_GET_MS() - startUpdate < 250))
+      uint32_t startUpdate = lv_tick_get();
+      while (!status.isValid() && (lv_tick_elaps(startUpdate) < 250))
         ;
       SET_DIRTY();
 #endif
@@ -728,7 +730,7 @@ ModulePage::ModulePage(uint8_t moduleIdx) : Page(ICON_MODEL_SETUP)
 {
   const char* title2 =
       moduleIdx == INTERNAL_MODULE ? STR_INTERNALRF : STR_EXTERNALRF;
-  header->setTitle(STR_MENU_MODEL_SETUP);
+  header->setTitle(STR_MAIN_MENU_MODEL_SETTINGS);
   header->setTitle2(title2);
 
   body->setFlexLayout();
@@ -749,6 +751,7 @@ ModulePage::ModulePage(uint8_t moduleIdx) : Page(ICON_MODEL_SETUP)
                  MODULE_TYPE_COUNT - 1, GET_DEFAULT(md->type));
 
   moduleChoice->setAvailableHandler([=](int8_t moduleType) {
+    if (moduleType == MODULE_TYPE_NONE) return true;
     return moduleIdx == INTERNAL_MODULE ? isInternalModuleAvailable(moduleType)
                                         : isExternalModuleAvailable(moduleType);
   });

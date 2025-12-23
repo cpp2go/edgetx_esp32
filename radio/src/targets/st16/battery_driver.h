@@ -19,12 +19,25 @@
  * GNU General Public License for more details.
  */
 
-/***************************************************************************************************
-
-***************************************************************************************************/
 #pragma once
-/***************************************************************************************************
 
-***************************************************************************************************/
+#include "board.h"
+#include "hal.h"
 
-#define IS_UCHARGER_ACTIVE()              gpio_read(UCHARGER_GPIO)
+#include "hal/gpio.h"
+#include "stm32_gpio.h"
+
+enum ChargeState
+{
+  CHARGE_UNKNOWN,
+  CHARGE_NONE,
+  CHARGE_STARTED,
+  CHARGE_FINISHED
+};
+
+extern void battery_charge_init();
+extern void handle_battery_charge(uint32_t last_press_time);
+extern uint16_t get_battery_charge_state();
+extern uint16_t getBatteryVoltage();   // returns current battery voltage in 10mV steps
+extern bool isChargerActive();
+extern void battery_charge_end();

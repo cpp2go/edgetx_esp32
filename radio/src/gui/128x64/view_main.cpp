@@ -38,7 +38,6 @@
 #define MODELNAME_Y   (0)
 #define PHASE_X       (6*FW-2)
 #define PHASE_Y       (2*FH)
-#define PHASE_FLAGS   0
 #define VBATT_X       (6*FW-1)
 #define VBATT_Y       (2*FH)
 #define VBATTUNIT_Y   (3*FH)
@@ -111,13 +110,14 @@ void drawPotsBars()
   uint8_t cols =  configured_pots > 4 ? 3 : configured_pots % 2 ? 3 : 2;
   coord_t xstart =  LCD_W / 2 - (cols % 2 ? 5 : 3);
 
-  for (uint8_t i = 0; i < max_pots; i++) {
+  for (uint8_t i = 0, j = 0; i < max_pots; i++) {
     if (IS_POT_SLIDER_AVAILABLE(i)) {
-      coord_t x = xstart + (i % cols) * 5;
-      coord_t y = lines == 1 ? (LCD_H - 8) : i >= cols ? (LCD_H - 8) : (LCD_H - 8 - BAR_HEIGHT / 2 - 1);
+      coord_t x = xstart + (j % cols) * 5;
+      coord_t y = lines == 1 ? (LCD_H - 8) : j >= cols ? (LCD_H - 8) : (LCD_H - 8 - BAR_HEIGHT / 2 - 1);
       auto v = calibratedAnalogs[offset + i] + RESX;
       uint8_t len = (v * (BAR_HEIGHT - (lines - 1)) / (RESX * 2 * lines)) + 1l;
       V_BAR(x, y, len);
+      j++;
     }
   }
 }
@@ -350,7 +350,7 @@ void drawSmallSwitch(coord_t x, coord_t y, int width, unsigned int index)
       }
     }
 
-    lcdDrawChar(width == 5 ? x + 1 : x, y, 'A' + index, SMLSIZE);
+    lcdDrawChar(width == 5 ? x + 1 : x, y, switchGetDefaultName(index)[1], SMLSIZE);
     y += 7;
 
     if (val <= 0) {
@@ -518,11 +518,25 @@ void menuMainView(event_t event)
         // Switches
         // -> 2 columns: one for each side
         // -> 4 slots on each side
-        uint8_t switches = switchGetMaxSwitches();
+        uint8_t maxSwitch = 0;
+        uint8_t leftMaxRow = 0;
+        uint8_t rightMaxRow = 0;
+        for (uint8_t n = 0; n < switchGetMaxSwitches(); n += 1)
+            if (SWITCH_EXISTS(n) && !switchIsFlex(n) && !switchIsCustomSwitch(n)) {
+              auto switch_display = switchGetDisplayPosition(n);
+              if (switch_display.col) {
+                if (switch_display.row > rightMaxRow)
+                  rightMaxRow = switch_display.row;
+              } else {
+                if (switch_display.row > leftMaxRow)
+                  leftMaxRow = switch_display.row;
+              }
+              maxSwitch = n + 1;
+            }
 
-        if (switches < 7) {
-          for (int i = 0; i < switches; ++i) {
-            if (SWITCH_EXISTS(i) && !switchIsFlex(i)) {
+        if (leftMaxRow < 3 && rightMaxRow < 3) {
+          for (int i = 0; i < maxSwitch; ++i) {
+            if (SWITCH_EXISTS(i) && !switchIsFlex(i) && !switchIsCustomSwitch(i)) {
               auto switch_display = switchGetDisplayPosition(i);
               coord_t x = switch_display.col == 0 ? 3 * FW + 3 : 18 * FW + 1;
               coord_t y = 33 + switch_display.row * FH;
@@ -536,11 +550,11 @@ void menuMainView(event_t event)
           }
         }
         else {
-          for (int i = 0; i < switches; ++i) {
-            if (SWITCH_EXISTS(i) && !switchIsFlex(i)) {
+          for (int i = 0; i < maxSwitch; ++i) {
+            if (SWITCH_EXISTS(i) && !switchIsFlex(i) && !switchIsCustomSwitch(i)) {
               auto switch_display = switchGetDisplayPosition(i);
               coord_t x = (switch_display.col == 0 ? 8 : 96) + switch_display.row * 5;
-              if (switches < 9) x += 3;
+              if (maxSwitch < 9) x += 3;
               drawSmallSwitch(x, 5 * FH + 1, 4, i);
             }
           }
@@ -567,7 +581,7 @@ void menuMainView(event_t event)
   if (view_base != VIEW_CHAN_MONITOR) {
     // Flight Mode Name
     uint8_t mode = mixerCurrentFlightMode;
-    lcdDrawSizedText(PHASE_X, PHASE_Y, g_model.flightModeData[mode].name, sizeof(g_model.flightModeData[mode].name), PHASE_FLAGS);
+    lcdDrawSizedText(PHASE_X, PHASE_Y, g_model.flightModeData[mode].name, sizeof(g_model.flightModeData[mode].name));
 
     // Model Name
     drawModelName(MODELNAME_X, MODELNAME_Y, g_model.header.name, g_eeGeneral.currModel, BIGSIZE);
@@ -612,16 +626,10 @@ void menuMainView(event_t event)
     // Issue 98
     lcdDrawText(15 * FW, 0, "BIND", 0);
   }
-#if defined(RTCLOCK)
-  else if (view_base != VIEW_CHAN_MONITOR && rtcIsValid()) {
-    drawRtcTime(CLOCK_X, CLOCK_Y, LEFT|TIMEBLINK);
-  }
 #endif
-#else
 #if defined(RTCLOCK)
   if (view_base != VIEW_CHAN_MONITOR && rtcIsValid()) {
     drawRtcTime(CLOCK_X, CLOCK_Y, LEFT|TIMEBLINK);
   }
-#endif
 #endif
 }

@@ -22,10 +22,10 @@
 #include "fullscreen_dialog.h"
 
 #include "LvglWrapper.h"
-#include "libopenui.h"
 #include "mainwindow.h"
 #include "edgetx.h"
 #include "etx_lv_theme.h"
+#include "os/sleep.h"
 #include "view_main.h"
 #include "hal/watchdog_driver.h"
 
@@ -45,25 +45,11 @@ FullScreenDialog::FullScreenDialog(
   // In case alert raised while splash screen is showing.
   cancelSplash();
 
-  Layer::push(this);
+  pushLayer();
 
   bringToTop();
 
   build();
-
-  lv_obj_add_event_cb(lvobj, FullScreenDialog::on_draw,
-                      LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
-}
-
-void FullScreenDialog::on_draw(lv_event_t* e)
-{
-  auto dlg = (FullScreenDialog*)lv_obj_get_user_data(lv_event_get_target(e));
-  if (dlg) {
-    if (!dlg->loaded) {
-      dlg->loaded = true;
-      dlg->delayedInit();
-    }
-  }
 }
 
 void FullScreenDialog::build()
@@ -113,7 +99,7 @@ void FullScreenDialog::build()
   } else {
     if (type == WARNING_TYPE_CONFIRM) {
       auto btn = new TextButton(
-          this, {LCD_W / 3 - TWOBTN_W / 2, LCD_H - TWOBTN_H - PAD_LARGE, TWOBTN_W, TWOBTN_H}, STR_EXIT,
+          this, {LCD_W / 3 - TWOBTN_W / 2, LCD_H - TWOBTN_H - PAD_LARGE, TWOBTN_W, TWOBTN_H}, STR_CANCEL,
           [=]() {
             deleteLater();
             return 0;
@@ -169,16 +155,13 @@ void FullScreenDialog::deleteLater(bool detach, bool trash)
   if (running) {
     running = false;
   } else {
-    Layer::pop(this);
     Window::deleteLater(detach, trash);
   }
-  // Window* p = Layer::back();
-  // if (p) p->show();
 }
 
-void FullScreenDialog::setMessage(std::string text)
+void FullScreenDialog::setMessage(const char* text)
 {
-  messageLabel->setText(text);
+  if (messageLabel) messageLabel->setText(text);
 }
 
 static void run_ui_manually()
@@ -186,7 +169,7 @@ static void run_ui_manually()
   checkBacklight();
   WDG_RESET();
 
-  RTOS_WAIT_MS(10);
+  sleep_ms(10);
   LvglWrapper::runNested();
   MainWindow::instance()->run(false);
 }
@@ -211,7 +194,7 @@ void FullScreenDialog::runForever(bool checkPwr)
 #endif
       } else if (check == e_power_press) {
         WDG_RESET();
-        RTOS_WAIT_MS(1);
+        sleep_ms(1);
         continue;
       }
     }

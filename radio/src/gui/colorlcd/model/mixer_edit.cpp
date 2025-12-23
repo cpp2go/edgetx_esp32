@@ -32,6 +32,7 @@
 #include "sourcechoice.h"
 #include "switchchoice.h"
 #include "curveedit.h"
+#include "pagegroup.h"
 
 #define SET_DIRTY() storageDirty(EE_MODEL)
 
@@ -48,7 +49,7 @@ class MixerEditStatusBar : public Window
                             channel, true);
   }
 
-  static LAYOUT_VAL(MIX_STATUS_BAR_MARGIN, 3, 0, LS(3))
+  static LAYOUT_SIZE_SCALED(MIX_STATUS_BAR_MARGIN, 3, 0)
 
  protected:
   ComboChannelBar *channelBar;
@@ -70,12 +71,12 @@ void MixEditWindow::buildHeader(Window *window)
 
   new MixerEditStatusBar(
       window,
-      {window->getRect().w - MIX_STATUS_BAR_WIDTH - MIX_RIGHT_MARGIN, 0,
+      {window->getRect().w - MIX_STATUS_BAR_WIDTH - PageGroup::PAGE_GROUP_BACK_BTN_W, 0,
        MIX_STATUS_BAR_WIDTH, EdgeTxStyles::MENU_HEADER_HEIGHT},
       channel);
 }
 
-#if !PORTRAIT_LCD
+#if !NARROW_LAYOUT
 static const lv_coord_t col_dsc[] = {LV_GRID_FR(1), LV_GRID_FR(2),
                                      LV_GRID_FR(1), LV_GRID_FR(3),
                                      LV_GRID_TEMPLATE_LAST};

@@ -100,6 +100,36 @@ void setVendorSpecificModelDefaults(uint8_t id)
 #endif
 }
 
+#if defined(FUNCTION_SWITCHES)
+void initCustomSwitches()
+{
+  for (int i = 0; i < switchGetMaxSwitches(); i += 1) {
+    if (switchIsCustomSwitch(i)) {
+      uint8_t idx = switchGetCustomSwitchIdx(i);
+      if (strncmp(switchGetDefaultName(i), "SW", 2) == 0) {
+        g_model.customSwitches[idx].type = SWITCH_2POS;
+        g_model.customSwitches[idx].group = 1;
+        if (strncmp(switchGetDefaultName(i), "SW1", 3) == 0)
+          g_model.customSwitches[idx].start = FS_START_ON;
+        else
+          g_model.customSwitches[idx].start = FS_START_OFF;
+      } else {
+        g_model.customSwitches[idx].type = SWITCH_GLOBAL;
+        g_model.customSwitches[idx].group = 0;
+        g_model.customSwitches[idx].start = FS_START_PREVIOUS;
+      }
+      g_model.customSwitches[idx].state = 0;
+      g_model.customSwitches[idx].name[0] = 0;
+#if defined(FUNCTION_SWITCHES_RGB_LEDS)
+      g_model.customSwitches[idx].offColor.setColor(0);
+      g_model.customSwitches[idx].onColor.setColor(0xFFFFFF);
+#endif
+    }
+  }
+  g_model.cfsSetGroupAlwaysOn(1, true);
+}
+#endif
+
 void applyDefaultTemplate()
 {
   setDefaultInputs();
@@ -110,42 +140,32 @@ void applyDefaultTemplate()
   setDefaultModelRegistrationID();
 
 #if defined(FUNCTION_SWITCHES)
-  g_model.functionSwitchConfig = DEFAULT_FS_CONFIG;
-  g_model.functionSwitchGroup = DEFAULT_FS_GROUPS;
-  g_model.functionSwitchStartConfig = DEFAULT_FS_STARTUP_CONFIG;
-  g_model.functionSwitchLogicalState = 0;
-#if defined(FUNCTION_SWITCHES_RGB_LEDS)
-  for (uint8_t i = 0; i < NUM_FUNCTIONS_SWITCHES; i++) {
-    g_model.functionSwitchLedOFFColor[i].setColor(0);
-    g_model.functionSwitchLedONColor[i].setColor(0xFFFFFF);
-  }
-#endif
-#endif
-
-#if defined(FUNCTION_SWITCHES_RGB_LEDS)
-  for (uint8_t i = 0; i < NUM_FUNCTIONS_SWITCHES; i++) {
-    g_model.functionSwitchLedOFFColor[i].setColor(0);
-    g_model.functionSwitchLedONColor[i].setColor(0xFFFFFF);
-  }
+  initCustomSwitches();
 #endif
 
 #if defined(COLORLCD)
-
+  g_model.resetScreenData();
   LayoutFactory::loadDefaultLayout();
+#endif
 
   // enable switch warnings
-  for (uint64_t i = 0; i < MAX_SWITCHES; i++) {
-    if (SWITCH_EXISTS(i)) {
-      g_model.switchWarning |= (1ull << (3ull * i));
+  bool sw1found = false;
+  UNUSED(sw1found);
+  for (uint64_t i = 0; i < switchGetMaxAllSwitches(); i++) {
+    if (SWITCH_WARNING_ALLOWED(i)) {
+#if defined(FUNCTION_SWITCHES)
+      if (switchIsCustomSwitch(i) && !sw1found) {
+        g_model.setSwitchWarning(i, 3);
+        sw1found = true;
+      } else {
+        g_model.setSwitchWarning(i, 1);
+      }
     }
-  }
 #else
-  // enable switch warnings
-  for (uint64_t i = 0; i < MAX_SWITCHES; i++) {
-    if (SWITCH_WARNING_ALLOWED(i))
-      g_model.switchWarning |= (1ull << (3ull * i));
-  }
+      g_model.setSwitchWarning(i, 1);
+    }
 #endif
+  }
 
 #if defined(USE_HATS_AS_KEYS)
   g_model.hatsMode = HATSMODE_GLOBAL;

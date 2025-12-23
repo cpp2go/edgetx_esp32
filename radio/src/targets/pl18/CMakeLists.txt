@@ -1,6 +1,6 @@
 option(DISK_CACHE "Enable SD card disk cache" ON)
 option(UNEXPECTED_SHUTDOWN "Enable the Unexpected Shutdown screen" ON)
-option(STICKS_DEAD_ZONE "Enable sticks dead zone" YES)
+option(STICK_DEAD_ZONE "Enable sticks dead zone" YES)
 option(PXX1 "PXX1 protocol support" ON)
 option(PXX2 "PXX2 protocol support" OFF)
 option(AFHDS3 "AFHDS3 TX Module" ON)
@@ -21,13 +21,19 @@ set(RTC_BACKUP_RAM YES)
 set(PPM_LIMITS_SYMETRICAL YES)
 set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
 set(HARDWARE_EXTERNAL_MODULE YES)
+set(NANO OFF)
 
 # for size report script
 set(CPU_TYPE_FULL STM32F429xI)
 set(TARGET_LINKER_DIR stm32f429_sdram)
-set(TARGET_SDRAM_START 0xC0000000)
+set(TARGET_EXTRAM_START 0xC0000000)
 
-set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM1=8192")
+if(PCBREV STREQUAL PL18U)
+  set(TARGET_SDRAM_SIZE 32768K)
+  set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM1=32768")
+else()
+  set(SIZE_TARGET_MEM_DEFINE "MEM_SIZE_SDRAM1=8192")
+endif()
 
 set(RF_BAUD_RATE 921600 230400 115200 57600 38400 19200 9600 4800 2400 1200)
 set(PCB_RF_BAUD 921600 CACHE STRING "INTERNAL_MODULE_BAUDRATE: ${RF_BAUD_RATE}")
@@ -37,9 +43,22 @@ add_definitions(-DPCBPL18 -DPCBFLYSKY)
 add_definitions(-DBATTERY_CHARGE)
 add_definitions(-DSTM32_SUPPORT_32BIT_TIMERS)
 
-if (PCBREV STREQUAL EL18)
+if(PCBREV STREQUAL PL18U)
+  set(FLAVOUR pl18u)
+  add_definitions(-DRADIO_PL18U)
+  set(DISK_CACHE ON)
+  set(WIRELESS_CHARGER YES)
+  set(FLYSKY_GIMBAL ON)
+  set(LED_STRIP ON)
+  set(USE_VS1053B ON)
+  set(KEY_DRIVER pl18u_key_driver.cpp)
+
+  # Defines internal module for PL18U
+  set(INTERNAL_MODULES AFHDS3;CRSF CACHE STRING "Internal modules")
+  set(DEFAULT_INTERNAL_MODULE FLYSKY_AFHDS3 CACHE STRING "Default internal module")
+elseif (PCBREV STREQUAL EL18)
     set(FLAVOUR el18)
-    add_definitions(-DRADIO_EL18 -DRADIO_NV14_FAMILY -DPCBNV14 -DUSE_HATS_AS_KEYS)
+    add_definitions(-DRADIO_EL18 -DRADIO_NV14_FAMILY -DUSE_HATS_AS_KEYS)
     set(DISK_CACHE ON)
     set(FLYSKY_GIMBAL ON)
     set(USE_VS1053B ON)
@@ -50,7 +69,7 @@ if (PCBREV STREQUAL EL18)
     set(DEFAULT_INTERNAL_MODULE FLYSKY_AFHDS3 CACHE STRING "Default internal module")
 elseif(PCBREV STREQUAL NV14)
     set(FLAVOUR nv14)
-    add_definitions(-DRADIO_NV14 -DRADIO_NV14_FAMILY -DPCBNV14)
+    add_definitions(-DRADIO_NV14 -DRADIO_NV14_FAMILY)
     add_definitions(-DUSE_HATS_AS_KEYS -DAFHDS2_BAUDRATE=${PCB_RF_BAUD})
     set(DISK_CACHE ON)
     set(FLYSKY_GIMBAL ON)
@@ -107,17 +126,19 @@ set(SOFTWARE_KEYBOARD ON)
 
 add_definitions(
   -DSTM32F429_439xx -DSTM32F429xx
-  -DSDRAM -DCOLORLCD -DLIBOPENUI
+  -DSDRAM
   -DHARDWARE_TOUCH -DHARDWARE_KEYS
   -DSOFTWARE_KEYBOARD)
 
 set(SDRAM ON)
 
-add_definitions(-DAUDIO -DVOICE)
-add_definitions(-DGPS_USART_BAUDRATE=${INTERNAL_GPS_BAUDRATE})
 add_definitions(-DPWR_BUTTON_${PWR_BUTTON})
 add_definitions(-DCROSSFIRE_NATIVE)
 add_definitions(-DHARDWARE_EXTERNAL_MODULE)
+
+if(INTERNAL_GPS)
+  add_definitions(-DGPS_USART_BAUDRATE=${INTERNAL_GPS_BAUDRATE})
+endif()
 
 if(USE_RTC_CLOCK)
   message("-- RTC Clock enabled")
@@ -128,7 +149,7 @@ if(WIRELESS_CHARGER)
   add_definitions(-DWIRELESS_CHARGER)
 endif()
 
-if(STICKS_DEAD_ZONE)
+if(STICK_DEAD_ZONE)
   add_definitions(-DSTICK_DEAD_ZONE)
 endif()
 
@@ -155,7 +176,6 @@ set(BOARD_COMMON_SRC
   targets/common/arm/stm32/flash_driver.cpp
   targets/common/arm/stm32/pwr_driver.cpp
   targets/common/arm/stm32/rtc_driver.cpp
-  targets/common/arm/stm32/sdram_driver.cpp
   targets/common/arm/stm32/spi_flash.cpp
   targets/common/arm/stm32/watchdog_driver.cpp
   drivers/frftl.cpp
@@ -177,7 +197,8 @@ endif()
 # Bootloader board library
 add_library(board_bl OBJECT EXCLUDE_FROM_ALL
   ${BOARD_COMMON_SRC}
-  ${TARGET_SRC_DIR}/bootloader/boot_menu.cpp
+  ${RADIO_SRC_DIR}/gui/colorlcd/boot_menu.cpp
+  targets/common/arm/stm32/sdram_driver.cpp
 )
 add_dependencies(board_bl ${BITMAPS_TARGET})
 set(BOOTLOADER_SRC ${BOOTLOADER_SRC} $<TARGET_OBJECTS:board_bl>)
@@ -220,7 +241,7 @@ endif()
 
 set(FIRMWARE_SRC
   ${FIRMWARE_SRC}
-  targets/common/arm/loadboot.cpp
+  bootloader/loadboot.cpp
 )
 
 set(SRC ${SRC}

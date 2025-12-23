@@ -95,7 +95,9 @@ int OpenTxFirmware::getCapability(::Capability capability)
       else
         return id.contains("heli") ? 1 : 0;
     case Gvars:
-      if (IS_HORUS_OR_TARANIS(board))
+      if (IS_STM32H7(board) || IS_STM32H5(board))
+        return id.contains("nogvars") ? 0 : 15;
+      else if (IS_HORUS_OR_TARANIS(board))
         return id.contains("nogvars") ? 0 : 9;
       else if (id.contains("gvars"))
         return 9;
@@ -136,8 +138,6 @@ int OpenTxFirmware::getCapability(::Capability capability)
       return getCapability(LogicalSwitches);
     case LogicalSwitchesExt:
       return true;
-    case RotaryEncoders:
-        return 0;
     case Outputs:
       return 32;
     case NumCurvePoints:
@@ -216,8 +216,6 @@ int OpenTxFirmware::getCapability(::Capability capability)
       return (IS_HORUS_OR_TARANIS(board) ? 500 : (id.contains("ppmca") ? 125 : 0));
     case SYMLimits:
       return 1;
-    case OptrexDisplay:
-      return (board == BOARD_SKY9X ? true : false);
     case HasVario:
       return Boards::isAir(board);
     case HasVarioSink:
@@ -234,8 +232,6 @@ int OpenTxFirmware::getCapability(::Capability capability)
       return IS_TARANIS_XLITE(board) && !id.contains("stdr9m");
     case HasPPMStart:
       return true;
-    case HastxCurrentCalibration:
-      return (IS_SKY9X(board) ? true : false);
     case HasVolume:
       return true;
     case HasBrightness:
@@ -297,12 +293,14 @@ int OpenTxFirmware::getCapability(::Capability capability)
     case PwrButtonPress:
       return IS_HORUS_OR_TARANIS(board) && (board!=Board::BOARD_TARANIS_X9D) && (board!=Board::BOARD_TARANIS_X9DP);
     case Sensors:
-      if (IS_FAMILY_HORUS_OR_T16(board) || IS_TARANIS_X9(board))
+      if (IS_STM32H7(board))
+        return 99;
+      else if (IS_FAMILY_HORUS_OR_T16(board) || IS_TARANIS_X9(board))
         return 60;
       else
         return 40;
     case HasAuxSerialMode:
-      return (IS_FAMILY_HORUS_OR_T16(board) && !(IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board))) ||
+      return (IS_FAMILY_HORUS_OR_T16(board) && !(IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board) || IS_FAMILY_PL18(board) || IS_FLYSKY_ST16(board))) ||
              (IS_TARANIS_X9(board) && !IS_TARANIS_X9DP_2019(board)) ||
              IS_RADIOMASTER_ZORRO(board) || IS_RADIOMASTER_TX12_MK2(board) || IS_RADIOMASTER_MT12(board);
     case HasAux2SerialMode:
@@ -330,7 +328,8 @@ int OpenTxFirmware::getCapability(::Capability capability)
               IS_JUMPER_T15(board) || IS_JUMPER_T18(board) || IS_JUMPER_T20(board) || IS_JUMPER_TPRO(board) ||
               IS_RADIOMASTER_BOXER(board) || IS_RADIOMASTER_GX12(board) || IS_RADIOMASTER_MT12(board) ||
               IS_RADIOMASTER_POCKET(board) || IS_RADIOMASTER_TX12(board) || IS_RADIOMASTER_TX12_MK2(board) ||
-              IS_RADIOMASTER_TX16S(board) || IS_RADIOMASTER_ZORRO(board));
+              IS_RADIOMASTER_TX16S(board) || IS_RADIOMASTER_ZORRO(board) || IS_RADIOMASTER_TX15(board) || IS_JUMPER_T15PRO(board) ||
+              IS_FLYSKY_PA01(board) || IS_FLYSKY_ST16(board));
     case HasSoftwareSerialPower:
       return IS_RADIOMASTER_TX16S(board);
     case HasIntModuleMulti:
@@ -346,16 +345,22 @@ int OpenTxFirmware::getCapability(::Capability capability)
       return id.contains("internalelrs") || IS_RADIOMASTER_TX12_MK2(board) ||
              IS_IFLIGHT_COMMANDO8(board) || IS_RADIOMASTER_BOXER(board) ||
              IS_RADIOMASTER_POCKET(board) || IS_JUMPER_T20(board) ||
-             IS_RADIOMASTER_MT12(board);
+             IS_RADIOMASTER_MT12(board) || IS_RADIOMASTER_TX15(board) || IS_JUMPER_T15PRO(board);
     case HasIntModuleFlySky:
       return  id.contains("afhds2a") || id.contains("afhds3") ||
-              IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board);
+              IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board) || IS_FAMILY_PL18(board);
     case BacklightLevelMin:
-      if (IS_HORUS_X12S(board))
+      if (IS_HORUS_X12S(board)) {
         return 5;
-      if (IS_FAMILY_T16(board) || IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board))
+      } else if (IS_FAMILY_T16(board) || IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board) || IS_FAMILY_PL18(board) || IS_FLYSKY_ST16(board)) {
         return 1;
-      return 46;
+      } else {
+        return 46;
+      }
+    case QMFavourites:
+      return VERSION_MAJOR > 2 && Boards::getCapability(board, Board::HasColorLcd) ? MAX_QMFAVOURITES : 0;
+    case KeyShortcuts:
+      return VERSION_MAJOR > 2 && Boards::getCapability(board, Board::HasColorLcd) ? MAX_KEYSHORTCUTS : 0;
     default:
       return 0;
   }
@@ -388,6 +393,12 @@ size_t getSizeA(T (&)[SIZE])
 QString OpenTxFirmware::getReleaseNotesUrl()
 {
   return QString("%1/downloads").arg(EDGETX_HOME_PAGE_URL);
+}
+
+QString OpenTxFirmware::getLanguage() const
+{
+  QStringList strl = getId().split('-');
+  return strl.size() > 2 ? strl.last() : QString();
 }
 
 // Firmware registrations
@@ -498,6 +509,12 @@ void registerOpenTxFirmwares()
   addOpenTxRfOptions(firmware, FLEX + AFHDS2A + AFHDS3);
   registerOpenTxFirmware(firmware);
 
+  /* FlySky PA01 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("pa01"), Firmware::tr("FlySky PA01"), BOARD_FLYSKY_PA01);
+  addOpenTxFrskyOptions(firmware);
+  addOpenTxRfOptions(firmware, FLEX + AFHDS3);
+  registerOpenTxFirmware(firmware);
+
   /* FlySky PL18 board */
   firmware = new OpenTxFirmware(FIRMWAREID("pl18"), Firmware::tr("FlySky PL18"), BOARD_FLYSKY_PL18);
   addOpenTxFrskyOptions(firmware);
@@ -507,6 +524,13 @@ void registerOpenTxFirmwares()
 
   /* FlySky PL18EV board */
   firmware = new OpenTxFirmware(FIRMWAREID("pl18ev"), Firmware::tr("FlySky PL18EV"), BOARD_FLYSKY_PL18EV);
+  addOpenTxFrskyOptions(firmware);
+  firmware->addOption(opt_bt);
+  addOpenTxRfOptions(firmware, FLEX + AFHDS3);
+  registerOpenTxFirmware(firmware);
+
+  /* FlySky PL18U board */
+  firmware = new OpenTxFirmware(FIRMWAREID("pl18u"), Firmware::tr("FlySky PL18U"), BOARD_FLYSKY_PL18U);
   addOpenTxFrskyOptions(firmware);
   firmware->addOption(opt_bt);
   addOpenTxRfOptions(firmware, FLEX + AFHDS3);
@@ -606,6 +630,13 @@ void registerOpenTxFirmwares()
   registerOpenTxFirmware(firmware);
   addOpenTxRfOptions(firmware, EU + FLEX);
 
+  /* HelloRadioSky V14 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("v14"), Firmware::tr("HelloRadioSky V14"), BOARD_HELLORADIOSKY_V14);
+  addOpenTxCommonOptions(firmware);
+  addOpenTxFontOptions(firmware);
+  registerOpenTxFirmware(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+
   /* HelloRadioSky V16 board */
   firmware = new OpenTxFirmware(FIRMWAREID("v16"), Firmware::tr("HelloRadioSky V16"), BOARD_HELLORADIOSKY_V16);
   addOpenTxFrskyOptions(firmware);
@@ -700,6 +731,12 @@ void registerOpenTxFirmwares()
 
   /* Jumper T15 board */
   firmware = new OpenTxFirmware(FIRMWAREID("t15"), Firmware::tr("Jumper T15"), BOARD_JUMPER_T15);
+  addOpenTxFrskyOptions(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+  registerOpenTxFirmware(firmware);
+
+  /* Jumper T15Pro board */
+  firmware = new OpenTxFirmware(FIRMWAREID("t15pro"), Firmware::tr("Jumper T15Pro"), BOARD_JUMPER_T15PRO);
   addOpenTxFrskyOptions(firmware);
   addOpenTxRfOptions(firmware, FLEX);
   registerOpenTxFirmware(firmware);
@@ -799,6 +836,13 @@ void registerOpenTxFirmwares()
   addOpenTxFontOptions(firmware);
   registerOpenTxFirmware(firmware);
   addOpenTxRfOptions(firmware, FLEX);
+
+  /* Radiomaster TX15 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("tx15"), Firmware::tr("Radiomaster TX15"), BOARD_RADIOMASTER_TX15);
+  addOpenTxFrskyOptions(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+  firmware->addOptionsGroup({opt_bt, opt_internal_gps});
+  registerOpenTxFirmware(firmware);
 
   /* Radiomaster TX16S board */
   firmware = new OpenTxFirmware(FIRMWAREID("tx16s"), Firmware::tr("Radiomaster TX16S / SE / Hall / Masterfire"), BOARD_RADIOMASTER_TX16S);

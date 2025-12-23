@@ -23,14 +23,14 @@
 #include "edgetx.h"
 #include "theme_manager.h"
 #include "widget.h"
-#include "widgets_container_impl.h"
+#include "layout.h"
 
 class TopBarWidget : public Widget
 {
  public:
   TopBarWidget(const WidgetFactory* factory, Window* parent, const rect_t& rect,
-               Widget::PersistentData* persistentData) :
-      Widget(factory, parent, rect, persistentData)
+               int screenNum, int zoneNum) :
+      Widget(factory, parent, rect, screenNum, zoneNum)
   {
   }
 };
@@ -38,9 +38,9 @@ class TopBarWidget : public Widget
 class RadioInfoWidget : public TopBarWidget
 {
  public:
-  RadioInfoWidget(const WidgetFactory* factory, Window* parent,
-                  const rect_t& rect, Widget::PersistentData* persistentData) :
-      TopBarWidget(factory, parent, rect, persistentData)
+  RadioInfoWidget(const WidgetFactory* factory, Window* parent, const rect_t& rect,
+                  int screenNum, int zoneNum) :
+      TopBarWidget(factory, parent, rect, screenNum, zoneNum)
   {
     // Logs
     logsIcon = new StaticIcon(this, W_LOG_X, PAD_THREE, ICON_DOT,
@@ -53,13 +53,13 @@ class RadioInfoWidget : public TopBarWidget
     usbIcon->hide();
 
 #if defined(AUDIO)
-    audioScale = new StaticIcon(this, W_AUDIO_SCALE_X, 2,
+    audioScale = new StaticIcon(this, W_AUDIO_SCALE_X, PAD_TINY,
                                 ICON_TOPMENU_VOLUME_SCALE,
                                 COLOR_THEME_PRIMARY3_INDEX);
 
     for (int i = 0; i < 5; i += 1) {
       audioVol[i] = new StaticIcon(
-          this, W_AUDIO_X, 2,
+          this, W_AUDIO_X, PAD_TINY,
          (EdgeTxIcon)(ICON_TOPMENU_VOLUME_0 + i),
           COLOR_THEME_PRIMARY2_INDEX);
       audioVol[i]->hide();
@@ -78,7 +78,7 @@ class RadioInfoWidget : public TopBarWidget
 #endif
 
 #if defined(INTERNAL_MODULE_PXX1) && defined(EXTERNAL_ANTENNA)
-    extAntenna = new StaticIcon(this, W_RSSI_X - 4, 1,
+    extAntenna = new StaticIcon(this, W_RSSI_X - PAD_SMALL, 1,
                                 ICON_TOPMENU_ANTENNA,
                                 COLOR_THEME_PRIMARY2_INDEX);
     extAntenna->hide();
@@ -91,7 +91,7 @@ class RadioInfoWidget : public TopBarWidget
     update();
 
     // RSSI bars
-    LAYOUT_VAL(RSSI_BH, 31, 31, LS(31))
+    LAYOUT_VAL_SCALED(RSSI_BH, 31)
     const uint8_t rssiBarsHeight[] = {
       (RSSI_BH * 5 + 15) / 31,
       (RSSI_BH * 10 + 15) / 31,
@@ -113,10 +113,12 @@ class RadioInfoWidget : public TopBarWidget
 
   void update() override
   {
+    auto widgetData = getPersistentData();
+
     // get colors from options
-    etx_bg_color_from_flags(batteryFill, persistentData->options[2].value.unsignedValue, LV_PART_MAIN);
-    etx_bg_color_from_flags(batteryFill, persistentData->options[1].value.unsignedValue, LV_STATE_USER_1);
-    etx_bg_color_from_flags(batteryFill, persistentData->options[0].value.unsignedValue, LV_STATE_USER_2);
+    etx_bg_color_from_flags(batteryFill, widgetData->options[2].value.unsignedValue, LV_PART_MAIN);
+    etx_bg_color_from_flags(batteryFill, widgetData->options[1].value.unsignedValue, LV_STATE_USER_1);
+    etx_bg_color_from_flags(batteryFill, widgetData->options[0].value.unsignedValue, LV_STATE_USER_2);
   }
 
   void checkEvents() override
@@ -189,24 +191,24 @@ class RadioInfoWidget : public TopBarWidget
     }
   }
 
-  static const ZoneOption options[];
+  static const WidgetOption options[];
     
   static constexpr coord_t W_AUDIO_X = 0;
-  static LAYOUT_VAL(W_AUDIO_SCALE_X, 15, 15, LS(15))
-  static LAYOUT_VAL(W_USB_X, 32, 32, LS(32))
-  static LAYOUT_VAL(W_USB_Y, 5, 5, 4)
+  static LAYOUT_VAL_SCALED(W_AUDIO_SCALE_X, 15)
+  static LAYOUT_VAL_SCALED(W_USB_X, 32)
+  static LAYOUT_VAL_SCALED(W_USB_Y, 5)
   static constexpr coord_t W_LOG_X = W_USB_X;
-  static LAYOUT_VAL(W_RSSI_X, 40, 40, LS(40))
-  static LAYOUT_VAL(W_RSSI_BAR_W, 4, 4, LS(4))
-  static LAYOUT_VAL(W_RSSI_BAR_H, 35, 35, LS(35))
-  static LAYOUT_VAL(W_RSSI_BAR_SZ, 6, 6, LS(6))
-  static LAYOUT_VAL(W_BATT_Y, 25, 25, 16)
-  static LAYOUT_VAL(W_BATT_FILL_W, 20, 20, LS(20))
-  static LAYOUT_VAL(W_BATT_FILL_H, 9, 9, LS(9))
-  static LAYOUT_VAL(W_BATT_FILL_GRN, 12, 12, LS(12))
-  static LAYOUT_VAL(W_BATT_FILL_ORA, 5, 5, 4)
-  static LAYOUT_VAL(W_BATT_CHG_X, 25, 25, 16)
-  static LAYOUT_VAL(W_BATT_CHG_Y, 23, 23, 15)
+  static LAYOUT_VAL_SCALED(W_RSSI_X, 40)
+  static LAYOUT_VAL_SCALED(W_RSSI_BAR_W, 4)
+  static LAYOUT_VAL_SCALED(W_RSSI_BAR_H, 35)
+  static LAYOUT_VAL_SCALED(W_RSSI_BAR_SZ, 6)
+  static LAYOUT_VAL_SCALED(W_BATT_Y, 25)
+  static LAYOUT_VAL_SCALED(W_BATT_FILL_W, 20)
+  static LAYOUT_VAL_SCALED(W_BATT_FILL_H, 10)
+  static LAYOUT_VAL_SCALED(W_BATT_FILL_GRN, 12)
+  static LAYOUT_VAL_SCALED(W_BATT_FILL_ORA, 5)
+  static LAYOUT_VAL_SCALED(W_BATT_CHG_X, 25)
+  static LAYOUT_VAL_SCALED(W_BATT_CHG_Y, 23)
 
  protected:
   uint8_t lastVol = 0;
@@ -229,11 +231,11 @@ class RadioInfoWidget : public TopBarWidget
 #endif
 };
 
-const ZoneOption RadioInfoWidget::options[] = {
-    {STR_LOW_BATT_COLOR, ZoneOption::Color, RGB2FLAGS(0xF4, 0x43, 0x36)},
-    {STR_MID_BATT_COLOR, ZoneOption::Color, RGB2FLAGS(0xFF, 0xC1, 0x07)},
-    {STR_HIGH_BATT_COLOR, ZoneOption::Color, RGB2FLAGS(0x4C, 0xAF, 0x50)},
-    {nullptr, ZoneOption::Bool}};
+const WidgetOption RadioInfoWidget::options[] = {
+    {STR_LOW_BATT_COLOR, WidgetOption::Color, RGB2FLAGS(0xF4, 0x43, 0x36)},
+    {STR_MID_BATT_COLOR, WidgetOption::Color, RGB2FLAGS(0xFF, 0xC1, 0x07)},
+    {STR_HIGH_BATT_COLOR, WidgetOption::Color, RGB2FLAGS(0x4C, 0xAF, 0x50)},
+    {nullptr, WidgetOption::Bool}};
 
 BaseWidgetFactory<RadioInfoWidget> RadioInfoWidget("Radio Info", RadioInfoWidget::options,
                                                    STR_RADIO_INFO_WIDGET);
@@ -241,34 +243,39 @@ BaseWidgetFactory<RadioInfoWidget> RadioInfoWidget("Radio Info", RadioInfoWidget
 class DateTimeWidget : public TopBarWidget
 {
  public:
-  DateTimeWidget(const WidgetFactory* factory, Window* parent,
-                 const rect_t& rect, Widget::PersistentData* persistentData) :
-      TopBarWidget(factory, parent, rect, persistentData)
+  DateTimeWidget(const WidgetFactory* factory, Window* parent, const rect_t& rect,
+                 int screenNum, int zoneNum) :
+      TopBarWidget(factory, parent, rect, screenNum, zoneNum)
   {
-    dateTime = new HeaderDateTime(this, DT_X, PAD_THREE);
+    coord_t x = rect.w - HeaderDateTime::HDR_DATE_WIDTH - DT_XO;
+    dateTime = new HeaderDateTime(this, x, PAD_THREE);
     update();
   }
 
   void update() override
   {
+    auto widgetData = getPersistentData();
+
     // get color from options
     uint32_t color;
-    memcpy(&color, &persistentData->options[0].value.unsignedValue, sizeof(color));
+    memcpy(&color, &widgetData->options[0].value.unsignedValue, sizeof(color));
     dateTime->setColor(color);
+    coord_t x = width() - HeaderDateTime::HDR_DATE_WIDTH - DT_XO;
+    dateTime->setPos(x, PAD_THREE);
   }
 
   HeaderDateTime* dateTime = nullptr;
   int8_t lastMinute = -1;
 
-  static const ZoneOption options[];
+  static const WidgetOption options[];
 
   // Adjustment to make main view date/time align with model/radio settings views
-  static LAYOUT_VAL(DT_X, 24, 8, LS(24))
+  static LAYOUT_VAL_SCALED(DT_XO, 1)
 };
 
-const ZoneOption DateTimeWidget::options[] = {
-    {STR_COLOR, ZoneOption::Color, COLOR2FLAGS(COLOR_THEME_PRIMARY2_INDEX)},
-    {nullptr, ZoneOption::Bool}};
+const WidgetOption DateTimeWidget::options[] = {
+    {STR_COLOR, WidgetOption::Color, COLOR2FLAGS(COLOR_THEME_PRIMARY2_INDEX)},
+    {nullptr, WidgetOption::Bool}};
 
 BaseWidgetFactory<DateTimeWidget> DateTimeWidget("Date Time",
                                                  DateTimeWidget::options,
@@ -279,17 +286,16 @@ BaseWidgetFactory<DateTimeWidget> DateTimeWidget("Date Time",
 class InternalGPSWidget : public TopBarWidget
 {
  public:
-  InternalGPSWidget(const WidgetFactory* factory, Window* parent,
-                    const rect_t& rect,
-                    Widget::PersistentData* persistentData) :
-      TopBarWidget(factory, parent, rect, persistentData)
+  InternalGPSWidget(const WidgetFactory* factory, Window* parent, const rect_t& rect,
+                    int screenNum, int zoneNum) :
+      TopBarWidget(factory, parent, rect, screenNum, zoneNum)
   {
     icon =
-        new StaticIcon(this, width() / 2 - 10, 19,
+        new StaticIcon(this, width() / 2 - PAD_LARGE - PAD_TINY, ICON_H,
                        ICON_TOPMENU_GPS, COLOR_THEME_PRIMARY3_INDEX);
 
     numSats = new DynamicNumber<uint16_t>(
-        this, {0, 1, width(), 12}, [=] { return gpsData.numSat; },
+        this, {0, 1, width(), SATS_H}, [=] { return gpsData.numSat; },
         COLOR_THEME_PRIMARY2_INDEX, CENTERED | FONT(XS));
   }
 
@@ -311,6 +317,9 @@ class InternalGPSWidget : public TopBarWidget
  protected:
   StaticIcon* icon;
   DynamicNumber<uint16_t>* numSats;
+
+  static LAYOUT_VAL_SCALED(ICON_H, 19)
+  static LAYOUT_VAL_SCALED(SATS_H, 12)
 };
 
 BaseWidgetFactory<InternalGPSWidget> InternalGPSWidget("Internal GPS", nullptr,

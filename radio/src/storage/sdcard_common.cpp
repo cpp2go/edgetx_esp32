@@ -222,6 +222,8 @@ void storageReadAll()
 {
   TRACE("storageReadAll");
 
+  memset(&g_eeGeneral, 0, sizeof(g_eeGeneral));
+
 #if defined(STORAGE_MODELSLIST)
   // Wipe models list in case
   // it's being reloaded after USB connection
@@ -245,6 +247,11 @@ void storageReadAll()
     if (!strncmp(g_eeGeneral.ttsLanguage, languagePacks[i]->id, 2)) {
       currentLanguagePackIdx = i;
       currentLanguagePack = languagePacks[i];
+#if defined(ALL_LANGS)
+      currentLangStrings = langStrings[currentLanguagePackIdx];
+      extern void setLanguageFont(int n);
+      setLanguageFont(currentLanguagePackIdx);
+#endif
       break;
     }
   }

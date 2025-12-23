@@ -96,24 +96,15 @@ enum {
 
 #if defined(FUNCTION_SWITCHES)
 
+#if defined(RADIO_GX12)
+#define NUM_FUNCTIONS_SWITCHES 8
+#define NUM_FUNCTIONS_GROUPS   4
+#else
 #define NUM_FUNCTIONS_SWITCHES 6
 #define NUM_FUNCTIONS_GROUPS   3
+#endif
 
-#define DEFAULT_FS_CONFIG                                         \
-  (SWITCH_2POS << 10) + (SWITCH_2POS << 8) + (SWITCH_2POS << 6) + \
-      (SWITCH_2POS << 4) + (SWITCH_2POS << 2) + (SWITCH_2POS << 0)
-
-#define DEFAULT_FS_GROUPS                                 \
-  (1 << 10) + (1 << 8) + (1 << 6) + (1 << 4) + (1 << 2) + \
-      (1 << 0)  // Set all FS to group 1 to act like a 6pos
-
-#define DEFAULT_FS_STARTUP_CONFIG                         \
-  ((FS_START_PREVIOUS << 10) + (FS_START_PREVIOUS << 8) + \
-   (FS_START_PREVIOUS << 6) + (FS_START_PREVIOUS << 4) +  \
-   (FS_START_PREVIOUS << 2) +                             \
-   (FS_START_PREVIOUS << 0))  // keep last state by default
-
-#else
+#else //FUNCTION_SWITCHES
 
 #define NUM_FUNCTIONS_SWITCHES 0
 
@@ -202,7 +193,7 @@ void pwrResetHandler();
 void backlightInit();
 void backlightDisable();
 void backlightFullOn();
-uint8_t isBacklightEnabled();
+bool isBacklightEnabled();
 
 #if defined(PCBX9E) || defined(PCBX9DP)
   void backlightEnable(uint8_t level, uint8_t color);
@@ -224,7 +215,6 @@ void debugPutc(const char c);
 
 // Audio driver
 void audioInit();
-void audioEnd();
 
 #if defined(PCBXLITES)
 #define SHARED_DSC_HEADPHONE_JACK
@@ -355,27 +345,30 @@ void setTopBatteryValue(uint32_t volts);
 
 #define INTMODULE_FIFO_SIZE            128
 
-#if defined(MANUFACTURER_RADIOMASTER) || defined(MANUFACTURER_JUMPER)
-// --- MOSFET ---- R2 --- MCU
-//                     |__ R1 --- GND
-//
-#define VBAT_DIV_R1       160 // kOhms
-#define VBAT_DIV_R2       499 // kOhms
-#if defined(MANUFACTURER_JUMPER)
-#define VBAT_MOSFET_DROP   50 // * 10mV
+#if defined(RADIO_TLITE)
+  #define BATTERY_DIVIDER 27500    // TODO: fix when we have proper schematics
+  #define VOLTAGE_DROP 20
+#elif defined(MANUFACTURER_RADIOMASTER) || defined(MANUFACTURER_JUMPER)
+  // --- MOSFET ---- R1 --- MCU
+  //                     |__ R2 --- GND
+  //
+  #define VBAT_DIV_R1         499 // kOhms
+  #define VBAT_DIV_R2         160 // kOhms
+  #if defined(MANUFACTURER_JUMPER)
+    #define VBAT_MOSFET_DROP   50 // * 10mV
+  #else
+    #define VBAT_MOSFET_DROP   25 // * 10mV
+  #endif
 #else
-#define VBAT_MOSFET_DROP   25 // * 10mV
+  #if defined (RADIO_T8) || defined(RADIO_COMMANDO8)
+    #define BATTERY_DIVIDER 50000
+  #elif defined (RADIO_LR3PRO)
+    #define BATTERY_DIVIDER 39500
+  #else
+    #define BATTERY_DIVIDER 26214
+  #endif
+  #define VOLTAGE_DROP         20
 #endif
-#else //--- MOSFET ---- R2 --- MCU
-#if defined (RADIO_T8) || defined(RADIO_COMMANDO8)
-  #define BATTERY_DIVIDER 50000
-#elif defined (RADIO_LR3PRO)
-  #define BATTERY_DIVIDER 39500
-#else
-  #define BATTERY_DIVIDER 26214
-#endif 
-#define VOLTAGE_DROP 20
-#endif //--- MOSFET ---- R2 --- MCU
 
 #if defined(RADIO_FAMILY_T20)
 #define NUM_TRIMS                               8

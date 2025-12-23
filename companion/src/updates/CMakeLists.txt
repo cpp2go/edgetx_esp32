@@ -38,7 +38,7 @@ set(${PROJECT_NAME}_MOC
   updatesdialog.h
 )
 
-qt5_wrap_cpp(${PROJECT_NAME}_SRCS
+qt_wrap_cpp(${PROJECT_NAME}_SRCS
   ${${PROJECT_NAME}_MOC}
 )
 
@@ -50,6 +50,7 @@ add_library(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   PRIVATE
     ${CPN_COMMON_LIB}
+    ${RS_DFU_LIBRARIES}
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -58,4 +59,5 @@ target_include_directories(${PROJECT_NAME}
     "${CMAKE_CURRENT_BINARY_DIR}"
   PUBLIC
     "${CMAKE_CURRENT_LIST_DIR}"
+    "${RS_DFU_INCLUDE_DIRS}"
 )

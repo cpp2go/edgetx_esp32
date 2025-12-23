@@ -34,6 +34,7 @@
 #include "hal/rotary_encoder.h"
 
 #include "board.h"
+#include "boards/generic_stm32/analog_inputs.h"
 #include "boards/generic_stm32/module_ports.h"
 #include "boards/generic_stm32/rgb_leds.h"
 
@@ -46,11 +47,7 @@
   #include "vs1053b.h"
 #endif
 
-#if defined(FLYSKY_GIMBAL)
-  #include "flysky_gimbal_driver.h"
-#endif
 #include "timers_driver.h"
-
 #include "battery_driver.h"
 #include "touch_driver.h"
 
@@ -61,6 +58,8 @@
 
 // Common ADC driver
 extern const etx_hal_adc_driver_t _adc_driver;
+
+extern "C" void SDRAM_Init();
 
 #if defined(SEMIHOSTING)
 extern "C" void initialise_monitor_handles();
@@ -75,6 +74,7 @@ extern "C" void flushFTL();
 
   static uint8_t boardGetPcbRev()
   {
+    delaysInit();
     gpio_init(INTMODULE_PWR_GPIO, GPIO_IN, GPIO_PIN_SPEED_LOW);
     delay_ms(1); // delay to let the input settle, else it does not work properly
 
@@ -163,6 +163,9 @@ void disableVoiceChip()
 
 void boardBLEarlyInit()
 {
+#if defined(RADIO_PL18U)
+  pwrOn();
+#endif  
   // USB charger status pins
   gpio_init(UCHARGER_GPIO, GPIO_IN, GPIO_PIN_SPEED_LOW);
 
@@ -176,12 +179,18 @@ void boardBLEarlyInit()
 #endif
 }
 
-#if defined(RADIO_NB4P)
 void boardBLPreJump()
 {
+  SDRAM_Init();
+#if defined(RADIO_NB4P)
   LL_ADC_Disable(ADC_MAIN);
-}
 #endif
+}
+
+void boardBLInit()
+{
+  SDRAM_Init();
+}
 
 static void monitorInit()
 {
@@ -224,11 +233,8 @@ void boardInit()
 
   board_trainer_init();
   battery_charge_init();
-  
-  #if defined(FLYSKY_GIMBAL)
-    flysky_gimbal_init();
-  #endif
-  
+
+  gimbalsDetect();  
   timersInit();
   touchPanelInit();
   usbInit();
@@ -266,6 +272,7 @@ void boardInit()
         press_end = 0;
       }
     }
+    battery_charge_end();
   }
 
   keysInit();
@@ -293,8 +300,6 @@ void boardInit()
   ledGreen();
 #endif
 #endif
-
-  lcdSetInitalFrameBuffer(lcdFront->getData());
 }
 
 extern void rtcDisableBackupReg();
@@ -320,13 +325,11 @@ void boardOff()
 #endif
   if (isChargerActive())
   {
-//    RTC->BKP0R = SOFTRESET_REQUEST;
     NVIC_SystemReset();
   }
   else
 #endif
   {    
-//    RTC->BKP0R = SHUTDOWN_REQUEST;
     pwrOff();
   }
 
@@ -340,9 +343,9 @@ void boardOff()
   MODIFY_REG(PWR->CR, (PWR_CR_PDDS | PWR_CR_LPDS | PWR_CR_FPDS | PWR_CR_LPLVDS | PWR_CR_MRLVDS), PDMode);
 #else
   MODIFY_REG(PWR->CR, (PWR_CR_PDDS| PWR_CR_LPDS), PDMode);
-#endif /* PWR_CR_MRUDS && PWR_CR_LPUDS && PWR_CR_FPDS */
+#endif // PWR_CR_MRUDS && PWR_CR_LPUDS && PWR_CR_FPDS
 
-/* Set SLEEPDEEP bit of Cortex System Control Register */
+  // Set SLEEPDEEP bit of Cortex System Control Register
   SET_BIT(SCB->SCR, ((uint32_t)SCB_SCR_SLEEPDEEP_Msk));
   
   // To avoid HardFault at return address, end in an endless loop

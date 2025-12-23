@@ -37,13 +37,12 @@ class GVarNumberEdit : public Window
                  LcdFlags textFlags = 0, int32_t voffset = 0, int32_t vdefault = 0);
 
   void switchGVarMode();
-  void setSuffix(std::string value);
 
   void setFastStep(int value) { num_field->setFastStep(value); }
   void setAccelFactor(int value) { num_field->setAccelFactor(value); }
   void setDisplayHandler(std::function<std::string(int value)> function);
 
-  static LAYOUT_VAL(GV_BTN_W, 40, 40, LS(40))
+  static LAYOUT_VAL_SCALED(GV_BTN_W, 40)
 
  protected:
   Choice* gvar_field = nullptr;

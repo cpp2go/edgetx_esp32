@@ -133,7 +133,7 @@ QString CustomFunctionData::funcToString(const AssignFunc func, const ModelData 
   else if (func == FuncLCDtoVideo)
     return tr("LCD to Video");
   else if (func >= FuncPushCustomSwitch1 && func <= FuncPushCustomSwitchLast && Boards::getCapability(getCurrentBoard(), Board::FunctionSwitches)) {
-    const int idx = Boards::getSwitchTypeOffset(Board::SWITCH_FUNC) + func - FuncPushCustomSwitch1 + 1;
+    const int idx = Boards::getSwitchIndexForCFSOffset(func - FuncPushCustomSwitch1) + 1;
     return tr("Push Custom Switch %1").arg(RawSource(SOURCE_TYPE_SWITCH, idx).toString(model));
   }
   else {
@@ -203,6 +203,9 @@ QString CustomFunctionData::paramToString(const ModelData * model) const
         return QString("%1= %2%3").arg(val < 0 ? "-" : "+").arg(abs(val)).arg(unit);
     }
   }
+  else if (func == FuncPlayScript || func == FuncRGBLed) {
+    return paramarm;
+  }
 
   return "";
 }
@@ -259,10 +262,10 @@ bool CustomFunctionData::isFuncAvailable(const int index, const ModelData * mode
          (model ? model->timers[index - FuncSetTimer1].isModeOff() : false))) ||
         ((index == FuncScreenshot) && !IS_HORUS_OR_TARANIS(fw->getBoard())) ||
         ((index >= FuncRangeCheckInternalModule && index <= FuncBindExternalModule) && !fw->getCapability(DangerousFunctions)) ||
-        ((index >= FuncAdjustGV1 && index <= FuncAdjustGVLast) && !fw->getCapability(Gvars)) ||
+        ((index >= FuncAdjustGV1 && index <= FuncAdjustGVLast) && ((index - FuncAdjustGV1) >= fw->getCapability(Gvars))) ||
         ((index == FuncDisableTouch) && !IS_HORUS_OR_TARANIS(fw->getBoard())) ||
         ((index == FuncDisableAudioAmp && !Boards::getCapability(fw->getBoard(), Board::HasAudioMuteGPIO))) ||
-        ((index == FuncRGBLed && !Boards::getCapability(fw->getBoard(), Board::HasLedStripGPIO))) ||
+        ((index == FuncRGBLed && !(Boards::getCapability(fw->getBoard(), Board::HasLedStripGPIO) || Boards::getCapability(fw->getBoard(), Board::FunctionSwitchColors)))) ||
         ((index == FuncLCDtoVideo && !IS_FATFISH_F16(fw->getBoard()))) ||
         ((index >= FuncPushCustomSwitch1 && index <= FuncPushCustomSwitchLast) && !Boards::getCapability(fw->getBoard(), Board::FunctionSwitches))
         );
@@ -276,7 +279,8 @@ int CustomFunctionData::funcContext(const int index)
 
   if ((index >= FuncOverrideCH1 && index <= FuncOverrideCHLast) ||
       (index >= FuncRangeCheckInternalModule && index <= FuncBindExternalModule) ||
-      (index >= FuncAdjustGV1 && index <= FuncAdjustGVLast))
+      (index >= FuncAdjustGV1 && index <= FuncAdjustGVLast) ||
+      (index >= FuncPushCustomSwitch1 && index <= FuncPushCustomSwitchLast))
     ret &= ~GlobalFunctionsContext;
 
   return ret;
@@ -499,8 +503,7 @@ bool CustomFunctionData::isParamAvailable() const
     FuncBindExternalModule,
     FuncRacingMode,
     FuncDisableTouch,
-    FuncDisableAudioAmp,
-    FuncRGBLed
+    FuncDisableAudioAmp
   };
 
   return funcList.contains(func) ? false : true;

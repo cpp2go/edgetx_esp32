@@ -22,6 +22,7 @@
 #include "form.h"
 #include "static.h"
 #include "etx_lv_theme.h"
+#include "layer.h"
 
 std::list<Window *> Window::trash;
 bool Window::_longPressed = false;
@@ -59,15 +60,20 @@ void Window::eventHandler(lv_event_t *e)
 
   switch (code) {
     case LV_EVENT_SCROLL: {
+      lv_coord_t scroll_x = lv_obj_get_scroll_x(target);
+      lv_coord_t scroll_y = lv_obj_get_scroll_y(target);
+      if (scrollHandler) scrollHandler(scroll_x, scroll_y);
+
       // exclude pointer based scrolling (only focus scrolling)
-      if (!lv_obj_is_scrolling(target)) {
+      if (!lv_obj_is_scrolling(target) && !noForcedScroll) {
         lv_point_t *p = (lv_point_t *)lv_event_get_param(e);
         lv_coord_t scroll_bottom = lv_obj_get_scroll_bottom(target);
 
-        lv_coord_t scroll_y = lv_obj_get_scroll_y(target);
         TRACE("SCROLL[x=%d;y=%d;top=%d;bottom=%d]", p->x, p->y, scroll_y,
               scroll_bottom);
 
+        // Force scroll to top or bottom when near either edge.
+        // Only applies when using rotary encoder or keys.
         if (scroll_y <= 45 && p->y > 0) {
           lv_obj_scroll_by(target, 0, scroll_y, LV_ANIM_OFF);
         } else if (scroll_bottom <= 16 && p->y < 0) {
@@ -149,6 +155,20 @@ Window::~Window()
   }
 }
 
+void Window::delayLoader(lv_event_t* e)
+{
+  auto w = (Window*)lv_obj_get_user_data(lv_event_get_target(e));
+  if (w && !w->loaded) {
+    w->loaded = true;
+    w->delayedInit();
+  }
+}
+
+void Window::delayLoad()
+{
+  lv_obj_add_event_cb(lvobj, Window::delayLoader, LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
+}
+
 #if defined(DEBUG_WINDOWS)
 std::string Window::getName() const { return "Window"; }
 
@@ -176,6 +196,26 @@ std::string Window::getWindowDebugString(const char *name) const
          getRectString();
 }
 #endif
+
+void Window::pushLayer(bool hideParent)
+{
+  if (!layerCreated) {
+    parentHidden = hideParent;
+    layerCreated = true;
+    if (parentHidden) Layer::back()->hide();
+    Layer::push(this);
+  }
+}
+
+void Window::popLayer()
+{
+  if (layerCreated) {
+    Layer::pop(this);
+    if (parentHidden) Layer::back()->show();
+    layerCreated = false;
+    parentHidden = false;
+  }
+}
 
 Window *Window::getFullScreenWindow()
 {
@@ -218,25 +258,24 @@ void Window::detach()
 void Window::deleteLater(bool detach, bool trash)
 {
   if (_deleted) return;
-
-  TRACE_WINDOWS("Delete %p %s", this, getWindowDebugString().c_str());
-
   _deleted = true;
 
-  if (closeHandler) {
-    closeHandler();
-  }
+  TRACE_WINDOWS("Delete %p %s", this, getWindowDebugString().c_str());
 
   if (detach)
     this->detach();
   else
     parent = nullptr;
 
-  if (trash) {
-    Window::trash.push_back(this);
-  }
-
   deleteChildren();
+
+  popLayer();
+
+  if (closeHandler)
+    closeHandler();
+
+  if (trash)
+    Window::trash.push_back(this);
 
   if (lvobj != nullptr) {
     auto obj = lvobj;
@@ -359,9 +398,10 @@ void Window::setFlexLayout(lv_flex_flow_t flow, lv_coord_t padding,
                            coord_t width, coord_t height)
 {
   lv_obj_set_flex_flow(lvobj, flow);
-  if (_LV_FLEX_COLUMN & flow) {
+  if ((_LV_FLEX_COLUMN & flow) || (_LV_FLEX_WRAP & flow)) {
     lv_obj_set_style_pad_row(lvobj, padding, LV_PART_MAIN);
-  } else {
+  }
+  if (!(_LV_FLEX_COLUMN & flow) || (_LV_FLEX_WRAP & flow)) {
     lv_obj_set_style_pad_column(lvobj, padding, LV_PART_MAIN);
   }
   lv_obj_set_width(lvobj, width);
@@ -383,6 +423,11 @@ void Window::show(bool visible)
         lv_obj_add_flag(lvobj, LV_OBJ_FLAG_HIDDEN);
     }
   }
+}
+
+bool Window::isVisible()
+{
+  return !_deleted && lvobj && !lv_obj_has_flag(lvobj, LV_OBJ_FLAG_HIDDEN);
 }
 
 void Window::enable(bool enabled)
@@ -407,6 +452,17 @@ void Window::addBackButton()
         return 0;
       },
       window_create);
+}
+
+void Window::addCustomButton(coord_t x, coord_t y, std::function<void()> action)
+{
+  new ButtonBase(
+    this, {x, y, EdgeTxStyles::MENU_HEADER_HEIGHT, EdgeTxStyles::MENU_HEADER_HEIGHT},
+    [=]() -> uint8_t {
+      action();
+      return 0;
+    },
+    window_create);
 }
 #endif
 
@@ -446,6 +502,14 @@ void NavWindow::onEvent(event_t event)
       onPressPGUP();
       break;
 
+    case EVT_KEY_LONG(KEY_PAGEDN):
+      onLongPressPGDN();
+      break;
+
+    case EVT_KEY_LONG(KEY_PAGEUP):
+      onLongPressPGUP();
+      break;
+
     case EVT_KEY_LONG(KEY_EXIT):
       onLongPressRTN();
       break;
@@ -462,6 +526,26 @@ NavWindow::NavWindow(Window *parent, const rect_t &rect,
 {
   setWindowFlag(OPAQUE);
 }
+
+class SetupTextButton : public TextButton
+{
+ public:
+  SetupTextButton(Window* parent, const rect_t& rect, PageButtonDef& entry) :
+      TextButton(parent, rect, STR_VAL(entry.title))
+  {
+    setPressHandler([=] {
+      entry.createPage();
+      return 0;
+    });
+    setCheckHandler([=]() {
+      if (entry.isActive) check(entry.isActive());
+      if (entry.enabled) show(entry.enabled());
+    });
+    setWrap();
+  }
+
+ protected:
+};
 
 SetupButtonGroup::SetupButtonGroup(Window* parent, const rect_t& rect, const char* title, int cols,
                                    PaddingSize padding, PageDefs pages, coord_t btnHeight) :
@@ -496,19 +580,7 @@ SetupButtonGroup::SetupButtonGroup(Window* parent, const rect_t& rect, const cha
     x = xo + (n % cols) * xw;
     y = yo + (n / cols) * (btnHeight + PAD_MEDIUM);
 
-    // TODO: sort out all caps title strings VS quick menu strings
-    std::string title(entry.title);
-    for (std::string::iterator it = title.begin(); it != title.end(); ++it) {
-      if (*it == '\n')
-        *it = ' ';
-    }
-
-    auto btn = new TextButton(this, rect_t{x, y, buttonWidth, btnHeight}, title, [&, entry]() {
-      entry.createPage();
-      return 0;
-    });
-    btn->setWrap();
-    if (entry.isActive) btn->setCheckHandler([=]() { btn->check(entry.isActive()); });
+    new SetupTextButton(this, {x, y, buttonWidth, btnHeight}, entry);
     n += 1;
     remaining -= 1;
   }
@@ -547,7 +619,11 @@ coord_t SetupLine::showLines(Window* parent, coord_t y, coord_t col2, PaddingSiz
   Window* w;
 
   for (int i = 0; i < lineCount; i += 1) {
+#if !defined(ALL_LANGS)
     w = new SetupLine(parent, y, col2, padding, setupLines[i].title, setupLines[i].createEdit);
+#else
+    w = new SetupLine(parent, y, col2, padding, setupLines[i].title ? setupLines[i].title() : nullptr, setupLines[i].createEdit);
+#endif
     y += w->height() + padding;
   }
 

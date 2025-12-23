@@ -26,9 +26,10 @@ class Layer
 
   Window*     window;
   lv_group_t* group;
+  lv_group_t* prevGroup;
 
  public:
-  explicit Layer(Window* w, lv_group_t* g);
+  explicit Layer(Window* w, lv_group_t* g, lv_group_t* pg);
   ~Layer();
 
   static void push(Window* window);
@@ -36,4 +37,6 @@ class Layer
 
   static Window* back();
   static Window* getFirstOpaque();
+  static Window* getPageGroup();
+  static Window* walk(std::function<bool(Window* w)> check);
 };

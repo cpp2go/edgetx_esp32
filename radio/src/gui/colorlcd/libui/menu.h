@@ -29,7 +29,7 @@ class Menu : public ModalWindow
   friend class MenuBody;
 
  public:
-  explicit Menu(bool multiple = false);
+  explicit Menu(bool multiple = false, coord_t popupWidth = 0);
 
 #if defined(DEBUG_WINDOWS)
   std::string getName() const override { return "Menu"; }
@@ -43,7 +43,7 @@ class Menu : public ModalWindow
 
   void setTitle(std::string text);
 
-  void addLine(const uint8_t *icon_mask, const std::string &text,
+  void addLine(const MaskBitmap *icon_mask, const std::string &text,
                std::function<void()> onPress,
                std::function<bool()> isChecked = nullptr);
 
@@ -53,7 +53,7 @@ class Menu : public ModalWindow
     addLine(nullptr, text, onPress, isChecked);
   }
 
-  void addLineBuffered(const uint8_t *icon_mask, const std::string &text,
+  void addLineBuffered(const MaskBitmap *icon_mask, const std::string &text,
                        std::function<void()> onPress,
                        std::function<bool()> isChecked = nullptr);
 

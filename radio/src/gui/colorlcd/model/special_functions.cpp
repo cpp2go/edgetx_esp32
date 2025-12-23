@@ -23,7 +23,6 @@
 
 #include "filechoice.h"
 #include "hal/adc_driver.h"
-#include "libopenui.h"
 #include "page.h"
 #include "sourcechoice.h"
 #include "switchchoice.h"
@@ -84,40 +83,26 @@ FunctionLineButton::FunctionLineButton(Window *parent, const rect_t &rect,
   setHeight(FunctionsPage::SF_BUTTON_H);
   padAll(PAD_ZERO);
 
-  lv_obj_add_event_cb(lvobj, FunctionLineButton::on_draw,
-                      LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
+  delayLoad();
 }
 
-void FunctionLineButton::on_draw(lv_event_t *e)
+void FunctionLineButton::delayedInit()
 {
-  lv_obj_t *target = lv_event_get_target(e);
-  auto line = (FunctionLineButton *)lv_obj_get_user_data(target);
-  if (line) {
-    if (!line->init)
-      line->delayed_init();
-    line->refresh();
-  }
-}
-
-void FunctionLineButton::delayed_init()
-{
-  init = true;
-
   lv_obj_enable_style_refresh(false);
 
-  sfName = lv_label_create(lvobj);
+  sfName = etx_label_create(lvobj);
   lv_obj_set_pos(sfName, NM_X, NM_Y);
   lv_obj_set_size(sfName, NM_W, EdgeTxStyles::STD_FONT_HEIGHT);
 
-  sfSwitch = lv_label_create(lvobj);
+  sfSwitch = etx_label_create(lvobj);
   lv_obj_set_pos(sfSwitch, SW_X, SW_Y);
   lv_obj_set_size(sfSwitch, SW_W, EdgeTxStyles::STD_FONT_HEIGHT);
 
-  sfFunc = lv_label_create(lvobj);
+  sfFunc = etx_label_create(lvobj);
   lv_obj_set_pos(sfFunc, FN_X, FN_Y);
   lv_obj_set_size(sfFunc, FN_W, EdgeTxStyles::STD_FONT_HEIGHT);
 
-  sfRepeat = lv_label_create(lvobj);
+  sfRepeat = etx_label_create(lvobj);
   lv_obj_set_pos(sfRepeat, RP_X, RP_Y);
   lv_obj_set_size(sfRepeat, RP_W, EdgeTxStyles::STD_FONT_HEIGHT);
 
@@ -130,11 +115,13 @@ void FunctionLineButton::delayed_init()
 
   lv_obj_enable_style_refresh(true);
   lv_obj_refresh_style(lvobj, LV_PART_ANY, LV_STYLE_PROP_ANY);
+
+  refresh();
 }
 
 void FunctionLineButton::refresh()
 {
-  if (!init) return;
+  if (!loaded) return;
 
   check(isActive());
 
@@ -199,9 +186,13 @@ void FunctionLineButton::refresh()
       break;
 
     case FUNC_SET_TIMER:
-      sprintf(s + strlen(s), "%s%d = %s", STR_SRC_TIMER,
-              CFN_TIMER_INDEX(cfn) + 1,
-              getTimerString(CFN_PARAM(cfn), {.options = SHOW_TIME}));
+      if (isTimerSourceAvailable(CFN_TIMER_INDEX(cfn))) {
+        sprintf(s + strlen(s), "%s%d = %s", STR_SRC_TIMER,
+                CFN_TIMER_INDEX(cfn) + 1,
+                getTimerString(CFN_PARAM(cfn), {.options = SHOW_TIME}));
+      } else {
+        sprintf(s + strlen(s), "---");
+      }
       break;
 
     case FUNC_SET_FAILSAFE:
@@ -215,7 +206,7 @@ void FunctionLineButton::refresh()
 
 #if defined(FUNCTION_SWITCHES)
     case FUNC_PUSH_CUST_SWITCH:
-      sprintf(s + strlen(s), "%s%d", STR_SWITCH, CFN_CS_INDEX(cfn) + 1);
+    strAppend(s + strlen(s), switchGetDefaultName(switchGetSwitchFromCustomIdx(CFN_CS_INDEX(cfn))));
       break;
 #endif
 
@@ -302,23 +293,12 @@ FunctionEditPage::FunctionEditPage(uint8_t index, EdgeTxIcon icon,
 {
   buildHeader(header, title, prefix);
 
-  lv_obj_add_event_cb(lvobj, FunctionEditPage::on_draw,
-                      LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
+  delayLoad();
 }
 
-void FunctionEditPage::on_draw(lv_event_t *e)
+void FunctionEditPage::delayedInit()
 {
-  lv_obj_t *target = lv_event_get_target(e);
-  auto page = (FunctionEditPage *)lv_obj_get_user_data(target);
-  if (page) page->delayed_init();
-}
-
-void FunctionEditPage::delayed_init()
-{
-  if (!init) {
-    init = true;
-    buildBody(body);
-  }
+  buildBody(body);
 }
 
 void FunctionEditPage::checkEvents()
@@ -463,18 +443,22 @@ void FunctionEditPage::updateSpecialFunctionOneWindow()
 
     case FUNC_SET_TIMER: {
       new StaticText(line, rect_t{}, STR_TIMER);
-      auto timerchoice = new Choice(line, rect_t{}, 0, TIMERS - 1,
-                                    GET_SET_DEFAULT(CFN_TIMER_INDEX(cfn)));
-      timerchoice->setTextHandler([](int32_t value) {
-        return std::string(STR_TIMER) + std::to_string(value + 1);
-      });
-      timerchoice->setAvailableHandler(
-          [=](int value) { return isTimerSourceAvailable(value); });
+      if (timersSetupCount() > 0) {
+        auto timerchoice = new Choice(line, rect_t{}, 0, TIMERS - 1,
+                                      GET_SET_DEFAULT(CFN_TIMER_INDEX(cfn)));
+        timerchoice->setTextHandler([](int32_t value) {
+          return std::string(STR_TIMER) + std::to_string(value + 1);
+        });
+        timerchoice->setAvailableHandler(
+            [=](int value) { return isTimerSourceAvailable(value); });
 
-      line = specialFunctionOneWindow->newLine(grid);
-      new StaticText(line, rect_t{}, STR_VALUE);
-      new TimeEdit(line, rect_t{}, 0, 9 * 60 * 60 - 1,
-                   GET_SET_DEFAULT(CFN_PARAM(cfn)));
+        line = specialFunctionOneWindow->newLine(grid);
+        new StaticText(line, rect_t{}, STR_VALUE);
+        new TimeEdit(line, rect_t{}, 0, 9 * 60 * 60 - 1,
+                    GET_SET_DEFAULT(CFN_PARAM(cfn)));
+      } else {
+        new StaticText(line, rect_t{}, STR_NO_TIMERS);
+      }
       break;
     }
 
@@ -496,10 +480,15 @@ void FunctionEditPage::updateSpecialFunctionOneWindow()
 #if defined(FUNCTION_SWITCHES)
     case FUNC_PUSH_CUST_SWITCH: {
         new StaticText(line, rect_t{}, STR_SWITCH);
-        auto choice = new Choice(line, rect_t{}, 0, NUM_FUNCTIONS_SWITCHES - 1, GET_SET_DEFAULT(CFN_CS_INDEX(cfn)), STR_SWITCH);
+        auto choice = new Choice(line, rect_t{}, 0, switchGetMaxSwitches() - 1,
+                    [=]() { return switchGetSwitchFromCustomIdx(CFN_CS_INDEX(cfn)); },
+                    [=](int n) { CFN_CS_INDEX(cfn) = switchGetCustomSwitchIdx(n); },
+                    STR_SWITCH);
         choice->setTextHandler([=](int n) {
-          return std::string(STR_SWITCH) + std::to_string(n + 1);
+          return std::string(switchGetDefaultName(n));
         });
+        choice->setAvailableHandler(switchIsCustomSwitch);
+
         line = specialFunctionOneWindow->newLine(grid);
 
         auto edit = addNumberEdit(line, STR_INTERVAL, cfn, PUSH_CS_DURATION_MIN,
@@ -702,9 +691,9 @@ void FunctionEditPage::buildBody(Window *form)
 
 //-----------------------------------------------------------------------------
 
-FunctionsPage::FunctionsPage(CustomFunctionData *functions, const char *title,
-                             const char *prefix, EdgeTxIcon icon) :
-    PageTab(title, icon), functions(functions), title(title), prefix(prefix)
+FunctionsPage::FunctionsPage(CustomFunctionData *functions, PageDef& pageDef,
+                             const char *prefix) :
+    PageGroupItem(pageDef), functions(functions), prefix(prefix)
 {
 }
 
@@ -754,16 +743,19 @@ void FunctionsPage::pasteSpecialFunction(Window *window, uint8_t index,
 }
 
 void FunctionsPage::editSpecialFunction(Window *window, uint8_t index,
-                                        ButtonBase *button)
+                                        FunctionLineButton *button)
 {
   auto edit = editPage(index);
   edit->setCloseHandler([=]() {
     CustomFunctionData *cfn = customFunctionData(index);
     if (cfn->swtch != 0) {
       focusIndex = index;
-      if (!button)
-        rebuild(window);
+      if (button) {
+        button->refresh();
+        return; // Skip full rebuild
+      }
     }
+    rebuild(window);
   });
 }
 
@@ -794,7 +786,7 @@ void FunctionsPage::build(Window *window)
 
     if (isActive) {
       auto button = functionButton(
-          window, rect_t{0, 0, window->width() - 12, SF_BUTTON_H}, i);
+          window, rect_t{0, 0, window->width() - PAD_LARGE - PAD_SMALL, SF_BUTTON_H}, i);
 
       lv_obj_set_grid_cell(button->getLvObj(), LV_GRID_ALIGN_CENTER, 0, 1,
                            LV_GRID_ALIGN_CENTER, 0, 1);
@@ -969,9 +961,8 @@ class SpecialFunctionEditPage : public FunctionEditPage
 
 //-----------------------------------------------------------------------------
 
-SpecialFunctionsPage::SpecialFunctionsPage() :
-    FunctionsPage(g_model.customFn, STR_MENUCUSTOMFUNC, "SF",
-                  ICON_MODEL_SPECIAL_FUNCTIONS)
+SpecialFunctionsPage::SpecialFunctionsPage(PageDef& pageDef) :
+    FunctionsPage(g_model.customFn, pageDef, "SF")
 {
 }
 
@@ -1050,9 +1041,8 @@ class GlobalFunctionEditPage : public FunctionEditPage
 
 //-----------------------------------------------------------------------------
 
-GlobalFunctionsPage::GlobalFunctionsPage() :
-    FunctionsPage(g_eeGeneral.customFn, STR_MENUSPECIALFUNCS, "GF",
-                  ICON_RADIO_GLOBAL_FUNCTIONS)
+GlobalFunctionsPage::GlobalFunctionsPage(PageDef& pageDef) :
+    FunctionsPage(g_eeGeneral.customFn, pageDef, "GF")
 {
 }
 

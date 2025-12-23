@@ -25,15 +25,15 @@
 #include "curve.h"
 #include "choice.h"
 
-struct ExpoData;
-
 class InputEditWindow : public Page
 {
  public:
   InputEditWindow(int8_t input, uint8_t index);
 
-  static LAYOUT_VAL(INPUT_EDIT_CURVE_WIDTH, 140, 176, 110)
-  static LAYOUT_VAL2(INPUT_EDIT_CURVE_HEIGHT, INPUT_EDIT_CURVE_WIDTH, 132)
+  void previewUpdate() { updatePreview = true; }
+
+  static LAYOUT_ORIENTATION_SCALED(INPUT_EDIT_CURVE_WIDTH, 138, 176)
+  static LAYOUT_ORIENTATION(INPUT_EDIT_CURVE_HEIGHT, INPUT_EDIT_CURVE_WIDTH, LAYOUT_SCALE(132))
 
  protected:
   uint8_t input;

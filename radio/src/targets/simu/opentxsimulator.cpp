@@ -22,12 +22,15 @@
 #include "opentxsimulator.h"
 #include "edgetx.h"
 #include "simulcd.h"
+#include "simuaudio.h"
 #include "switches.h"
 #include "serial.h"
 #include "myeeprom.h"
 
 #include "hal/adc_driver.h"
 #include "hal/rotary_encoder.h"
+#include "os/time.h"
+#include "boards/generic_stm32/rgb_leds.h"
 
 #include <QDebug>
 #include <QElapsedTimer>
@@ -86,18 +89,6 @@ void firmwareTraceCb(const char * text)
     if (dev)
       dev->write(text);
   }
-}
-
-void fsLedRGB(uint8_t idx, uint32_t color)
-{
-}
-
-void fsLedOn(uint8_t idx)
-{
-}
-
-void fsLedOff(uint8_t idx)
-{
 }
 
 // Serial port handling needs to know about OpenTxSimulator, so we we
@@ -282,9 +273,9 @@ void OpenTxSimulator::start(const char * filename, bool tests)
 
   QMutexLocker lckr(&m_mtxSimuMain);
   QMutexLocker slckr(&m_mtxSettings);
-  startEepromThread(filename);
-  startAudioThread(volumeGain);
-  simuStart(tests, simuSdDirectory.toLatin1().constData(), simuSettingsDirectory.toLatin1().constData());
+  simuAudioInit();
+  simuStart(tests, simuSdDirectory.toLatin1().constData(),
+            simuSettingsDirectory.toLatin1().constData());
 
   emit started();
   QTimer::singleShot(0, this, SLOT(run()));  // old style for Qt < 5.4
@@ -300,8 +291,7 @@ void OpenTxSimulator::stop()
 
   QMutexLocker lckr(&m_mtxSimuMain);
   simuStop();
-  stopAudioThread();
-  stopEepromThread();
+  simuAudioDeInit();
 
   emit stopped();
 }
@@ -321,20 +311,20 @@ void OpenTxSimulator::setVolumeGain(const int value)
 
 void OpenTxSimulator::setRadioData(const QByteArray & data)
 {
-#if defined(EEPROM_SIZE)
-  QMutexLocker lckr(&m_mtxRadioData);
-  eeprom = (uint8_t *)malloc(qMin<int>(EEPROM_SIZE, data.size()));
-  memcpy(eeprom, data.data(), qMin<int>(EEPROM_SIZE, data.size()));
-#endif
+// #if defined(EEPROM_SIZE)
+//   QMutexLocker lckr(&m_mtxRadioData);
+//   eeprom = (uint8_t *)malloc(qMin<int>(EEPROM_SIZE, data.size()));
+//   memcpy(eeprom, data.data(), qMin<int>(EEPROM_SIZE, data.size()));
+// #endif
 }
 
 void OpenTxSimulator::readRadioData(QByteArray & dest)
 {
-#if defined(EEPROM_SIZE)
-  QMutexLocker lckr(&m_mtxRadioData);
-  if (eeprom)
-    memcpy(dest.data(), eeprom, qMin<int>(EEPROM_SIZE, dest.size()));
-#endif
+// #if defined(EEPROM_SIZE)
+//   QMutexLocker lckr(&m_mtxRadioData);
+//   if (eeprom)
+//     memcpy(dest.data(), eeprom, qMin<int>(EEPROM_SIZE, dest.size()));
+// #endif
 }
 
 uint8_t * OpenTxSimulator::getLcd()
@@ -391,7 +381,7 @@ void OpenTxSimulator::setInputValue(int type, uint8_t index, int16_t value)
     case INPUT_SRC_TXVIN :
       if (adcGetMaxInputs(ADC_INPUT_VBAT) > 0) {
         auto idx = adcGetInputOffset(ADC_INPUT_VBAT);
-        setAnalogValue(idx, voltageToAdc(value));
+        setAnalogValue(idx, value);
         emit txBatteryVoltageChanged((unsigned int)value);
       }
       break;
@@ -428,7 +418,7 @@ void OpenTxSimulator::rotaryEncoderEvent(int steps)
       steps *= -1;
     rotencValue += steps * ROTARY_ENCODER_GRANULARITY;
     // TODO: set rotencDt
-    uint32_t now = RTOS_GET_MS();
+    uint32_t now = time_get_ms();
     uint32_t dt = now - last_tick;
     rotencDt += dt;
     last_tick = now;
@@ -452,17 +442,7 @@ void OpenTxSimulator::rotaryEncoderEvent(int steps)
     return;
 
   setKey(key, 1);
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 4, 0))
   QTimer::singleShot(10, [this, key]() { setKey(key, 0); });
-#else
-  QTimer *timer = new QTimer(this);
-  timer->setSingleShot(true);
-  connect(timer, &QTimer::timeout, [=]() {
-    setKey(key, 0);
-    timer->deleteLater();
-  } );
-  timer->start(10);
-#endif
 #endif  // defined(ROTARY_ENCODER_NAVIGATION)
 }
 
@@ -545,12 +525,12 @@ void OpenTxSimulator::sendTelemetry(const uint8_t module, const uint8_t protocol
   case SIMU_TELEMETRY_PROTOCOL_FRSKY_SPORT:
     sportProcessTelemetryPacket(module,
                                 (uint8_t *)data.constData(),
-                                data.count());
+                                data.size());
     break;
   case SIMU_TELEMETRY_PROTOCOL_FRSKY_HUB:
     frskyDProcessPacket(module,
                         (uint8_t *)data.constData(),
-                        data.count());
+                        data.size());
     break;
   case SIMU_TELEMETRY_PROTOCOL_FRSKY_HUB_OOB:
     // FrSky D telemetry is a stream which can span multiple
@@ -574,7 +554,7 @@ void OpenTxSimulator::sendTelemetry(const uint8_t module, const uint8_t protocol
   case SIMU_TELEMETRY_PROTOCOL_CROSSFIRE:
     processCrossfireTelemetryFrame(module,
                                    (uint8_t *)data.constData(),
-                                   data.count());
+                                   data.size());
     break;
   default:
     // Do nothing
@@ -771,9 +751,8 @@ void OpenTxSimulator::run()
 
   ++loops;
 
-  per10ms();
-
   checkLcdChanged();
+  checkFuncSwitchChanged();
 
   if (!(loops % 5)) {
     checkOutputsChanged();
@@ -804,6 +783,19 @@ bool OpenTxSimulator::checkLcdChanged()
     return true;
   }
   return false;
+}
+
+void OpenTxSimulator::checkFuncSwitchChanged()
+{
+#if defined(FUNCTION_SWITCHES)
+  for (int i = 0; i < CPN_MAX_SWITCHES; i += 1) {
+    if (switchIsCustomSwitch(i)) {
+      uint8_t cfs = switchGetCustomSwitchIdx(i);
+      uint32_t c = rgbGetLedColor(cfs);
+      emit fsColorChange(i, c);
+    }
+  }
+#endif
 }
 
 void OpenTxSimulator::checkOutputsChanged()
@@ -907,28 +899,6 @@ const char * OpenTxSimulator::getError()
   return main_thread_error;
 }
 
-const int OpenTxSimulator::voltageToAdc(const int voltage)
-{
-  int volts = voltage * 10;  // prec2
-  int adc = 0;
-
-#if defined(VBAT_MOSFET_DROP)
-  // TRACE("volts: %d r1: %d r2: %d drop: %d vref: %d calib: %d", volts, VBAT_DIV_R1, VBAT_DIV_R2, VBAT_MOSFET_DROP, ADC_VREF_PREC2, g_eeGeneral.txVoltageCalibration);
-  adc = (volts - VBAT_MOSFET_DROP) * (2 * RESX * 1000) / ADC_VREF_PREC2 / (((1000 + g_eeGeneral.txVoltageCalibration) * (VBAT_DIV_R2 + VBAT_DIV_R1)) / VBAT_DIV_R1);
-#elif defined(BATT_SCALE)
-  // TRACE("volts: %d div: %d drop: %d scale: %d calib: %d", volts, BATTERY_DIVIDER, VOLTAGE_DROP, BATT_SCALE, g_eeGeneral.txVoltageCalibration);
-  adc = (volts - VOLTAGE_DROP) * BATTERY_DIVIDER / (128 + g_eeGeneral.txVoltageCalibration) / BATT_SCALE;
-#elif defined(VOLTAGE_DROP)
-  // TRACE("volts: %d div: %d drop: %d", volts, BATTERY_DIVIDER, VOLTAGE_DROP);
-  adc = (volts - VOLTAGE_DROP) * BATTERY_DIVIDER / (1000 + g_eeGeneral.txVoltageCalibration);
-#else
-  // TRACE("volts: %d div: %d calib: %d", volts, BATTERY_DIVIDER, g_eeGeneral.txVoltageCalibration);
-  adc = volts * BATTERY_DIVIDER / (1000 + g_eeGeneral.txVoltageCalibration);
-#endif
-  // TRACE("calc adc: %d", adc);
-  return adc * 2; // div by 2 in firmware filtered adc calcs
-}
-
 
 /*
  * OpenTxSimulatorFactory
@@ -965,8 +935,6 @@ class OpenTxSimulatorFactory: public SimulatorFactory
       return Board::BOARD_TARANIS_X9LITES;
 #elif defined(PCBX9LITE)
       return Board::BOARD_TARANIS_X9LITE;
-#elif defined(PCBNV14)
-      return Board::BOARD_FLYSKY_NV14;
 #elif defined(PCBPL18)
       return Board::BOARD_FLYSKY_PL18;
 #else

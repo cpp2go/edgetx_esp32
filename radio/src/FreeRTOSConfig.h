@@ -57,7 +57,6 @@ extern uint32_t SystemCoreClock;
 #else
   #define configMAX_TASK_NAME_LEN         10
   #define configUSE_TRACE_FACILITY        1
-  //#define configCHECK_FOR_STACK_OVERFLOW  2
   #define configCHECK_FOR_STACK_OVERFLOW  0
 #endif
 
@@ -125,7 +124,6 @@ standard names. */
 #define vPortSVCHandler SVC_Handler
 #define xPortPendSVHandler PendSV_Handler
 #define xPortSysTickHandler SysTick_Handler
-
-#else  // defined(ESP_PLATFORM)
-#include <freertos/FreeRTOSConfig.h>
-#endif // defined(ESP_PLATFORM)
+#if defined(DEBUG_SEGGER_SYSVIEW)
+#include "SEGGER_SYSVIEW_FreeRTOS.h"
+#endif

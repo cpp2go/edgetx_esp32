@@ -22,42 +22,23 @@
 #include "hal/abnormal_reboot.h"
 #include "inactivity_timer.h"
 #include "edgetx.h"
+#include "os/sleep.h"
 #include "stamp.h"
 #include "theme_manager.h"
 
 extern void checkSpeakerVolume();
 
+constexpr const char* strip_leading_hyphen(const char* str) {
+    return (str[0] == '-') ? str + 1 : str;
+}
+
 #if defined(VERSION_TAG)
 const std::string ver_str = "" VERSION_TAG;
 const std::string nam_str = "" CODENAME;
-#if PORTRAIT_LCD
-#define TXT_Y (LCD_H * 21 / 25)
 #else
-#define TXT_Y (LCD_H * 3 / 4)
-#endif
-#else
-const std::string ver_str = "" VERSION;
-const std::string nam_str = "" VERSION_SUFFIX;
+const std::string ver_str = "" VERSION_PREFIX VERSION;
+const std::string nam_str = strip_leading_hyphen("" VERSION_SUFFIX);
 const std::string git_str = "(" GIT_STR ")";
-#if PORTRAIT_LCD
-#define TXT_Y (LCD_H * 19 / 24)
-#else
-#define TXT_Y (LCD_H * 2 / 3)
-#endif
-#endif
-
-static LAYOUT_VAL(TXT_W, 200, 200, LS(200))
-static LAYOUT_VAL(TXT_H, 24, 24, LS(24))
-static LAYOUT_VAL(TXT_XO, 100, 100, LS(100))
-
-#if !PORTRAIT_LCD
-#define TXT_X (LCD_W * 4 / 5)
-#define IMG_X (LCD_W / 3)
-#define IMG_Y (LCD_H / 2)
-#else
-#define TXT_X (LCD_W / 2)
-#define IMG_X (LCD_W / 2)
-#define IMG_Y (LCD_H * 2 / 5)
 #endif
 
 const uint8_t __bmp_splash_logo[]{
@@ -81,14 +62,18 @@ void drawSplash()
 
   if (!bg->hasImage()) {
     LZ4Bitmap* logo = (LZ4Bitmap*)__bmp_splash_logo;
-    new StaticLZ4Image(splashScreen, IMG_X - logo->width / 2,
-                       IMG_Y - logo->height / 2, logo);
+    coord_t x = (LANDSCAPE ? LCD_W / 3 : LCD_W / 2) - logo->width / 2;
+    coord_t y = (LANDSCAPE ? LCD_H / 2 : LCD_H * 2 / 5) - logo->height / 2;
+    new StaticLZ4Image(splashScreen, x, y, logo);
 
-    new StaticText(splashScreen, {TXT_X - TXT_XO, TXT_Y, TXT_W, TXT_H}, ver_str.c_str(), COLOR_GREY_INDEX, CENTERED);
-    new StaticText(splashScreen, {TXT_X - TXT_XO, TXT_Y + TXT_H, TXT_W, TXT_H},
+    coord_t w = LAYOUT_SCALE(200);
+    x = (LANDSCAPE ? LCD_W * 4 / 5 : LCD_W / 2) - w / 2;
+    y = LCD_H - EdgeTxStyles::STD_FONT_HEIGHT * 4;
+    new StaticText(splashScreen, {x, y, w, EdgeTxStyles::STD_FONT_HEIGHT}, ver_str.c_str(), COLOR_GREY_INDEX, CENTERED);
+    new StaticText(splashScreen, {x, y + EdgeTxStyles::STD_FONT_HEIGHT, w, EdgeTxStyles::STD_FONT_HEIGHT},
                    nam_str.c_str(), COLOR_GREY_INDEX, CENTERED);
 #if !defined(VERSION_TAG)
-    new StaticText(splashScreen, {TXT_X - TXT_XO, TXT_Y + TXT_H * 2, TXT_W, TXT_H},
+    new StaticText(splashScreen, {x, y + EdgeTxStyles::STD_FONT_HEIGHT * 2, w, EdgeTxStyles::STD_FONT_HEIGHT},
                    git_str.c_str(), COLOR_GREY_INDEX, CENTERED);
 #endif
   }
@@ -121,11 +106,7 @@ void waitSplash()
 {
   // Handle color splash screen
   if (splashStartTime) {
-#if defined(SIMU)
-    // Simulator - inputsMoved() returns true immediately without this!
-    RTOS_WAIT_TICKS(30);
-#endif  // defined(SIMU)
-
+    inactivityCheckInputs();
     splashStartTime += SPLASH_TIMEOUT;
     while (splashStartTime >= get_tmr10ms()) {
       LvglWrapper::instance()->run();
@@ -133,7 +114,7 @@ void waitSplash()
       WDG_RESET();
       checkSpeakerVolume();
       checkBacklight();
-      RTOS_WAIT_TICKS(10);
+      sleep_ms(10);
       auto evt = getEvent();
       if (evt || inactivityCheckInputs()) {
         if (evt) killEvents(evt);
@@ -155,7 +136,7 @@ void waitSplash()
   cancelSplash();
 }
 
-static LAYOUT_VAL(SHUTDOWN_CIRCLE_RADIUS, 75, 75, LS(75))
+static LAYOUT_VAL_SCALED(SHUTDOWN_CIRCLE_RADIUS, 75)
 
 const int8_t bmp_shutdown_xo[] = {0, 0, -SHUTDOWN_CIRCLE_RADIUS,
                                   -SHUTDOWN_CIRCLE_RADIUS};
@@ -244,7 +225,7 @@ void drawFatalErrorScreen(const char* message)
     fatalErrorWindow->setWindowFlag(OPAQUE);
     etx_solid_bg(fatalErrorWindow->getLvObj(), COLOR_BLACK_INDEX);
 
-    new StaticText(fatalErrorWindow, rect_t{0, LCD_H / 2 - 20, LCD_W, 40},
+    new StaticText(fatalErrorWindow, rect_t{0, LCD_H / 2 - EdgeTxStyles::STD_FONT_HEIGHT, LCD_W, EdgeTxStyles::STD_FONT_HEIGHT * 2},
                    message, COLOR_WHITE_INDEX, FONT(XL) | CENTERED);
   }
 

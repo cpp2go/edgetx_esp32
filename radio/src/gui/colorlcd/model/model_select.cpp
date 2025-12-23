@@ -21,15 +21,13 @@
 
 #include "model_select.h"
 
-#include "libopenui.h"
-#include "menu_model.h"
-#include "menu_radio.h"
-#include "menu_screen.h"
-#include "model_templates.h"
 #include "edgetx.h"
+#include "model_templates.h"
 #include "standalone_lua.h"
 #include "etx_lv_theme.h"
+#include "view_main.h"
 #include "view_channels.h"
+#include "screen_setup.h"
 
 inline tmr10ms_t getTicks() { return g_tmr10ms; }
 
@@ -41,11 +39,11 @@ struct ModelButtonLayout {
   uint16_t columns;
 };
 
-static LAYOUT_VAL(L0_W, 165, 147, LS(165))
-static LAYOUT_VAL(L0_H, 92, 92, LS(92))
-static LAYOUT_VAL(L1_W, 108, 96, LS(108))
-static LAYOUT_VAL(L1_H, 61, 61, LS(61))
-static LAYOUT_VAL(L3_W, 336, 300, LS(336))
+static constexpr coord_t L0_W = (ModelLabelsWindow::MDLS_W - PAD_OUTLINE * 3) / 2;
+static constexpr coord_t L0_H = L0_W * 11 / 20;
+static constexpr coord_t L1_W = (ModelLabelsWindow::MDLS_W - PAD_OUTLINE * 4) / 3;
+static constexpr coord_t L1_H = L1_W * 11 / 20;
+static constexpr coord_t L3_W = ModelLabelsWindow::MDLS_W - PAD_OUTLINE * 2;
 
 ModelButtonLayout modelLayouts[] = {
     {L0_W, L0_H, true, FONT(STD), 2},
@@ -68,8 +66,7 @@ class ModelButton : public Button
 
     lv_obj_clear_flag(lvobj, LV_OBJ_FLAG_CLICK_FOCUSABLE);
 
-    lv_obj_add_event_cb(lvobj, ModelButton::on_draw, LV_EVENT_DRAW_MAIN_BEGIN,
-                        nullptr);
+    delayLoad();
   }
 
   void addDetails()
@@ -84,8 +81,8 @@ class ModelButton : public Button
       if (modelCell->modelBitmap[0] == 0)
         showNoImgMsg();
 
-      coord_t fh = getFontHeight(font) - ((font == FONT(STD)) ? 4 : (font == FONT(XS)) ? 3 : 1);
-      coord_t fo = (font == FONT(STD)) ? -3 : (font == FONT(XS)) ? -3 : -1;
+      coord_t fh = getFontHeight(font) - ((font == FONT(STD)) ? PAD_SMALL : (font == FONT(XS)) ? PAD_THREE : 1);
+      coord_t fo = (font == FONT(STD)) ? -PAD_THREE : (font == FONT(XS)) ? -PAD_THREE : -1;
 
       modelName = new StaticText(this, {PAD_TINY, PAD_TINY, w, fh}, modelCell->modelName,
                                  COLOR_THEME_SECONDARY1_INDEX, CENTERED | font);
@@ -104,15 +101,9 @@ class ModelButton : public Button
     lv_obj_update_layout(lvobj);
   }
 
-  static void on_draw(lv_event_t *e)
+  void delayedInit() override
   {
-    auto btn = (ModelButton *)lv_obj_get_user_data(lv_event_get_target(e));
-    if (btn) {
-      if (!btn->loaded) {
-        btn->loaded = true;
-        btn->addDetails();
-      }
-    }
+    addDetails();
   }
 
   const char *modelFilename() { return modelCell->modelFilename; }
@@ -157,7 +148,6 @@ class ModelButton : public Button
   bool isModel(ModelCell* cell) { return cell == modelCell; }
 
  protected:
-  bool loaded = false;
   bool imgLoaded = false;
   uint8_t layout;
   ModelCell *modelCell;
@@ -529,8 +519,10 @@ class ModelLayoutButton : public IconButton
 
 //-----------------------------------------------------------------------------
 
-ModelLabelsWindow::ModelLabelsWindow() : Page(ICON_MODEL, PAD_ZERO, true)
+ModelLabelsWindow::ModelLabelsWindow() : Page(ICON_MODEL_SELECT, PAD_ZERO, true)
 {
+  QuickMenu::setCurrentPage(QM_MANAGE_MODELS);
+
   buildHead(header);
   buildBody(body);
 
@@ -555,31 +547,25 @@ ModelLabelsWindow::ModelLabelsWindow() : Page(ICON_MODEL, PAD_ZERO, true)
 }
 
 #if defined(HARDWARE_KEYS)
-void ModelLabelsWindow::onPressSYS()
-{
-  onCancel();
-  new RadioMenu();
-}
 void ModelLabelsWindow::onLongPressSYS()
 {
   onCancel();
-  // Radio setup
-  (new RadioMenu())->setCurrentTab(2);
+  Page::onLongPressSYS();
 }
 void ModelLabelsWindow::onPressMDL()
 {
   onCancel();
-  new ModelMenu();
+  Page::onPressMDL();
 }
 void ModelLabelsWindow::onPressTELE()
 {
   onCancel();
-  new ScreenMenu();
+  Page::onPressTELE();
 }
 void ModelLabelsWindow::onLongPressTELE()
 {
   onCancel();
-  new ChannelsViewMenu();
+  Page::onLongPressTELE();
 }
 void ModelLabelsWindow::onPressPG(bool isNext)
 {
@@ -691,8 +677,9 @@ void ModelLabelsWindow::buildHead(Window *hdr)
   // page title
   setTitle();
 
+#if !PORTRAIT
   // new model button
-  new TextButton(hdr, {LCD_W - NEW_BTN_W - PAD_LARGE, PAD_MEDIUM, NEW_BTN_W, EdgeTxStyles::UI_ELEMENT_HEIGHT}, STR_NEW, [=]() {
+  new TextButton(hdr, {LCD_W - PageGroup::PAGE_GROUP_BACK_BTN_W - NEW_BTN_W - PAD_LARGE, PAD_MEDIUM, NEW_BTN_W, EdgeTxStyles::UI_ELEMENT_HEIGHT}, STR_NEW, [=]() {
     auto menu = new Menu();
     menu->setTitle(STR_CREATE_NEW);
     menu->addLine(STR_NEW_MODEL, [=]() { newModel(); });
@@ -700,7 +687,7 @@ void ModelLabelsWindow::buildHead(Window *hdr)
     return 0;
   });
 
-  mdlLayout = new ModelLayoutButton(this, LCD_W - LAYOUT_BTN_XO, PAD_MEDIUM, g_eeGeneral.modelSelectLayout, [=]() {
+  mdlLayout = new ModelLayoutButton(this, LCD_W - PageGroup::PAGE_GROUP_BACK_BTN_W - LAYOUT_BTN_XO, PAD_MEDIUM, g_eeGeneral.modelSelectLayout, [=]() {
     uint8_t l = mdlLayout->getLayout();
     l = (l + 1) & 3;
     mdlLayout->setLayout(l);
@@ -709,12 +696,13 @@ void ModelLabelsWindow::buildHead(Window *hdr)
     mdlselector->reload();
     return 0;
   });
+#endif
 }
 
 void ModelLabelsWindow::buildBody(Window *window)
 {
   // Models List
-  mdlselector = new ModelsPageBody(window, {MDLS_X, PAD_SMALL, MDLS_W, MDLS_H});
+  mdlselector = new ModelsPageBody(window, {MDLS_X, MDLS_Y, MDLS_W, MDLS_H});
   mdlselector->setLblRefreshFunc([=]() { labelRefreshRequest(); });
   auto mdl_obj = mdlselector->getLvObj();
   lv_obj_set_style_max_width(mdl_obj, MDLS_W, LV_PART_MAIN);
@@ -726,7 +714,7 @@ void ModelLabelsWindow::buildBody(Window *window)
 
   // Labels
   lblselector =
-      new ListBox(window, rect_t{PAD_SMALL, LABELS_Y, LABELS_WIDTH, LABELS_HEIGHT}, getLabels());
+      new ListBox(window, rect_t{LABELS_X, LABELS_Y, LABELS_WIDTH, LABELS_HEIGHT}, getLabels());
   lblselector->setSmallSelectMarker();
   auto lbl_obj = lblselector->getLvObj();
   etx_scrollbar(lbl_obj);
@@ -735,10 +723,31 @@ void ModelLabelsWindow::buildBody(Window *window)
 
   // Sort Button
   new Choice(
-      window, {PAD_SMALL, LABELS_Y + LABELS_HEIGHT + PAD_SMALL, SORT_BUTTON_W, 0}, STR_SORT_ORDERS, NAME_ASC, DATE_DES,
+      window, {LABELS_X, LABELS_Y + LABELS_HEIGHT + PAD_SMALL, SORT_BUTTON_W, 0}, STR_SORT_ORDERS, NAME_ASC, DATE_DES,
       [=]() { return mdlselector->getSortOrder(); },
       [=](int newValue) { mdlselector->setSortOrder((ModelsSortBy)newValue); },
       STR_SORT_MODELS_BY);
+
+#if PORTRAIT
+  // new model button
+  new TextButton(window, {LCD_W - NEW_BTN_W - PAD_LARGE, LABELS_Y + LABELS_HEIGHT + PAD_SMALL, NEW_BTN_W, EdgeTxStyles::UI_ELEMENT_HEIGHT}, STR_NEW, [=]() {
+    auto menu = new Menu();
+    menu->setTitle(STR_CREATE_NEW);
+    menu->addLine(STR_NEW_MODEL, [=]() { newModel(); });
+    menu->addLine(STR_NEW_LABEL, [=]() { newLabel(); });
+    return 0;
+  });
+
+  mdlLayout = new ModelLayoutButton(window, LCD_W - LAYOUT_BTN_XO, LABELS_Y + LABELS_HEIGHT + PAD_SMALL, g_eeGeneral.modelSelectLayout, [=]() {
+    uint8_t l = mdlLayout->getLayout();
+    l = (l + 1) & 3;
+    mdlLayout->setLayout(l);
+    g_eeGeneral.modelSelectLayout = l;
+    storageDirty(EE_GENERAL);
+    mdlselector->reload();
+    return 0;
+  });
+#endif
 
   std::set<uint32_t> filteredLabels = modelslabels.filteredLabels();
 

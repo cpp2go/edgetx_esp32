@@ -21,11 +21,9 @@
 
 #pragma once
 
-#include "bitmaps.h"
-#include "button.h"
 #include "static.h"
 
-class Page;
+class QuickMenu;
 
 class PageHeader : public Window
 {
@@ -36,8 +34,8 @@ class PageHeader : public Window
   void setTitle(std::string txt) { title->setText(std::move(txt)); }
   StaticText* setTitle2(std::string txt);
 
-  static LAYOUT_VAL(PAGE_TITLE_LEFT, 50, 50, LS(50))
-  static constexpr coord_t PAGE_TITLE_TOP = 2;
+  static LAYOUT_VAL_SCALED(PAGE_TITLE_LEFT, 50)
+  static constexpr coord_t PAGE_TITLE_TOP = PAD_TINY;
 
  protected:
   StaticText* title;
@@ -56,18 +54,27 @@ class Page : public NavWindow
   void onCancel() override;
   void onClicked() override;
 
-  void deleteLater(bool detach = true, bool trash = true) override;
-
   void enableRefresh();
+
+  void openMenu();
 
  protected:
   PageHeader* header = nullptr;
   Window* body = nullptr;
+  QuickMenu* quickMenu = nullptr;
 
   void checkEvents() override;
   bool bubbleEvents() override { return false; }
 
+  NavWindow* navWindow();
+
 #if defined(HARDWARE_KEYS)
+  void onPressSYS() override;
+  void onLongPressSYS() override;
+  void onPressMDL() override;
+  void onLongPressMDL() override;
+  void onPressTELE() override;
+  void onLongPressTELE() override;
   void onLongPressRTN() override;
 #endif
 };
@@ -80,7 +87,7 @@ class SubPage : public Page
 
   Window* setupLine(const char* title, std::function<void(Window*, coord_t, coord_t)> createEdit, coord_t lblYOffset = 0);
 
-  static LAYOUT_VAL(EDT_X, 220, 144, LS(220))
+  static constexpr coord_t EDT_X = LCD_W * 9 / 20;
 
  protected:
   coord_t y = 0;

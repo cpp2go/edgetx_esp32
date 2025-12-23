@@ -21,14 +21,13 @@
 
 #include "view_main.h"
 
-#include "menu_model.h"
-#include "menu_radio.h"
-#include "menu_screen.h"
 #include "model_select.h"
 #include "edgetx.h"
-#include "topbar_impl.h"
+#include "topbar.h"
+#include "quick_menu.h"
 #include "view_channels.h"
-#include "view_main_menu.h"
+#include "screen_setup.h"
+#include "widget.h"
 
 static void tile_view_deleted_cb(lv_event_t* e)
 {
@@ -52,17 +51,26 @@ static void saveViewId(unsigned view)
   }
 }
 
+static void tile_view_scroll_begin(lv_event_t * e)
+{
+	lv_anim_t* a = (lv_anim_t*)lv_event_get_param(e);
+	if (a) a->time = 0;
+}
+
 static void tile_view_scroll(lv_event_t* e)
 {
-  // (void)e;
   auto viewMain = ViewMain::instance();
   if (viewMain) {
-    if (lv_event_get_code(e) == LV_EVENT_SCROLL_END) {
-      auto view = viewMain->getCurrentMainView();
-      saveViewId(view);
-    } else {
-      viewMain->updateTopbarVisibility();
-    }
+    viewMain->updateTopbarVisibility();
+  }
+}
+
+static void tile_view_scroll_end(lv_event_t* e)
+{
+  auto viewMain = ViewMain::instance();
+  if (viewMain) {
+    auto view = viewMain->getCurrentMainView();
+    saveViewId(view);
   }
 }
 
@@ -71,7 +79,7 @@ ViewMain* ViewMain::_instance = nullptr;
 ViewMain::ViewMain() :
     NavWindow(MainWindow::instance(), MainWindow::instance()->getRect())
 {
-  Layer::push(this);
+  pushLayer();
 
   tile_view = lv_tileview_create(lvobj);
   lv_obj_set_pos(tile_view, rect.x, rect.y);
@@ -81,20 +89,21 @@ ViewMain::ViewMain() :
 
   lv_obj_add_flag(tile_view, LV_OBJ_FLAG_EVENT_BUBBLE);
   lv_obj_set_user_data(tile_view, this);
+  lv_obj_add_event_cb(tile_view, tile_view_scroll_begin, LV_EVENT_SCROLL_BEGIN, NULL);
   lv_obj_add_event_cb(tile_view, tile_view_scroll, LV_EVENT_SCROLL, nullptr);
-  lv_obj_add_event_cb(tile_view, tile_view_scroll, LV_EVENT_SCROLL_END,
+  lv_obj_add_event_cb(tile_view, tile_view_scroll_end, LV_EVENT_SCROLL_END,
                       nullptr);
 
   // create last to be on top
-  topbar = TopbarFactory::create(this);
+  topbar = new TopBar(this);
 }
 
 ViewMain::~ViewMain() { _instance = nullptr; }
 
 void ViewMain::deleteLater(bool detach, bool trash)
 {
-  Layer::pop(this);
-  Window::deleteLater(detach, trash);
+  NavWindow::deleteLater(detach, trash);
+  QuickMenu::shutdownQuickMenu();
 }
 
 void ViewMain::addMainView(WidgetsContainer* view, uint32_t viewId)
@@ -235,48 +244,34 @@ void ViewMain::updateTopbarVisibility()
 }
 
 #if defined(HARDWARE_KEYS)
-void ViewMain::onPressSYS()
+void ViewMain::doKeyShortcut(event_t event)
 {
-  if (viewMainMenu) viewMainMenu->onCancel();
-  new RadioMenu();
+  QMPage pg = g_eeGeneral.getKeyShortcut(event);
+  if (pg == QM_OPEN_QUICK_MENU) {
+    if (!viewMainMenu) openMenu();
+  } else {
+    if (viewMainMenu)
+      viewMainMenu->closeMenu();
+    QuickMenu::openPage(pg);
+  }
 }
-void ViewMain::onLongPressSYS()
-{
-  if (viewMainMenu) viewMainMenu->onCancel();
-  // Radio setup
-  (new RadioMenu())->setCurrentTab(2);
-}
-void ViewMain::onPressMDL()
-{
-  if (viewMainMenu) viewMainMenu->onCancel();
-  new ModelMenu();
-}
-void ViewMain::onLongPressMDL()
-{
-  if (viewMainMenu) viewMainMenu->onCancel();
-  new ModelLabelsWindow();
-}
-void ViewMain::onPressTELE()
-{
-  if (viewMainMenu) viewMainMenu->onCancel();
-  new ScreenMenu();
-}
-void ViewMain::onLongPressTELE()
-{
-  if (viewMainMenu) viewMainMenu->onCancel();
-  new ChannelsViewMenu();
-}
+void ViewMain::onPressSYS() { doKeyShortcut(EVT_KEY_BREAK(KEY_SYS)); }
+void ViewMain::onLongPressSYS() { doKeyShortcut(EVT_KEY_LONG(KEY_SYS)); }
+void ViewMain::onPressMDL() { doKeyShortcut(EVT_KEY_BREAK(KEY_MODEL)); }
+void ViewMain::onLongPressMDL() { doKeyShortcut(EVT_KEY_LONG(KEY_MODEL)); }
+void ViewMain::onPressTELE() { doKeyShortcut(EVT_KEY_BREAK(KEY_TELE)); }
+void ViewMain::onLongPressTELE() { doKeyShortcut(EVT_KEY_LONG(KEY_TELE)); }
 void ViewMain::onPressPGUP()
 {
   if (!widget_select) {
-    if (viewMainMenu) viewMainMenu->onCancel();
+    if (viewMainMenu) viewMainMenu->closeMenu();
     previousMainView();
   }
 }
 void ViewMain::onPressPGDN()
 {
   if (!widget_select) {
-    if (viewMainMenu) viewMainMenu->onCancel();
+    if (viewMainMenu) viewMainMenu->closeMenu();
     nextMainView();
   }
 }
@@ -341,7 +336,7 @@ bool ViewMain::enableWidgetSelect(bool enable)
 
 void ViewMain::openMenu()
 {
-  viewMainMenu = new ViewMainMenu(this, [=]() { viewMainMenu = nullptr; });
+  viewMainMenu = QuickMenu::openQuickMenu([=]() { viewMainMenu = nullptr; });
 }
 
 void ViewMain::ws_timer(lv_timer_t* t)
@@ -400,7 +395,7 @@ bool ViewMain::hasTopbar()
 bool ViewMain::hasTopbar(unsigned view)
 {
   if (view < MAX_CUSTOM_SCREENS)
-    return g_model.screenData[view].layoutData.options[LAYOUT_OPTION_TOPBAR].value.boolValue;
+    return g_model.getScreenLayoutData(view)->options[LAYOUT_OPTION_TOPBAR].value.boolValue;
   return false;
 }
 

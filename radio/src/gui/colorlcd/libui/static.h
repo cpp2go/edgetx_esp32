@@ -178,6 +178,7 @@ class StaticBitmap : public Window
 #endif
 
   void setSource(const char *filename);
+  void clearSource();
   bool hasImage() const;
 
  protected:
@@ -200,7 +201,7 @@ class StaticLZ4Image : public Window
  protected:
   uint8_t *imgData = nullptr;
 
-  void deleteLater(bool detach, bool trash) override;
+  void deleteLater(bool detach = true, bool trash = true) override;
 };
 
 //-----------------------------------------------------------------------------
@@ -215,5 +216,8 @@ class QRCode : public Window
   std::string getName() const override { return "QRCode"; }
 #endif
 
+  void setData(std::string data);
+
  protected:
+  lv_obj_t* qr = nullptr;
 };

@@ -28,6 +28,7 @@
 
 #include "touch.h"
 #include "view_main.h"
+#include "os/time.h"
 
 #define MAX_INSTRUCTIONS (20000 / 100)
 
@@ -117,11 +118,11 @@ void LuaEventHandler::event_cb(lv_event_t* e)
       _startX = rel_pos.x;
       _startY = rel_pos.y;
 
-      downTime = RTOS_GET_MS();
+      downTime = time_get_ms();
     }
   } else if (code == LV_EVENT_RELEASED) {
     // tap count handling
-    uint32_t now = RTOS_GET_MS();
+    uint32_t now = time_get_ms();
     if (now - downTime <= LUA_TAP_TIME) {
       if (now - tapTime > LUA_TAP_TIME) {
         tapCount = 1;
@@ -228,10 +229,10 @@ void LuaWidget::redraw_cb(lv_event_t* e)
 }
 
 LuaWidget::LuaWidget(const WidgetFactory* factory, Window* parent,
-                     const rect_t& rect, WidgetPersistentData* persistentData,
+                     const rect_t& rect, int screenNum, int zoneNum,
                      int zoneRectDataRef, int optionsDataRef,
-                     int createFunctionRef, std::string path) :
-    Widget(factory, parent, rect, persistentData),
+                     int createFunctionRef, const std::string& path) :
+    Widget(factory, parent, rect, screenNum, zoneNum),
     zoneRectDataRef(zoneRectDataRef), optionsDataRef(optionsDataRef),
     errorMessage(nullptr)
 {
@@ -318,12 +319,12 @@ void LuaWidget::checkEvents()
           refresh(nullptr);
           if (!errorMessage) {
             if (!callRefs(lsWidgets)) {
-              setErrorMessage("callRefs()");
+              setErrorMessage("function");
             }
           }
           refreshInstructionsPercent = instructionsPercent;
         } else {
-          // TODO: error handling
+          setErrorMessage("function");
         }
         luaScriptManager = save;
         UNPROTECT_LUA();
@@ -349,31 +350,29 @@ void LuaWidget::update()
   lua_rawgeti(lsWidgets, LUA_REGISTRYINDEX, luaFactory()->updateFunction);
   lua_rawgeti(lsWidgets, LUA_REGISTRYINDEX, luaScriptContextRef);
 
+  auto widgetData = getPersistentData();
+
   // Get options table and update values
   lua_rawgeti(lsWidgets, LUA_REGISTRYINDEX, optionsDataRef);
   int i = 0;
-  for (const ZoneOption* option = getOptionDefinitions(); option->name; option++, i++) {
-    auto optVal = getOptionValue(i);
+  for (const WidgetOption* option = getOptionDefinitions(); option->name; option++, i++) {
     switch (option->type) {
-      case ZoneOption::String:
-      case ZoneOption::File:
-        {
-          char str[LEN_ZONE_OPTION_STRING + 1] = {0};
-          strncpy(str, optVal->stringValue, LEN_ZONE_OPTION_STRING);
-          lua_pushstring(lsWidgets, str);
-        }
+      case WidgetOption::String:
+      case WidgetOption::File:
+        lua_pushstring(lsWidgets, widgetData->getString(i).c_str());
         break;
-      case ZoneOption::Integer:
-      case ZoneOption::Switch:
-        lua_pushinteger(lsWidgets, optVal->signedValue);
+      case WidgetOption::Integer:
+      case WidgetOption::Switch:
+        lua_pushinteger(lsWidgets, widgetData->getSignedValue(i));
         break;
       default:
-        lua_pushinteger(lsWidgets, optVal->unsignedValue);
+        lua_pushinteger(lsWidgets, widgetData->getUnsignedValue(i));
         break;
     }
     lua_setfield(lsWidgets, -2, option->name);
   }
 
+  auto save = luaScriptManager;
   luaScriptManager = this;
 
   if (lua_pcall(lsWidgets, 2, 0, 0) != 0)
@@ -387,17 +386,17 @@ void LuaWidget::update()
       if (a.x2 >= 0 && a.x1 < LCD_W) {
         PROTECT_LUA() {
           if (!callRefs(lsWidgets)) {
-            setErrorMessage("callRefs()");
+            setErrorMessage("function");
           }
         } else {
-          // TODO: error handling
+          setErrorMessage("function");
         }
         UNPROTECT_LUA();
       }
     }
   }
 
-  luaScriptManager = nullptr;
+  luaScriptManager = save;
 }
 
 // Update table on top of Lua stack - set entry with name 'idx' to value 'val'
@@ -458,18 +457,24 @@ void LuaWidget::onFullscreen(bool enable)
 
 void LuaWidget::setErrorMessage(const char* funcName)
 {
+  constexpr int err_len = 255;
+
   const char* lua_err = lua_tostring(lsWidgets, -1);
   TRACE("Error in widget %s %s function: %s", factory->getName(), funcName,
         lua_err);
   TRACE("Widget disabled");
 
-  size_t err_len = snprintf(NULL, 0, "ERROR in %s: %s", funcName, lua_err);
   errorMessage = (char*)malloc(err_len + 1);
 
   if (errorMessage) {
     snprintf(errorMessage, err_len, "ERROR in %s: %s", funcName, lua_err);
     errorMessage[err_len] = '\0';
   }
+}
+
+void LuaWidget::luaShowError()
+{
+  setErrorMessage("widget");
 }
 
 const char* LuaWidget::getErrorMessage() const { return errorMessage; }
@@ -485,12 +490,11 @@ void LuaWidget::refresh(BitmapBuffer* dc)
                         FONT(XS) | COLOR_THEME_WARNING);
     } else {
       if (errorLabel == nullptr) {
-        errorLabel = lv_label_create(lvobj);
+        errorLabel = etx_label_create(lvobj, FONT_XS_INDEX);
         lv_obj_set_pos(errorLabel, 0, 0);
         lv_obj_set_size(errorLabel, width(), height());
         lv_label_set_long_mode(errorLabel, LV_LABEL_LONG_WRAP);
         etx_txt_color(errorLabel, COLOR_THEME_WARNING_INDEX);
-        etx_font(errorLabel, FONT_XS_INDEX);
         etx_bg_color(errorLabel, COLOR_THEME_SECONDARY3_INDEX);
         etx_obj_add_style(errorLabel, styles->bg_opacity_75, LV_PART_MAIN);
       }
@@ -616,7 +620,7 @@ void LuaScriptManager::createTelemetryQueue()
 
 LuaScriptManager::~LuaScriptManager()
 {
-  if (luaInputTelemetryFifo == nullptr) {
+  if (luaInputTelemetryFifo != nullptr) {
     deregisterTelemetryQueue(luaInputTelemetryFifo);
     delete luaInputTelemetryFifo;
     luaInputTelemetryFifo = nullptr;

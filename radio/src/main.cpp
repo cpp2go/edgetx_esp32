@@ -28,8 +28,7 @@
 #include "edgetx.h"
 #include "lua/lua_states.h"
 
-#if defined(LIBOPENUI)
-#include "libopenui.h"
+#if defined(COLORLCD)
 #include "LvglWrapper.h"
 #include "view_main.h"
 #include "startup_shutdown.h"
@@ -48,6 +47,9 @@
 #if defined(AUDIO)
 uint8_t currentSpeakerVolume = 255;
 uint8_t requiredSpeakerVolume = 255;
+#if defined(AUDIO_HP_DETECT_PIN)
+bool hpDetected = false;
+#endif
 #endif
 
 uint8_t currentBacklightBright = 0;
@@ -56,7 +58,7 @@ uint8_t mainRequestFlags = 0;
 
 static bool _usbDisabled = false;
 
-#if defined(LIBOPENUI)
+#if defined(COLORLCD)
 static Menu* _usbMenu = nullptr;
 
 void closeUsbMenu()
@@ -208,6 +210,13 @@ void handleUsbConnection()
 
 void checkSpeakerVolume()
 {
+#if defined(AUDIO_HP_DETECT_PIN)
+  // volume needs to be set on plug/unplug to set the the right volume on each device
+  if (hpDetected != audioHeadphoneDetect()) {
+    hpDetected = !hpDetected;
+    audioSetVolume(currentSpeakerVolume);
+  }
+#endif
 #if defined(AUDIO)
   if (currentSpeakerVolume != requiredSpeakerVolume) {
     currentSpeakerVolume = requiredSpeakerVolume;
@@ -328,7 +337,7 @@ void guiMain(event_t evt)
     maxLuaInterval = interval;
   }
 
-  luaDoGc(lsWidgets, true);
+  luaDoGc(lsWidgets, false);
 
   DEBUG_TIMER_START(debugTimerLua);
   luaTask(false);
@@ -465,9 +474,8 @@ void guiMain(event_t evt)
 }
 #endif
 
-#if !defined(SIMU)
+// from logs.cpp
 void initLoggingTimer();
-#endif
 
 void perMain()
 {
@@ -477,12 +485,7 @@ void perMain()
 
   if (!usbPlugged() || (getSelectedUsbMode() == USB_UNSELECTED_MODE)) {
     checkStorageUpdate();
-
-#if !defined(SIMU)       // use FreeRTOS software timer if radio firmware
     initLoggingTimer();  // initialize software timer for logging
-#else
-    logsWrite();  // call logsWrite the old way for simu
-#endif
   }
 
   handleUsbConnection();
@@ -536,7 +539,7 @@ void perMain()
   }
 
   if (usbPlugged() && getSelectedUsbMode() == USB_MASS_STORAGE_MODE) {
-#if defined(LIBOPENUI)
+#if defined(COLORLCD)
     LvglWrapper::instance()->run();
     usbConnectedWindow->checkEvents();
 #else
@@ -552,7 +555,7 @@ void perMain()
   checkFailsafeMulti();
 #endif
 
-#if !defined(LIBOPENUI)
+#if !defined(COLORLCD)
   event_t evt = getEvent();
 #endif
 
@@ -562,7 +565,7 @@ void perMain()
 
 #if defined(GUI)
   DEBUG_TIMER_START(debugTimerGuiMain);
-#if defined(LIBOPENUI)
+#if defined(COLORLCD)
   guiMain(0);
   // For color screens show a popup deferred from another task
   show_ui_popup();

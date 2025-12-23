@@ -50,7 +50,6 @@ static const StringTagMappingTable switchTypesLookupTable = {
     {std::to_string(Board::SWITCH_TOGGLE),        "TOGGLE"},
     {std::to_string(Board::SWITCH_2POS),          "2POS"},
     {std::to_string(Board::SWITCH_3POS),          "3POS"},
-    {std::to_string(Board::SWITCH_FUNC),          "FSWITCH"},
     {std::to_string(Board::SWITCH_ADC),           "ADC"},
 };
 
@@ -90,7 +89,7 @@ void BoardJson::afterLoadFixups(Board::Type board, InputsTable * inputs, Switche
 {
   // TODO json files do not contain gyro defs
   // Radio cmake directive IMU is currently used
-  if (IS_TARANIS_XLITES(board) || IS_FAMILY_HORUS_OR_T16(board)) {
+  if (IS_TARANIS_XLITES(board) || IS_FAMILY_HORUS_OR_T16(board) || IS_RADIOMASTER_TX15(board)) {
     if (getInputIndex(inputs, "TILT_X", Board::LVT_TAG) < 0) {
       InputDefn defn;
       defn.type = AIT_FLEX;
@@ -438,6 +437,80 @@ int BoardJson::getNumericSuffix(const std::string str)
   return -1;
 }
 
+const int BoardJson::getCFSIndexForSwitch(int offset) const
+{
+  return getCFSIndexForSwitch(m_switches, offset);
+}
+
+// static
+int BoardJson::getCFSIndexForSwitch(const SwitchesTable * switches, int sw)
+{
+  if (sw < (int)switches->size() && switches->at(sw).isCustomSwitch)
+    return switches->at(sw).customSwitchIdx;
+
+  return -1;
+}
+
+const int BoardJson::getSwitchIndexForCFS(int offset) const
+{
+  return getSwitchIndexForCFS(m_switches, offset);
+}
+
+// static
+int BoardJson::getSwitchIndexForCFS(const SwitchesTable * switches, int cfsIdx)
+{
+  for (int i = 0; i < (int)switches->size(); i++) {
+    if (switches->at(i).isCustomSwitch && switches->at(i).customSwitchIdx == cfsIdx)
+      return i;
+  }
+
+  return -1;
+}
+
+const int BoardJson::getCFSOffsetForCFSIndex(int index) const
+{
+  return getCFSOffsetForCFSIndex(m_switches, index);
+}
+
+// static
+int BoardJson::getCFSOffsetForCFSIndex(const SwitchesTable * switches, const int index)
+{
+  int cnt = 0;
+
+  for (int i = 0; i < (int)switches->size(); i++) {
+    if (switches->at(i).isCustomSwitch) {
+      if (switches->at(i).customSwitchIdx == index)
+        return cnt;
+      else
+        cnt++;
+    }
+  }
+
+  return -1;
+}
+
+const int BoardJson::getSwitchIndexForCFSOffset(int offset) const
+{
+  return getSwitchIndexForCFSOffset(m_switches, offset);
+}
+
+// static
+int BoardJson::getSwitchIndexForCFSOffset(const SwitchesTable * switches, const int offset)
+{
+  int cnt = 0;
+
+  for (int i = 0; i < (int)switches->size(); i++) {
+    if (switches->at(i).isCustomSwitch) {
+      if (cnt == offset)
+        return i;
+      else
+        cnt++;
+    }
+  }
+
+  return -1;
+}
+
 const int BoardJson::getSwitchIndex(const QString val, Board::LookupValueType lvt) const
 {
   return getSwitchIndex(m_switches, val, lvt);
@@ -772,7 +845,7 @@ const bool BoardJson::isSwitchConfigurable(int index) const
 {
   if (index >= 0 && index < getCapability(Board::Switches)) {
     SwitchDefn &defn = m_switches->at(index);
-    if (isSwitchStd(defn))
+    if (isSwitchStd(defn) || isSwitchFunc(defn))
       return true;
 
     if (isSwitchFlex(defn)) {
@@ -813,7 +886,7 @@ const bool BoardJson::isSwitchFunc(int index) const
 // static
 bool BoardJson::isSwitchFunc(const SwitchDefn & defn)
 {
-  return defn.type == Board::SWITCH_FUNC;
+  return defn.customSwitchIdx >= 0;
 }
 
 bool BoardJson::loadDefinition()
@@ -995,6 +1068,12 @@ bool BoardJson::loadFile(Board::Type board, QString hwdefn, InputsTable * inputs
           sw.display.x = (unsigned int)d.at(0).toInt(0);
           sw.display.y = (unsigned int)d.at(1).toInt(0);
         }
+
+        if (!o.value("is_cfs").isUndefined())
+          sw.isCustomSwitch = o.value("is_cfs").toBool();
+
+        if (!o.value("cfs_idx").isUndefined())
+          sw.customSwitchIdx = o.value("cfs_idx").toInt();
 
         // special handing for ADC
         if (sw.type == Board::SWITCH_ADC) {

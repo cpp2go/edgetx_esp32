@@ -46,12 +46,18 @@ constexpr char AIM_GS_UARTSAMPLEMODE[]     {"gs.uartsamplemode"};
 constexpr char AIM_GS_HATSMODE[]           {"gs.hatsmode"};
 constexpr char AIM_GS_STICKMODE[]          {"gs.stickmode"};
 constexpr char AIM_GS_TEMPLATESETUP[]      {"gs.templatesetup"};
+constexpr char AIM_GS_BACKLIGHTMODE[]      {"gs.backlightmode"};
+constexpr char AIM_GS_QUICKMENU[]          {"gs.quickmenu"};
 
 constexpr char AIM_TRAINERMIX_MODE[]       {"trainermix.mode"};
 constexpr char AIM_TRAINERMIX_SRC[]        {"trainermix.src"};
 
+constexpr int MAX_KEYSHORTCUTS             {6};
+constexpr int MAX_QMFAVOURITES             {12};
+
 static const QStringList moduleBaudratesList({"115K", "400K", "921K", "1.87M",
                                               "3.75M", "5.25M"});
+
 
 enum UartModes {
   UART_MODE_NONE,
@@ -59,6 +65,17 @@ enum UartModes {
   UART_MODE_TELEMETRY,
   UART_MODE_SBUS_TRAINER,
   UART_MODE_DEBUG
+};
+
+class RGBLedColor {
+  public:
+    RGBLedColor() { clear(); }
+    int r;
+    int g;
+    int b;
+    void clear() { memset(reinterpret_cast<void *>(this), 0, sizeof(RGBLedColor)); }
+    void setColor(int red, int green, int blue) { r = red; g = green; b = blue; }
+    QColor getQColor() { return QColor(r, g, b); }
 };
 
 class TrainerMix {
@@ -204,6 +221,64 @@ class GeneralSettings {
       RadioTypeContextSurface = 1 << 2,
     };
 
+    enum BacklightMode {
+      BACKLIGHT_MODE_OFF,
+      BACKLIGHT_MODE_KEYS,
+      BACKLIGHT_MODE_CTRL,
+      BACKLIGHT_MODE_KEYSCTRL,
+      BACKLIGHT_MODE_ON,
+      BACKLIGHT_MODE_COUNT,
+    };
+
+    // Match equivalent enum in radio/src/gui/colorlcd/setup_menus/quick_menu.h
+    enum QMPage {
+      QM_NONE = 0,
+      QM_OPEN_QUICK_MENU,
+      QM_MANAGE_MODELS,
+      // Model menu
+      QM_MODEL_SETUP,
+      QM_MODEL_FLIGHTMODES,
+      QM_MODEL_INPUTS,
+      QM_MODEL_MIXES,
+      QM_MODEL_OUTPUTS,
+      QM_MODEL_CURVES,
+      QM_MODEL_GVARS,
+      QM_MODEL_LS,
+      QM_MODEL_SF,
+      QM_MODEL_SCRIPTS,
+      QM_MODEL_TELEMETRY,
+      QM_MODEL_NOTES,
+      // Radio menu
+      QM_RADIO_SETUP,
+      QM_RADIO_GF,
+      QM_RADIO_TRAINER,
+      QM_RADIO_HARDWARE,
+      QM_RADIO_VERSION,
+      // UI menu
+      QM_UI_THEMES,
+      QM_UI_SETUP,
+      QM_UI_SCREEN1,
+      QM_UI_SCREEN2,
+      QM_UI_SCREEN3,
+      QM_UI_SCREEN4,
+      QM_UI_SCREEN5,
+      QM_UI_SCREEN6,
+      QM_UI_SCREEN7,
+      QM_UI_SCREEN8,
+      QM_UI_SCREEN9,
+      QM_UI_SCREEN10,
+      QM_UI_ADD_PG,
+      // Tools menu
+      QM_TOOLS_APPS,
+      QM_TOOLS_STORAGE,
+      QM_TOOLS_RESET,
+      QM_TOOLS_CHAN_MON,
+      QM_TOOLS_LS_MON,
+      QM_TOOLS_STATS,
+      QM_TOOLS_DEBUG,
+      QM_COUNT,
+    };
+
     GeneralSettings() { clear(); }
     void clear();
     void init();
@@ -214,6 +289,8 @@ class GeneralSettings {
     RawSource getDefaultSource(unsigned int channel) const;
     int getDefaultChannel(unsigned int stick) const;
     bool fix6POSCalibration();
+    void setDefaultFavorites();
+    void setDefaultKeyShortcuts();
 
     bool manuallyEdited;
 
@@ -362,9 +439,22 @@ class GeneralSettings {
       Board::SwitchType type;
       bool inverted;
       int inputIdx;  //  used if switch tag = FLn, value -1 = none selected
+      // CFS settings
+      unsigned int start;
+      unsigned int onColorLuaOverride;
+      unsigned int offColorLuaOverride;
+      RGBLedColor onColor;
+      RGBLedColor offColor;
+
+      SwitchConfig();
     };
 
     SwitchConfig switchConfig[CPN_MAX_SWITCHES];
+
+    unsigned int keyShortcuts[MAX_KEYSHORTCUTS];
+    unsigned int qmFavorites[MAX_QMFAVOURITES];
+
+    void switchConfigClear();
 
     bool switchPositionAllowed(int index) const;
     bool switchSourceAllowed(int index) const;
@@ -377,7 +467,10 @@ class GeneralSettings {
     bool isInputFlexSwitchAvailable(int index) const;
     bool isSwitchAvailable(int index) const;
     bool isSwitchFlex(int index) const;
+    bool isSwitchFunc(int index) const;
     bool unassignedInputFlexSwitches() const;
+    static bool isBacklightModeAvailable(int index);
+    static bool isQuickMenuAvailable(int value, bool keys);
 
     QString antennaModeToString() const;
     QString bluetoothModeToString() const;
@@ -387,6 +480,7 @@ class GeneralSettings {
     QString hatsModeToString() const;
     QString stickModeToString() const;
     QString templateSetupToString() const;
+    QString backlightModeToString() const;
 
     static QString antennaModeToString(int value);
     static QString bluetoothModeToString(int value);
@@ -398,6 +492,8 @@ class GeneralSettings {
     static QString hatsModeToString(int value);
     static QString stickModeToString(int value);
     static QString templateSetupToString(int value, bool isBoardAir);
+    static QString backlightModeToString(int value);
+    static QString quickMenuToString(int value, bool keys);
 
     static AbstractStaticItemModel * antennaModeItemModel(bool model_setup = false);
     static AbstractStaticItemModel * bluetoothModeItemModel();
@@ -408,6 +504,8 @@ class GeneralSettings {
     static AbstractStaticItemModel * hatsModeItemModel(bool radio_setup = true);
     static AbstractStaticItemModel * stickModeItemModel();
     static AbstractStaticItemModel * templateSetupItemModel();
+    static AbstractStaticItemModel * backlightModeItemModel();
+    static AbstractStaticItemModel * quickMenuItemModel(bool keys);
 
     void validateFlexSwitches();
 };

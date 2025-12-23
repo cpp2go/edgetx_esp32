@@ -32,6 +32,10 @@ void pwrInit()
   gpio_init(SD_PRESENT_GPIO, GPIO_IN_PU, GPIO_PIN_SPEED_LOW);
 #endif
 
+#if defined(SD2_PRESENT_GPIO)
+  gpio_init(SD2_PRESENT_GPIO, GPIO_IN_PU, GPIO_PIN_SPEED_LOW);
+#endif
+
 #if defined(INTMODULE_BOOTCMD_GPIO)
   gpio_init(INTMODULE_BOOTCMD_GPIO, GPIO_OUT, GPIO_PIN_SPEED_LOW);
   gpio_write(INTMODULE_BOOTCMD_GPIO, INTMODULE_BOOTCMD_DEFAULT);
@@ -111,7 +115,7 @@ bool pwrForcePressed()
 bool pwrPressed()
 {
 #if defined(PWR_EXTRA_SWITCH_GPIO)
-  return !gpio_read(PWR_SWITCH_GPIO) && !gpio_read(PWR_EXTRA_SWITCH_GPIO);
+  return !gpio_read(PWR_SWITCH_GPIO) || !gpio_read(PWR_EXTRA_SWITCH_GPIO);
 #elif defined(PWR_SWITCH_GPIO)
   return !gpio_read(PWR_SWITCH_GPIO);
 #else
@@ -136,3 +140,9 @@ void pwrResetHandler()
     pwrOn();
   }
 }
+
+#if defined(BOOT)
+void* _pwr_init_hook[] __INIT_HOOK = {
+  (void*)pwrResetHandler,    
+};
+#endif

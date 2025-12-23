@@ -23,6 +23,7 @@
 
 #include "standalone_lua.h"
 #include "etx_lv_theme.h"
+#include "lib_file.h"
 
 #define ETX_STATE_NO_INFO_COLOR LV_STATE_USER_1
 
@@ -48,7 +49,7 @@ TemplatePage::TemplatePage() : Page(ICON_MODEL_SELECT, PAD_ZERO)
   lv_obj_set_grid_cell(listWindow->getLvObj(), LV_GRID_ALIGN_STRETCH, 0, 1,
                        LV_GRID_ALIGN_START, 0, 1);
 
-  infoLabel = lv_label_create(line->getLvObj());
+  infoLabel = etx_label_create(line->getLvObj());
   lv_label_set_text(infoLabel, "");
   lv_obj_set_height(infoLabel, body->height() - PAD_SMALL * 2);
   etx_obj_add_style(infoLabel, styles->text_align_left, LV_PART_MAIN);

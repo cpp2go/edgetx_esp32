@@ -19,7 +19,9 @@
  * GNU General Public License for more details.
  */
 
-#if !defined(SIMU) && !defined(ESP_PLATFORM)
+#if !defined(SIMU)&& !defined(ESP_PLATFORM)
+#include "os/sleep.h"
+#if !defined(SIMU)
 #include "stm32_ws2812.h"
 #include "boards/generic_stm32/rgb_leds.h"
 #include "stm32_hal.h"
@@ -35,6 +37,7 @@
 #include "hal/abnormal_reboot.h"
 #include "hal/usb_driver.h"
 #include "hal/audio_driver.h"
+#include "hal/rgbleds.h"
 
 #include "timers_driver.h"
 
@@ -45,13 +48,13 @@
 
 #include "tasks.h"
 #include "tasks/mixer_task.h"
+#include "os/async.h"
 
 #if defined(BLUETOOTH)
   #include "bluetooth_driver.h"
 #endif
 
-#if defined(LIBOPENUI)
-  #include "libopenui.h"
+#if defined(COLORLCD)
   #include "radio_calibration.h"
   #include "view_main.h"
   #include "view_text.h"
@@ -102,6 +105,7 @@ uint8_t latencyToggleSwitch = 0;
 #endif
 
 volatile uint8_t rtc_count = 0;
+bool suspendI2CTasks = false;
 
 #if defined(DEBUG_LATENCY)
 void toggleLatencySwitch()
@@ -167,7 +171,7 @@ void checkValidMCU(void)
 static bool evalFSok = false;
 #endif
 
-void timer_10ms()
+void per10ms()
 {
   DEBUG_TIMER_START(debugTimerPer10ms);
   DEBUG_TIMER_SAMPLE(debugTimerPer10msPeriod);
@@ -177,7 +181,7 @@ void timer_10ms()
 #if defined(GUI)
   if (lightOffCounter) lightOffCounter--;
   if (flashCounter) flashCounter--;
-#if !defined(LIBOPENUI)
+#if !defined(COLORLCD)
   if (noHighlightCounter) noHighlightCounter--;
 #endif
 #endif
@@ -245,44 +249,6 @@ void timer_10ms()
   DEBUG_TIMER_STOP(debugTimerPer10ms);
 }
 
-#if !defined(SIMU)
-// Handle 10ms timer asynchronously
-#include <FreeRTOS/include/FreeRTOS.h>
-#include <FreeRTOS/include/timers.h>
-
-static volatile bool _timer_10ms_cb_in_queue = false;
-
-static void _timer_10ms_cb(void *pvParameter1, uint32_t ulParameter2)
-{
-  (void)pvParameter1;
-  (void)ulParameter2;
-  _timer_10ms_cb_in_queue = false;
-  timer_10ms();
-}
-
-void per10ms()
-{
-
-  if (!_timer_10ms_cb_in_queue && xTaskGetSchedulerState() != taskSCHEDULER_NOT_STARTED) {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    BaseType_t xReturn = pdFALSE;
-
-    xReturn = xTimerPendFunctionCallFromISR(_timer_10ms_cb, nullptr, 0, &xHigherPriorityTaskWoken);
-
-    if (xReturn == pdPASS) {
-      _timer_10ms_cb_in_queue = true;
-    } else {
-      TRACE("xTimerPendFunctionCallFromISR() queue full");
-    }
-    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
-  }
-}
-
-#else // !defined(SIMU)
-void per10ms() { timer_10ms(); }
-#endif
-
-
 FlightModeData *flightModeAddress(uint8_t idx)
 {
   return &g_model.flightModeData[idx];
@@ -329,6 +295,22 @@ void setDefaultOwnerId()
 }
 #endif
 
+void generalDefaultSwitches()
+{
+  for (uint8_t sw = 0; sw < switchGetMaxSwitches(); sw += 1) {
+    g_eeGeneral.switchConfig[sw].type = switchGetDefaultConfig(sw);
+    g_eeGeneral.switchConfig[sw].name[0] = 0;
+#if defined(FUNCTION_SWITCHES)
+    if (switchIsCustomSwitch(sw))
+      g_eeGeneral.switchConfig[sw].start = FS_START_PREVIOUS;
+#if defined(FUNCTION_SWITCHES_RGB_LEDS)
+      g_eeGeneral.switchConfig[sw].onColor.setColor(0xFFFFFF);
+      g_eeGeneral.switchConfig[sw].offColor.setColor(0);
+#endif
+#endif
+  }
+}
+
 void generalDefault()
 {
   memclear(&g_eeGeneral, sizeof(g_eeGeneral));
@@ -354,7 +336,10 @@ void generalDefault()
   adcCalibDefaults();
 
   g_eeGeneral.potsConfig = adcGetDefaultPotsConfig();
-  g_eeGeneral.switchConfig = switchGetDefaultConfig();
+  generalDefaultSwitches();
+#if defined(COLORLCD)
+  g_eeGeneral.defaultKeyShortcuts();
+#endif
 
 #if defined(STICK_DEAD_ZONE)
   g_eeGeneral.stickDeadZone = DEFAULT_STICK_DEADZONE;
@@ -422,6 +407,9 @@ void generalDefault()
 
 #if defined(MANUFACTURER_RADIOMASTER)
   g_eeGeneral.audioMuteEnable = 1;
+#if defined(RADIO_TX15)
+  g_eeGeneral.backlightBright = 50; // Screen looks off if not set high enough
+#endif
 #endif
 
   // disable Custom Script
@@ -671,7 +659,6 @@ void checkSDfreeStorage() {
   }
 }
 
-#if defined(PCBFRSKY) || defined(PCBFLYSKY)
 static void checkFailsafe()
 {
   for (int i=0; i<NUM_MODULES; i++) {
@@ -688,9 +675,6 @@ static void checkFailsafe()
     }
   }
 }
-#else
-#define checkFailsafe()
-#endif
 
 #if defined(GUI)
 void checkAll(bool isBootCheck)
@@ -757,7 +741,7 @@ void checkAll(bool isBootCheck)
     showMessageBox(STR_KEYSTUCK);
     tmr10ms_t tgtime = get_tmr10ms() + 500;
     while (tgtime != get_tmr10ms()) {
-      RTOS_WAIT_MS(1);
+      sleep_ms(1);
       WDG_RESET();
     }
   }
@@ -841,7 +825,7 @@ void checkThrottleStick()
   }
   // first - display warning; also deletes inputs if any have been before
   LED_ERROR_BEGIN();
-  RAISE_ALERT(TR_THROTTLE_UPPERCASE, throttleNotIdle, STR_PRESS_ANY_KEY_TO_SKIP, AU_THROTTLE_ALERT);
+  RAISE_ALERT(STR_THROTTLE_UPPERCASE, throttleNotIdle, STR_PRESS_ANY_KEY_TO_SKIP, AU_THROTTLE_ALERT);
 
 #if defined(PWR_BUTTON_PRESS)
   bool refresh = false;
@@ -863,7 +847,7 @@ void checkThrottleStick()
       refresh = true;
     }
     else if (power == e_power_on && refresh) {
-      RAISE_ALERT(TR_THROTTLE_UPPERCASE, throttleNotIdle, STR_PRESS_ANY_KEY_TO_SKIP, AU_NONE);
+      RAISE_ALERT(STR_THROTTLE_UPPERCASE, throttleNotIdle, STR_PRESS_ANY_KEY_TO_SKIP, AU_NONE);
       refresh = false;
     }
 #else
@@ -875,8 +859,7 @@ void checkThrottleStick()
     checkBacklight();
 
     WDG_RESET();
-
-    RTOS_WAIT_MS(10);
+    sleep_ms(10);
   }
 
   LED_ERROR_END();
@@ -907,7 +890,7 @@ void alert(const char * title, const char * msg , uint8_t sound)
 #endif
 
   while (true) {
-    RTOS_WAIT_MS(10);
+    sleep_ms(10);
 
     if (getEvent())  // wait for key release
       break;
@@ -1108,6 +1091,7 @@ void edgeTxClose(uint8_t shutdown)
   TRACE("edgeTxClose");
 
   watchdogSuspend(2000/*20s*/);
+  suspendI2CTasks = true;
 
   if (shutdown) {
     pulsesStop();
@@ -1131,10 +1115,10 @@ void edgeTxClose(uint8_t shutdown)
   storageCheck(true);
 
   while (IS_PLAYING(ID_PLAY_PROMPT_BASE + AU_BYE)) {
-    RTOS_WAIT_MS(10);
+    sleep_ms(10);
   }
 
-  RTOS_WAIT_MS(100);
+  sleep_ms(100);
 
 #if defined(COLORLCD)
   cancelShutdownAnimation();  // To prevent simulator crash
@@ -1149,13 +1133,20 @@ void edgeTxClose(uint8_t shutdown)
 #endif
 
   sdDone();
+
+#if defined(FUNCTION_SWITCHES_RGB_LEDS)
+  turnOffRGBLeds();
+#endif
 }
 
 void edgeTxResume()
 {
   TRACE("edgeTxResume");
 
+  suspendI2CTasks = false;
   if (!sdMounted()) sdInit();
+
+  luaInitMainState();
 #if defined(COLORLCD) && defined(LUA)
   // reload widgets
   luaInitThemesAndWidgets();
@@ -1382,7 +1373,7 @@ void edgeTxInit()
 {
   TRACE("edgeTxInit");
 
-  #if defined(COLORLCD)
+#if defined(COLORLCD)
   // SD_CARD_PRESENT() does not work properly on most
   // B&W targets, so that we need to delay the detection
   // until the SD card is mounted (requires RTOS scheduler running)
@@ -1395,7 +1386,7 @@ void edgeTxInit()
   if (!(startOptions & OPENTX_START_NO_SPLASH))
     startSplash();
 
-#if defined(LIBOPENUI)
+#if defined(COLORLCD)
   initLvglTheme();
   // create ViewMain
   ViewMain::instance();
@@ -1403,9 +1394,7 @@ void edgeTxInit()
   // TODO add a function for this (duplicated)
   menuHandlers[0] = menuMainView;
   menuHandlers[1] = menuModelSelect;
-#endif
 
-#if defined(GUI) && !defined(COLORLCD)
   lcdRefreshWait();
   lcdClear();
   lcdRefresh();
@@ -1423,9 +1412,13 @@ void edgeTxInit()
 #endif
 
 #if defined(GUI) && !defined(COLORLCD)
+#if LCD_W == 128
+  lcdSetInvert(g_eeGeneral.invertLCD);
+#endif
   lcdSetContrast();
 #endif
 
+  currentBacklightBright = requiredBacklightBright = g_eeGeneral.getBrightness();
   BACKLIGHT_ENABLE(); // we start the backlight during the startup animation
 
 #if defined(STARTUP_ANIMATION)
@@ -1475,6 +1468,7 @@ void edgeTxInit()
     logsInit();
   }
 
+  luaInitMainState();
 #if defined(COLORLCD) && defined(LUA)
   if (!UNEXPECTED_SHUTDOWN()) {
     // lua widget state must be prepared before the call to storageReadAll()
@@ -1507,12 +1501,8 @@ void edgeTxInit()
 #endif
 #endif
 
-  currentBacklightBright = requiredBacklightBright = g_eeGeneral.getBrightness();
-
-
   referenceSystemAudioFiles();
   audioQueue.start();
-  BACKLIGHT_ENABLE();
 
 #if defined(COLORLCD)
   ThemePersistance::instance()->loadDefaultTheme();
@@ -1567,11 +1557,11 @@ void edgeTxInit()
 #if defined(GUI)
     if (calibration_needed) {
       cancelSplash();
-#if defined(LIBOPENUI)
+#if defined(COLORLCD)
       startCalibration();
 #else
       chainMenu(menuFirstCalib);
-#endif // defined(LIBOPENUI)
+#endif // defined(COLORLCD)
     }
     else if (!(startOptions & OPENTX_START_NO_CHECKS)) {
       checkAlarm();
@@ -1592,10 +1582,6 @@ void edgeTxInit()
 #endif
 
   resetBacklightTimeout();
-
-#if defined(LED_STRIP_GPIO) && !defined(SIMU)
-  rgbLedStart();
-#endif
 
   pulsesStart();
   WDG_ENABLE(WDG_DURATION);
@@ -1618,6 +1604,10 @@ int main()
   initialise_monitor_handles();
 #endif
 
+#if defined(DEBUG_SEGGER_SYSVIEW)
+  SEGGER_SYSVIEW_Conf();
+  SEGGER_SYSVIEW_Start();
+#endif
 
 #if !defined(SIMU) && !defined(ESP_PLATFORM)
   /* Ensure all priority bits are assigned as preemption priority bits. */
@@ -1770,14 +1760,14 @@ uint32_t pwrCheck()
           POPUP_CONFIRMATION(STR_MODEL_SHUTDOWN, nullptr);
 
           const char* msg = STR_MODEL_STILL_POWERED;
-          uint8_t msg_len = sizeof(TR_MODEL_STILL_POWERED);
+          uint8_t msg_len = strlen(STR_MODEL_STILL_POWERED);
           if (usbPlugged() && getSelectedUsbMode() != USB_UNSELECTED_MODE) {
             msg = STR_USB_STILL_CONNECTED;
-            msg_len = sizeof(TR_USB_STILL_CONNECTED);
+            msg_len = strlen(STR_USB_STILL_CONNECTED);
           }
           else if (isTrainerConnected() && !g_eeGeneral.disableTrainerPoweroffAlarm) {
             msg = STR_TRAINER_STILL_CONNECTED;
-            msg_len = sizeof(TR_TRAINER_STILL_CONNECTED);
+            msg_len = strlen(STR_TRAINER_STILL_CONNECTED);
           }
           event_t evt = getEvent();
           SET_WARNING_INFO(msg, msg_len, 0);
@@ -1890,7 +1880,7 @@ uint32_t pwrCheck()
       RAISE_ALERT(STR_MODEL, STR_MODEL_STILL_POWERED, STR_PRESS_ENTER_TO_CONFIRM, AU_MODEL_STILL_POWERED);
       while (TELEMETRY_STREAMING()) {
         resetForcePowerOffRequest();
-        RTOS_WAIT_MS(20);
+        sleep_ms(20);
         if (pwrPressed()) {
           return e_power_on;
         }
@@ -2018,3 +2008,4 @@ void getMixSrcRange(const int source, int16_t & valMin, int16_t & valMax, LcdFla
     valMin = -valMax;
   }
 }
+// trigger CI

@@ -32,7 +32,7 @@
 
 static const char _switch_names[][4] = {"SW2", "SW3"};
 
-SwitchHwPos boardSwitchGetPosition(SwitchCategory cat, uint8_t idx)
+SwitchHwPos boardSwitchGetPosition(uint8_t idx)
 {
   if (idx <= 1) {
 //    uint16_t swVal = getAnalogValue(4);
@@ -43,19 +43,19 @@ SwitchHwPos boardSwitchGetPosition(SwitchCategory cat, uint8_t idx)
     if (idx == 1 && (swVal < 512 || (swVal >= 1536 && swVal < 2560))) {
       return SWITCH_HW_DOWN;
     }
-  } /*else if (idx <= 3) {
+/*  } else if (idx <= 3) {
     uint16_t swVal = getAnalogValue(5);
     if (idx == 3 && (swVal < 512 || (swVal >= 1536 && swVal < 2560))) {
       return SWITCH_HW_DOWN;
     }
     if (idx == 2 && (swVal >= 3584 || (swVal >= 1536 && swVal < 2560))) {
       return SWITCH_HW_DOWN;
-    }
-  }*/
+    }*/
+  }
   return SWITCH_HW_UP;
 }
 
-const char* boardSwitchGetName(SwitchCategory cat, uint8_t idx)
+const char* boardSwitchGetName(uint8_t idx)
 {  
   return _switch_names[idx];
 }

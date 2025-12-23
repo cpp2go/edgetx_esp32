@@ -156,8 +156,7 @@ void TextEdit::openEdit()
                           lv_obj_get_width(lvobj), lv_obj_get_height(lvobj)},
                         text, length);
     edit->setChangeHandler([=]() {
-      std::string s(text, length);
-      setText(s);
+      update();
       if (updateHandler) updateHandler();
       lv_group_focus_obj(lvobj);
       edit->hide();
@@ -194,6 +193,18 @@ ModelTextEdit::ModelTextEdit(Window* parent, const rect_t& rect, char* value,
                storageDirty(EE_MODEL);
              })
 {
+}
+
+ModelStringEdit::ModelStringEdit(Window* parent, const rect_t& rect, std::string value,
+                                 std::function<void(const char* s)> updateHandler) :
+    TextEdit(parent, rect, txt, MAX_STR_EDIT_LEN,
+             [=]() {
+               if (updateHandler) updateHandler(txt);
+               storageDirty(EE_MODEL);
+             })
+{
+  strncpy(txt, value.c_str(), length);
+  update();
 }
 
 RadioTextEdit::RadioTextEdit(Window* parent, const rect_t& rect, char* value,

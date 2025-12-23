@@ -58,7 +58,12 @@ body:
       label: Version
       description: What version of EdgeTX software are you running?
       options:
-        - 2.11.0-rc
+        - 2.12.0-RC
+        - 2.11.4
+        - 2.11.3
+        - 2.11.2
+        - 2.11.1
+        - 2.11.0
         - 2.10.6
         - 2.10.5
         - 2.10.4
@@ -87,6 +92,7 @@ body:
         - Flysky EL18
         - Flysky NB4+        
         - Flysky NV14
+        - Flysky PA01
         - Flysky PL18/PL18EV
         - Flysky ST16
         - FrSky Q X7 / Q X7S (ACCST)
@@ -105,7 +111,8 @@ body:
         - HelloRadioSky V16
         - Jumper T12
         - Jumper T14
-        - Jumper T15        
+        - Jumper T15
+        - Jumper T15Pro
         - Jumper T16
         - Jumper T18
         - Jumper T20/T20S
@@ -119,6 +126,7 @@ body:
         - RadioMaster Pocket
         - RadioMaster T8
         - RadioMaster TX12 / TX12MK2
+        - RadioMaster TX15
         - RadioMaster TX16S / TX16SMK2
         - RadioMaster Zorro
         - Other (Please specify below)

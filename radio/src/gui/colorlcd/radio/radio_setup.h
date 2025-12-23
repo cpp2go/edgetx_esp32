@@ -21,14 +21,16 @@
 
 #pragma once
 
-#include "tabsgroup.h"
+#include "pagegroup.h"
 
-class RadioSetupPage: public PageTab {
+class RadioSetupPage: public PageGroupItem
+{
  public:
-  RadioSetupPage();
+  RadioSetupPage(PageDef& pageDef);
 
   void build(Window * window) override;
 
-  static LAYOUT_VAL2(BTN_COLS, 3, 2)
-  static LAYOUT_VAL(BTN_H, 62, 62, LS(62))
+  static LAYOUT_ORIENTATION(BTN_COLS, 3, 2)
+  static LAYOUT_VAL_SCALED(BTN_H, 62)
+  static LAYOUT_VAL_SCALED(HATS_MODE_W, 120)
 };

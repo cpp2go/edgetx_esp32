@@ -32,7 +32,12 @@
 #define AUDIO_SAMPLE_FMT_S16 0
 #define AUDIO_SAMPLE_FMT_U16 1
 
-
+bool audioHeadphoneDetect();
 void audioSetVolume(uint8_t volume);
 void audioConsumeCurrentBuffer();
 
+#if defined(KCX_BTAUDIO)
+void btAudioInit();
+bool btAudioLinked();
+void btAudioConnect();
+#endif

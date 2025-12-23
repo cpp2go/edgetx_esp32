@@ -96,19 +96,6 @@ void EXTERNAL_MODULE_OFF();           /*gpio_clear(EXTMODULE_PWR_GPIO)*/
 #if defined(FUNCTION_SWITCHES)
 #define NUM_FUNCTIONS_SWITCHES 6
 #define NUM_FUNCTIONS_GROUPS   3
-#define DEFAULT_FS_CONFIG                                         \
-  (SWITCH_2POS << 10) + (SWITCH_2POS << 8) + (SWITCH_2POS << 6) + \
-      (SWITCH_2POS << 4) + (SWITCH_2POS << 2) + (SWITCH_2POS << 0)
-
-#define DEFAULT_FS_GROUPS                                 \
-  (1 << 10) + (1 << 8) + (1 << 6) + (1 << 4) + (1 << 2) + \
-      (1 << 0)  // Set all FS to group 1 to act like a 6pos
-
-#define DEFAULT_FS_STARTUP_CONFIG                         \
-  ((FS_START_PREVIOUS << 10) + (FS_START_PREVIOUS << 8) + \
-   (FS_START_PREVIOUS << 6) + (FS_START_PREVIOUS << 4) +  \
-   (FS_START_PREVIOUS << 2) +                             \
-   (FS_START_PREVIOUS << 0))  // keep last state by default
 
 #else
 #define NUM_FUNCTIONS_SWITCHES 0
@@ -195,9 +182,10 @@ bool isBacklightEnabled();
                         : g_eeGeneral.blOffBright);                       \
   }
 
-#define USB_NAME                        "ST16"
-#define USB_MANUFACTURER                'F', 'l', 'y', 'S', 'k', 'y', ' ', ' '  /* 8 bytes */
-#define USB_PRODUCT                     'S', 'T', '1', '6', ' ', ' ', ' ', ' '  /* 8 Bytes */
+#define IS_UCHARGER_ACTIVE()              gpio_read(UCHARGER_GPIO) ? 1 : 0
+#define IS_UCHARGER_CHARGE_END_ACTIVE()   gpio_read(UCHARGER_CHARGE_END_GPIO) ? 0 : 1
+#define ENABLE_UCHARGER()                 bsp_output_set(BSP_CHARGE_EN);
+#define DISABLE_UCHARGER()                bsp_output_clear(BSP_CHARGE_EN)  
 
 #if defined(__cplusplus) && !defined(SIMU)
 }

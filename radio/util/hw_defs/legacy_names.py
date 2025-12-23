@@ -90,7 +90,7 @@ LEGACY_NAMES = [
         }
     },
     {
-        "targets": {"t15"},
+        "targets": {"t15", "t15pro", "tx15"},
         "inputs": {
             "LH": {
                 "yaml": "Rud",
@@ -528,9 +528,7 @@ LEGACY_NAMES = [
         }
     },
     {
-        "targets": {
-            "pl18"
-        },
+        "targets": {"pl18", "pl18u"},
         "inputs": {
             "LH": {
                 "yaml": "Rud",
@@ -977,6 +975,29 @@ LEGACY_NAMES = [
             },
             "SL2": {
                 "yaml": "RS",
+                "lua": "rs",
+                "label": "RS",
+                "short_label": "R",
+                "description": "Right slider",
+            },
+        },
+    },
+    {
+        "targets": {"pa01"},
+        "inputs": {
+            "LH": {"yaml": "Rud", "lua": "rud", "description": "Rudder"},
+            "LV": {"yaml": "Ele", "lua": "ele", "description": "Elevator"},
+            "RV": {"yaml": "Thr", "lua": "thr", "description": "Throttle"},
+            "RH": {"yaml": "Ail", "lua": "ail", "description": "Aileron"},
+            "SL1": {
+                "yaml": "SLIDER1",
+                "lua": "ls",
+                "label": "LS",
+                "short_label": "L",
+                "description": "Left slider"
+            },
+            "SL2": {
+                "yaml": "SLIDER2",
                 "lua": "rs",
                 "label": "RS",
                 "short_label": "R",

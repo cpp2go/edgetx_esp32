@@ -31,6 +31,10 @@
 #include "thirdparty/FatFs/ff.h"
 #include "thirdparty/uf2/uf2.h"
 
+#ifndef BOOTLOADER_ADDRESS
+#define BOOTLOADER_ADDRESS FIRMWARE_ADDRESS
+#endif
+
 #define UF2_BLOCK_SIZE 512
 
 bool isUF2Block(const void* block, uint32_t len)
@@ -150,6 +154,7 @@ static uint8_t* skipUF2Extensions(uint8_t* data) {
 #if defined(STM32) && !defined(SIMU)
 void writeUF2FirmwareVersion(void* block)
 {
+#if !defined(SIMU)
   UF2_Block* uf2 = (UF2_Block*)block;
   uint8_t* end_data = skipUF2Extensions(uf2->data + uf2->payloadSize);
 
@@ -189,10 +194,12 @@ void writeUF2FirmwareVersion(void* block)
       memcpy(end_data, version, version_len);
     }
   }
+#endif
 }
 
 void writeUF2RebootBlock(void* block)
 {
+#if !defined(SIMU)
   extern uint32_t _reboot_cmd;
   
   UF2_Block* uf2 = (UF2_Block*)block;
@@ -209,5 +216,6 @@ void writeUF2RebootBlock(void* block)
 
   uint32_t reboot_addr = BOOTLOADER_ADDRESS;
   memcpy(end_data, &reboot_addr, sizeof(reboot_addr));
+#endif
 }
 #endif

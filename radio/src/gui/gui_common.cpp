@@ -27,6 +27,7 @@
 #include "edgetx.h"
 #include "switches.h"
 #include "mixes.h"
+#include "os/sleep.h"
 
 #undef CPN
 #include "MultiSubtypeDefs.h"
@@ -246,13 +247,6 @@ static bool isSourceTelemAvailable(int source) {
     return isTelemetryFieldComparisonAvailable(qr.quot);
 }
 
-static bool isSourceTelemCompAvailable(int source) {
-  if (!modelTelemetryEnabled())
-    return false;
-  div_t qr = div(source, 3);
-  return isTelemetryFieldComparisonAvailable(qr.quot);
-}
-
 struct sourceAvailableCheck {
   uint16_t first;
   uint16_t last;
@@ -286,7 +280,6 @@ static struct sourceAvailableCheck sourceChecks[] = {
   { MIXSRC_TX_VOLTAGE, MIXSRC_TX_GPS, SRC_TX, sourceIsAvailable },
   { MIXSRC_FIRST_TIMER, MIXSRC_LAST_TIMER, SRC_TIMER, isSourceTimerAvailable },
   { MIXSRC_FIRST_TELEM, MIXSRC_LAST_TELEM, SRC_TELEM, isSourceTelemAvailable },
-  { MIXSRC_FIRST_TELEM, MIXSRC_LAST_TELEM, SRC_TELEM_COMP, isSourceTelemCompAvailable },
   { MIXSRC_NONE, MIXSRC_NONE, SRC_NONE, sourceIsAvailable },
 };
 
@@ -315,31 +308,6 @@ bool isSourceAvailable(int source)
             );
 }
 
-// Used only in B&W radios for Global Functions when funcion is FUNC_PLAY_VALUE
-bool isSourceAvailableInGlobalFunctions(int source)
-{
-  return checkSourceAvailable(source,
-            SRC_COMMON | SRC_INPUT | SRC_LUA | SRC_HELI | SRC_CHANNEL | SRC_TX | SRC_TIMER | SRC_NONE
-            );
-}
-
-// Used only in B&W radios with wide screen LCD (212x64) for logical switches
-// V1 parameter when LS function is LS_FAMILY_OFS or LS_FAMILY_DIFF
-bool isSourceAvailableInCustomSwitches(int source)
-{
-  return checkSourceAvailable(source,
-            SRC_COMMON | SRC_INPUT | SRC_LUA | SRC_HELI | SRC_CHANNEL | SRC_TX | SRC_TIMER | SRC_TELEM_COMP | SRC_NONE
-            );
-}
-
-// Only used for B&W radios for Input source (color radios use isSourceAvailable)
-bool isSourceAvailableInInputs(int source)
-{
-  return checkSourceAvailable(source,
-            SRC_COMMON | SRC_CHANNEL_ALL | SRC_TELEM_COMP
-            );
-}
-
 bool isLogicalSwitchAvailable(int index)
 {
   LogicalSwitchData * lsw = lswAddress(index);
@@ -361,7 +329,7 @@ bool isSwitchAvailable(int swtch, SwitchContext context)
 
   if (swtch >= SWSRC_FIRST_SWITCH && swtch <= SWSRC_LAST_SWITCH) {
     div_t swinfo = switchInfo(swtch);
-    if (swinfo.quot >= switchGetMaxSwitches() + switchGetMaxFctSwitches()) {
+    if (swinfo.quot >= switchGetMaxAllSwitches()) {
       return false;
     }
 
@@ -369,7 +337,7 @@ bool isSwitchAvailable(int swtch, SwitchContext context)
       return false;
     }
 
-    if (IS_SWITCH_FS(swinfo.quot) && context == GeneralCustomFunctionsContext) {
+    if (switchIsCustomSwitch(swinfo.quot) && context == GeneralCustomFunctionsContext) {
       return false;   // FS are defined at model level, and cannot be in global functions
     }
 
@@ -437,8 +405,8 @@ static bool switchIsAvailable(int swtch, bool invert)
 static bool isSwitchSwitchAvailable(int swtch, bool invert) {
   // Check normal switch
   if (swtch < MAX_SWITCHES * 3) {
-    div_t swinfo = switchInfo(swtch);
-    if (swinfo.quot >= switchGetMaxSwitches() + switchGetMaxFctSwitches()) {
+    div_t swinfo = switchInfo(swtch + SWSRC_FIRST_SWITCH);
+    if (swinfo.quot >= switchGetMaxAllSwitches()) {
       return false;
     }
 
@@ -457,7 +425,7 @@ static bool isSwitchSwitchAvailable(int swtch, bool invert) {
   }
 
   // Multipos switch
-  int index = (swtch - SWSRC_FIRST_MULTIPOS_SWITCH) / XPOTS_MULTIPOS_COUNT;
+  int index = (swtch + SWSRC_FIRST_SWITCH - SWSRC_FIRST_MULTIPOS_SWITCH) / XPOTS_MULTIPOS_COUNT;
   return (index < adcGetMaxInputs(ADC_INPUT_FLEX)) ? IS_POT_MULTIPOS(index) : false;
 }
 
@@ -628,7 +596,7 @@ bool isSwitch2POSWarningStateAvailable(int state)
 
 bool isThrottleSourceAvailable(int src)
 {
-#if !defined(LIBOPENUI)
+#if !defined(COLORLCD)
   src = throttleSource2Source(src);
 #endif
   return isSourceAvailable(src) &&
@@ -669,17 +637,19 @@ bool isAssignableFunctionAvailable(int function, bool modelFunctions)
     case FUNC_DISABLE_AUDIO_AMP:
       return false;
 #endif
-#if !defined(LED_STRIP_GPIO)
+#if !defined(LED_STRIP_LENGTH)
     case FUNC_RGB_LED:
       return false;
-#elif defined(RGB_LED_OFFSET)
-    case FUNC_RGB_LED:
-      return (LED_STRIP_LENGTH > RGB_LED_OFFSET);
 #endif
 #if !defined(DEBUG)
     case FUNC_TEST:
       return false;
 #endif
+#if defined(FUNCTION_SWITCHES) || defined(CFN_ONLY)
+    case FUNC_PUSH_CUST_SWITCH:
+      return modelFunctions;
+#endif
+
     default:
       return true;
   }
@@ -691,6 +661,15 @@ bool isAssignableFunctionAvailable(int function)
   return isAssignableFunctionAvailable(function, menuHandlers[menuLevel] == menuModelSpecialFunctions);
 }
 #endif
+
+int timersSetupCount()
+{
+  int tc = 0;
+  for (int i = 0; i < MAX_TIMERS; i += 1)
+    if (isTimerSourceAvailable(i))
+      tc += 1;
+  return tc;
+}
 
 bool isTimerSourceAvailable(int index)
 {
@@ -756,7 +735,7 @@ static void runAntennaSelectionMenu()
     WDG_RESET();
     MainWindow::instance()->run();
     LvglWrapper::runNested();
-    RTOS_WAIT_MS(20);
+    sleep_ms(20);
   }
 }
 #else
@@ -797,7 +776,7 @@ void checkExternalAntenna()
         }
 #else
         POPUP_CONFIRMATION(STR_ANTENNACONFIRM1, onAntennaSwitchConfirm);
-        SET_WARNING_INFO(STR_ANTENNACONFIRM2, sizeof(TR_ANTENNACONFIRM2), 0);
+        SET_WARNING_INFO(STR_ANTENNACONFIRM2, strlen(STR_ANTENNACONFIRM2), 0);
 #endif
       }
     } else if (g_eeGeneral.antennaMode == ANTENNA_MODE_ASK ||
@@ -1247,7 +1226,7 @@ bool confirmModelChange()
   if (TELEMETRY_STREAMING()) {
     RAISE_ALERT(STR_MODEL, STR_MODEL_STILL_POWERED, STR_PRESS_ENTER_TO_CONFIRM, AU_MODEL_STILL_POWERED);
     while (TELEMETRY_STREAMING()) {
-      RTOS_WAIT_MS(20);
+      sleep_ms(20);
       if (readKeys() == (1 << KEY_ENTER)) {
         killEvents(KEY_ENTER);
         return true;
@@ -1295,7 +1274,7 @@ const char * getMultiOptionTitleStatic(uint8_t moduleIdx)
 {
   const uint8_t multi_proto = g_model.moduleData[moduleIdx].multi.rfProtocol;
   const mm_protocol_definition * pdef = getMultiProtocolDefinition(multi_proto);
-  return pdef->optionsstr;
+  return STR_VAL(pdef->optionsstr);
 }
 
 const char * getMultiOptionTitle(uint8_t moduleIdx)
@@ -1306,7 +1285,7 @@ const char * getMultiOptionTitle(uint8_t moduleIdx)
     if (status.optionDisp >= getMaxMultiOptions()) {
       status.optionDisp = 1; // Unknown options are defaulted to type 1 (basic option)
     }
-    return mm_options_strings::options[status.optionDisp];
+    return STR_VAL(mm_options_strings::options[status.optionDisp]);
   }
 
   return getMultiOptionTitleStatic(moduleIdx);
@@ -1317,7 +1296,7 @@ const char * getMultiOptionTitle(uint8_t moduleIdx)
 uint8_t expandableSection(coord_t y, const char* title, uint8_t value, uint8_t attr, event_t event)
 {
   lcdDrawTextAlignedLeft(y, title);
-  lcdDrawText(LCD_W == 128 ? 120 : 200, y, value ? STR_CHAR_UP : STR_CHAR_DOWN, attr);
+  lcdDrawText(LCD_W == 128 ? 120 : 200, y, value ? CHAR_UP : CHAR_DOWN, attr);
   if (attr && (event == EVT_KEY_BREAK(KEY_ENTER))) {
     value = !value;
     s_editMode = 0;
@@ -1358,6 +1337,16 @@ bool isFlexSwitchSourceValid(int source)
   if (POT_CONFIG(source) != FLEX_SWITCH) return false;
 
   return true;
+}
+
+bool getStickInversion(int index)
+{
+  return bfGet<uint8_t>(g_eeGeneral.stickInvert, index, STICK_CFG_INV_BITS);
+}
+
+void setStickInversion(int index, bool value)
+{
+  g_eeGeneral.stickInvert = bfSet<uint8_t>(g_eeGeneral.stickInvert, value, index, STICK_CFG_INV_BITS);
 }
 
 bool getPotInversion(int index)
