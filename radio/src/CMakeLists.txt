@@ -634,10 +634,13 @@ if(ARCH STREQUAL ARM)
   target_link_libraries(firmware PRIVATE cmsis)
 endif()
 
+if(ESP_PLATFORM)
+else()
 target_compile_definitions(board PUBLIC FREE_RTOS)
 target_compile_definitions(board_lib PUBLIC FREE_RTOS)
 target_compile_definitions(firmware PUBLIC FREE_RTOS)
 target_compile_definitions(stm32_drivers_w_dbg_fw PUBLIC FREE_RTOS)
+endif()
 
 target_sources(firmware PUBLIC
   os/async_freertos.cpp
@@ -647,10 +650,13 @@ target_sources(firmware PUBLIC
   os/timer_freertos.cpp
 )
 
+if(ESP_PLATFORM)
+else()
 if(DEBUG)
   target_compile_definitions(board PRIVATE -DDEBUG)
   target_compile_definitions(firmware PRIVATE -DDEBUG)
   target_compile_definitions(stm32_drivers_w_dbg_fw PRIVATE -DDEBUG)
+endif()
 endif()
 
 set(LINKER_SCRIPT firmware.ld)

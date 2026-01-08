@@ -1,5 +1,4 @@
-#ifndef ESPRC_H
-#define ESPRC_H
+#pragma once
 
 #define ESPNOW_QUEUE_SIZE           6
 #define TX_PERIOD_MS 20
@@ -41,4 +40,3 @@ extern volatile uint32_t sendPeriod;
 
 esp_err_t initTX();
 void moduleSendNextFrame(int16_t *channelOutputs);
-#endif

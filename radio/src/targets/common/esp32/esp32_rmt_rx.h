@@ -1,6 +1,5 @@
 
-#ifndef _ESP32_RMT_PULSE_H_
-#define _ESP32_RMT_PULSE_H_
+#pragma once
 
 #include "driver/rmt_tx.h"
 #include "driver/rmt_rx.h"
@@ -43,4 +42,3 @@ int rmt_ppm_decode_cb(rmt_ctx_t *ctx, rmt_symbol_word_t *rxdata, size_t rxdata_l
 #define RMT_PPM_IN_TICK_NS 1000
 #define RMT_PPM_IDLE_THRESHOLD_NS 4000000 // 4ms
 
-#endif

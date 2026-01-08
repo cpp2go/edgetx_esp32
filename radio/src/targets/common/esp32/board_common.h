@@ -1,6 +1,15 @@
+#pragma once  // 确保有这一行防止重复包含
 
-#ifndef ESP32_COMMON_H_
-#define ESP32_COMMON_H_
+// 必须显式包含 FreeRTOS 基础头文件
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+
+// 针对 IDF 5.x 的兼容性宏定义
+#ifndef RTOS_WAIT_MS
+#define RTOS_WAIT_MS(ms) vTaskDelay(pdMS_TO_TICKS(ms))
+#endif
 
 #if defined(ESP_PLATFORM)
 #include <rtos.h>
@@ -28,4 +37,3 @@ static inline uint32_t ticksNow() {
 
 void init2MhzTimer();
 
-#endif // ESP32_COMMON_H

@@ -42,26 +42,8 @@ extern uint32_t ShadowInput;  // from mcp23017
 
 void boardInitSwitches() {}
 
-static uint8_t get_switch_index(uint8_t cat, uint8_t idx)
+SwitchHwPos boardSwitchGetPosition(uint8_t idx)
 {
-    switch(cat) {
-    case SWITCH_PHYSICAL:
-        assert(idx < n_switches);
-        return idx;
-
-    case SWITCH_FUNCTION:
-        assert(idx < n_fct_switches);
-        return idx + n_switches;
-
-    default:
-        assert(0);
-        return 0;
-    }
-}
-
-SwitchHwPos boardSwitchGetPosition(SwitchCategory cat, uint8_t idx)
-{
-    idx = get_switch_index(cat, idx);
     const mcp_switch_t *sw = &_switch_defs[idx];
     bool inv = sw->flags & SWITCH_HW_INVERTED;
     SwitchHwPos ret = SWITCH_HW_UP;
@@ -94,15 +76,13 @@ SwitchHwPos boardSwitchGetPosition(SwitchCategory cat, uint8_t idx)
     return ret;
 }
 
-const char* boardSwitchGetName(SwitchCategory cat, uint8_t idx)
+const char* boardSwitchGetName(uint8_t idx)
 {
-    idx = get_switch_index(cat, idx);
     return _switch_defs[idx].name;
 }
 
-SwitchHwType boardSwitchGetType(SwitchCategory cat, uint8_t idx)
+SwitchHwType boardSwitchGetType(uint8_t idx)
 {
-    idx = get_switch_index(cat, idx);
     return _switch_defs[idx].type;
 }
 

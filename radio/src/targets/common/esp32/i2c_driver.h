@@ -1,6 +1,4 @@
-
-#ifndef EDTX_I2C_DRIVER_H_
-#define EDTX_I2C_DRIVER_H_
+#pragma once
 
 #include <driver/i2c_master.h>
 
@@ -15,4 +13,3 @@ esp_err_t i2c_register_write_buf(i2c_master_dev_handle_t handle, uint8_t *buf, s
 esp_err_t i2c_register_write_read_buf(i2c_master_dev_handle_t handle, uint8_t *wbuf, size_t wlen, uint8_t *rbuf, size_t rlen);
 esp_err_t i2c_master_init(void);
 
-#endif

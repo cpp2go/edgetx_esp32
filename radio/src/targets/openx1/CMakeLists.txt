@@ -70,7 +70,7 @@ set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} ${BITMAPS_TARGET})
 
 foreach(LANGUAGE ${TTS_LANGUAGES})
   string(TOLOWER ${LANGUAGE} lang_lower)
-  set(SRC ${SRC} translations/tts_${lang_lower}.cpp)
+  set(SRC ${SRC} translations/tts/tts_${lang_lower}.cpp)
 endforeach()
 
 if (MULTIMODULE)
