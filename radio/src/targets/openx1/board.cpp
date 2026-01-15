@@ -152,3 +152,7 @@ void disableVBatBridge() {
 bool isVBatBridgeEnabled() {
     return false;
 }
+void DMAInit(void)
+{
+    
+}

@@ -159,6 +159,7 @@ set(TARGET_SRC
   ${ESP_CMN_FOLDER}/timers_driver.cpp
   ${ESP_CMN_FOLDER}/esp32_uart_driver.cpp
   ${ESP_CMN_FOLDER}/mixer_scheduler_driver.cpp
+  ${ESP_CMN_FOLDER}/battery_voltage.cpp
 
   ${ESP_CMN_FOLDER}/esp32_rmt_rx.cpp
   ${ESP_CMN_FOLDER}/esp32_rmt_uart.cpp

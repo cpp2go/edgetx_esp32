@@ -187,13 +187,13 @@ static void task_adc(void *pdata)
 #define TASKADC_STACK_SIZE (1024 * 4)
 #define TASKADC_PRIO 5
 
-static RTOS_TASK_HANDLE taskIdADC;
-RTOS_DEFINE_STACK(taskIdADC, taskADC_stack, TASKADC_STACK_SIZE);
+static task_handle_t taskIdADC;
+TASK_DEFINE_STACK(taskADC_stack, TASKADC_STACK_SIZE);
 void adruino_adc_init(void)
 {
   adcInit(&arduino_hal_adc_driver);
 
   // The stuff on ADC are not that critical, so start a task and read it in the
   // background
-  RTOS_CREATE_TASK_EX(taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO, MIXER_TASK_CORE);
+  task_create(&taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO);
 }

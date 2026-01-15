@@ -21,9 +21,13 @@
 
 #include "async.h"
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/timers.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/timers.h>
-
+#endif
 bool async_call(async_func_t func, volatile bool* excl_flag, void* param1,
                 uint32_t param2)
 {

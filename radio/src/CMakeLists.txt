@@ -635,12 +635,21 @@ if(ARCH STREQUAL ARM)
 endif()
 
 if(ESP_PLATFORM)
+target_compile_definitions(radiolib_esp32 PUBLIC ESP_PLATFORM)
+target_compile_definitions(radiolib_esp32 PUBLIC FREE_RTOS)
+target_sources(radiolib_esp32 PUBLIC
+  os/async_freertos.cpp
+  os/sleep_freertos.cpp
+  os/task_freertos.cpp
+  os/time_freertos.cpp
+  os/timer_freertos.cpp
+)
 else()
+
 target_compile_definitions(board PUBLIC FREE_RTOS)
 target_compile_definitions(board_lib PUBLIC FREE_RTOS)
 target_compile_definitions(firmware PUBLIC FREE_RTOS)
 target_compile_definitions(stm32_drivers_w_dbg_fw PUBLIC FREE_RTOS)
-endif()
 
 target_sources(firmware PUBLIC
   os/async_freertos.cpp
@@ -650,14 +659,13 @@ target_sources(firmware PUBLIC
   os/timer_freertos.cpp
 )
 
-if(ESP_PLATFORM)
-else()
 if(DEBUG)
   target_compile_definitions(board PRIVATE -DDEBUG)
   target_compile_definitions(firmware PRIVATE -DDEBUG)
   target_compile_definitions(stm32_drivers_w_dbg_fw PRIVATE -DDEBUG)
 endif()
-endif()
+
+endif() #ESP_PLATFORM
 
 set(LINKER_SCRIPT firmware.ld)
 

@@ -144,7 +144,7 @@ void backlightInit();
 #define BACKLIGHT_FORCED_ON 101
 void backlightDisable();
 #define BACKLIGHT_DISABLE()             backlightDisable()
-void backlightEnable(uint8_t level = 0);
+void backlightEnable(uint8_t level);
 #define BACKLIGHT_ENABLE()            backlightEnable(currentBacklightBright)
 bool isBacklightEnabled();
 
@@ -207,7 +207,7 @@ void initWiFi();
 void startWiFi( char *ssid_zchar, char *passwd_zchar, char* ftppass_zchar);
 void stopWiFi();
 const char* getWiFiStatus();
-bool isWiFiStarted(uint32_t expire=500);
+bool isWiFiStarted(uint32_t expire);
 
 void startWiFiESPNow();
 void stopWiFiESPNow();
@@ -218,5 +218,5 @@ void resume_espnow();
 void init_bind_espnow();
 void stop_bind_espnow();
 bool is_binding_espnow();
-
+void DMAInit(void);
 #endif // _BOARD_H_

@@ -17,6 +17,9 @@
 #include "pulses_esp32.h"
 #include "esp_random.h"
 
+#include "tasks.h"
+#include "tasks/mixer_task.h"
+
 #define STICK_MAX_VALUE (1024)
 #define STICK_MIN_VALUE (-1024)
 #define THR_STICK_CHANNEL 2  // channel 3
@@ -27,20 +30,20 @@ extern "C" {
     void ble_write_pwrup_thottle(uint8_t data);
     void ble_write_pwrup_rudder(int8_t data);
     void esp_end_ble(void);
-    void task_pwrup(void * pdata);
+    void task_pwrup();
     extern TaskHandle_t pwrup_task_handle;
 }
 
 #define TASKPWRUP_STACK_SIZE (1024 * 4)
 #define TASKPWRUP_PRIO 5
 
-static RTOS_TASK_HANDLE taskIdPWRUP;
-EXT_RAM_BSS_ATTR RTOS_DEFINE_STACK(taskIdPWRUP, taskPWRUP_stack, TASKPWRUP_STACK_SIZE);
+static task_handle_t taskIdPWRUP;
+EXT_RAM_BSS_ATTR TASK_DEFINE_STACK(taskPWRUP_stack, TASKPWRUP_STACK_SIZE);
 static void* BtPowerUPInit(uint8_t module)
 {
     if (NULL == pwrup_task_handle) {
-        RTOS_CREATE_TASK_EX(taskIdPWRUP,task_pwrup,"PowerUP task",taskPWRUP_stack,TASKPWRUP_STACK_SIZE,TASKPWRUP_PRIO,MENU_TASK_CORE);
-        pwrup_task_handle = taskIdPWRUP.rtos_handle;
+        task_create(&taskIdPWRUP,task_pwrup,"PowerUP task",taskPWRUP_stack,TASKPWRUP_STACK_SIZE,TASKPWRUP_PRIO);
+        //pwrup_task_handle = taskIdPWRUP.rtos_handle;
     }
 
     esp_start_ble_scan();
@@ -69,7 +72,7 @@ static void BtPowerUPSendPulses(void* context, uint8_t* buffer, int16_t* channel
     
     static uint32_t thrTick = 0;
 
-    uint32_t now = RTOS_GET_MS();
+    uint32_t now = time_get_ms();
     if (prevThr != thr) {
         prevThr = thr;
         ble_write_pwrup_thottle(thr);

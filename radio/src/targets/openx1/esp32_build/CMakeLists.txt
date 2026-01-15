@@ -14,7 +14,7 @@ list(APPEND EXTRA_COMPONENT_DIRS "${EDGETX_SRCDIR}/thirdparty/lvgl")
 list(APPEND EXTRA_COMPONENT_DIRS "${EDGETX_TGT_CMN}/components/nimble_central_utils")
 list(APPEND EXTRA_COMPONENT_DIRS "${EDGETX_TGT_CMN}/components/lvgl_esp32_drivers")
 
-add_definitions(-I${CMAKE_SOURCE_DIR} -I${EDGETX_SRCDIR} -I${EDGETX_TARGETDIR} -I${EDGETX_LCDDIR})
+add_definitions(-I${CMAKE_SOURCE_DIR} -I${EDGETX_SRCDIR} -I${EDGETX_TARGETDIR} -I${EDGETX_LCDDIR} -I${EDGETX_TGT_CMN})
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 

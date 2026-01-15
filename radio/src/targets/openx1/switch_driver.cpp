@@ -33,6 +33,9 @@ struct mcp_switch_t
     uint32_t      bit_low;
 
     SwitchHwType type;
+    bool          inverted;
+    SwitchConfig  defaultType;
+
     uint8_t      flags;
 };
 
@@ -89,5 +92,5 @@ SwitchHwType boardSwitchGetType(uint8_t idx)
 uint8_t boardGetMaxSwitches() { return n_switches; }
 uint8_t boardGetMaxFctSwitches() { return n_fct_switches; }
 
-swconfig_t boardSwitchGetDefaultConfig() { return _switch_default_config; }
+SwitchConfig boardSwitchGetDefaultConfig(uint8_t idx) { return _switch_defs[idx].defaultType; }
 

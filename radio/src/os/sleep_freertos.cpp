@@ -21,9 +21,13 @@
 
 #include "sleep.h"
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/task.h>
-    
+#endif 
 void sleep_ms(uint32_t ms)
 {
   if (!ms) return;

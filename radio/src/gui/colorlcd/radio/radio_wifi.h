@@ -22,14 +22,14 @@
 #ifndef _RADIO_WIFI_H_
 #define _RADIO_WIFI_H_
 
-#include "tabsgroup.h"
+#include "pagegroup.h"
 #include "textedit.h"
 
-class RadioWiFiPage: public PageTab {
+class RadioWiFiPage: public PageGroupItem {
   protected:
     RadioTextEdit *status;
   public:
-    RadioWiFiPage();
+    RadioWiFiPage(PageDef& pageDef);
 
     void checkEvents() override;
 

@@ -44,6 +44,10 @@ static void mcp_set_gpio(uint32_t pin, uint32_t level) {
     ESP_ERROR_CHECK(i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), pShadowData[port]));
 }
 
+void pollKeys()
+{
+}
+
 uint32_t readKeys()
 {
     uint32_t result = 0;

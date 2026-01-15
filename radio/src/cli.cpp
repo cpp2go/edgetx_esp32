@@ -19,8 +19,13 @@
  * GNU General Public License for more details.
  */
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/stream_buffer.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/stream_buffer.h>
+#endif
 
 #include "hal/adc_driver.h"
 #include "hal/audio_driver.h"

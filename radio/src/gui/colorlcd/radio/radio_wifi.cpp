@@ -74,15 +74,15 @@ static void onSetWiFiEnabled(uint8_t newValue) {
   wifi_en = newValue;
 }
 
-RadioWiFiPage::RadioWiFiPage():
-  PageTab(STR_HARDWARE, ICON_RADIO_WIFI)
+RadioWiFiPage::RadioWiFiPage(PageDef& pageDef) 
+  : PageGroupItem(pageDef) 
 {
 }
 
 void RadioWiFiPage::checkEvents()
 {
-  PageTab::checkEvents();
-  if (wifi_en != isWiFiStarted()) {
+  PageGroupItem::checkEvents();
+  if (wifi_en != isWiFiStarted(500)) {
     if (wifi_en) {
       startWiFi(g_eeGeneral.wifi_ssid, g_eeGeneral.wifi_password, g_eeGeneral.ftppass);
     } else {

@@ -21,10 +21,15 @@
 
 #pragma once
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/semphr.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/task.h>
 #include <FreeRTOS/include/semphr.h>
-
+#endif
 #include "definitions.h"
 
 #define TASK_DEFINE_STACK(name, size) StackType_t __ALIGNED(8) name[size] __CCMRAM

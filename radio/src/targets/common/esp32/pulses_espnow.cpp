@@ -204,9 +204,10 @@ static void tx_task(void *pvParameter)
     vTaskDelete(NULL);
 }
 
-static void send_cb(const uint8_t *mac_addr, esp_now_send_status_t status) {
+static void send_cb(const esp_now_send_info_t *tx_info, esp_now_send_status_t status) {
     Event_t evt;
   
+    const uint8_t *mac_addr = tx_info->des_addr;
     if (mac_addr == NULL) {
         ESP_LOGE(TAG, "Send cb arg error");
         return;

@@ -72,7 +72,7 @@ void ble_write_pwrup_rudder(int8_t data) {
     current_rdr = data;
 }
 
-void task_pwrup(void * pdata) {
+void task_pwrup() {
     int next_send = 0;
 
     while(1) {

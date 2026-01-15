@@ -26,6 +26,8 @@
 #include <stddef.h>
 
 #if defined(ESP_PLATFORM)
+#include "board.h"
+#define __FLASH
 #define __CCMRAM
 #define __DMA
 #define __DMA_NO_CACHE
