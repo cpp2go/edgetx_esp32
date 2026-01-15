@@ -19,6 +19,7 @@
 
 #include "tasks.h"
 #include "tasks/mixer_task.h"
+#include "os/time.h"
 
 #define STICK_MAX_VALUE (1024)
 #define STICK_MIN_VALUE (-1024)

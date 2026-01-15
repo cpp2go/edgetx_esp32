@@ -31,9 +31,14 @@ extern "C++" {
 
 #elif defined(FREE_RTOS)
 
-  #include <FreeRTOS/include/FreeRTOS.h>
-  #include <FreeRTOS/include/task.h>
-  
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#else
+#include <FreeRTOS/include/FreeRTOS.h>
+#include <FreeRTOS/include/task.h>
+#endif
+
   static inline void RTOS_START()
   {
 #ifdef ESP_PLATFORM
