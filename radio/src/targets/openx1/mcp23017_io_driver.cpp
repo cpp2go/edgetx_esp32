@@ -22,6 +22,7 @@
 #include "i2c_driver.h"
 #include "mcp23xxx.h"
 
+#include "mcp_pins.h"
 #include "mcp23017_keys.inc"
 
 extern i2c_master_bus_handle_t gpioext_i2c_bus_handle;
@@ -32,11 +33,18 @@ static uint8_t *pShadowData = (uint8_t *)&ShadowOutput;
 uint32_t ShadowInput = MCP23017_PULLUP;
 static uint8_t *pShadowInput = (uint8_t *)&ShadowInput;
 
+ #define ROTARY_ENCODER_POSITION() ((ShadowInput>>6) & 0x03)
 
-static void mcp_set_gpio(uint32_t pin, uint32_t level) {
-    if (0 == level) {
+void rotaryEncoderCheck(uint32_t result);
+
+static void mcp_set_gpio(uint32_t pin, uint32_t level)
+ {
+    if (0 == level) 
+    {
         ShadowOutput &= ~(1 << pin);
-    } else {
+    } 
+    else
+    {
         ShadowOutput |= (1 << pin);
     }
     uint32_t port = MCP_PORT(pin);
@@ -61,6 +69,8 @@ uint32_t readKeys()
             result |= key_mapping[i].key_code_bit;
         }
     }
+
+    rotaryEncoderCheck(result);
 
     return result;
 }
@@ -114,17 +124,17 @@ void keysInit()
     } else {
         TRACE("MCP23017 initialized, now hold 3V3 active and enable 5V");
         mcp_set_gpio(MCP_PWR_EN, 1);
-        mcp_set_gpio(MCP_5V_EN, 1);
+        //mcp_set_gpio(MCP_5V_EN, 1);
     }
 }
 
 void INTERNAL_MODULE_ON(void) {
-    mcp_set_gpio(MCP_INTMOD_BOOT, 1);
+    //mcp_set_gpio(MCP_INTMOD_BOOT, 1);
     mcp_set_gpio(MCP_INTMOD_5V_EN, 1);
 }
 void INTERNAL_MODULE_OFF(void) {
     mcp_set_gpio(MCP_INTMOD_5V_EN, 0);
-    mcp_set_gpio(MCP_INTMOD_BOOT, 0);
+    //mcp_set_gpio(MCP_INTMOD_BOOT, 0);
 }
 
 void EXTERNAL_MODULE_ON(void) {
@@ -143,7 +153,7 @@ void pwrOff()
     TRACE("Power off");
     RTOS_WAIT_MS(200);
     mcp_set_gpio(MCP_5V_EN, 0);
-    mcp_set_gpio(MCP_PWR_EN, 0);
+    //mcp_set_gpio(MCP_PWR_EN, 0);
     while (1) RTOS_WAIT_MS(20); // should never return
 }
 
@@ -153,5 +163,139 @@ bool pwrPressed()
 }
 
 bool pwrOffPressed() {
-    return !pwrPressed();   
+    return !pwrPressed(); // Muffin uses switch for power    
 }
+
+#if defined(ROTARY_ENCODER_NAVIGATION)
+
+#define ROTARY_ENCODER_GRANULARITY 2
+
+// Value increment for each state transition of the RE pins
+#if defined(ROTARY_ENCODER_INVERTED)
+  static int8_t reInc[4][4] = {
+    // Prev = 0
+    {  0, -1,  1, -2 },
+    // Prev = 1
+    {  1,  0,  0, -1 },
+    // Prev = 2
+    { -1,  0,  0,  1 },
+    // Prev = 3
+    {  2,  1, -1,  0 },
+  };
+#else
+  static int8_t reInc[4][4] = {
+    // Prev = 0
+    {  0,  1, -1,  2 },
+    // Prev = 1
+    { -1,  0,  0,  1 },
+    // Prev = 2
+    {  1,  0,  0, -1 },
+    // Prev = 3
+    { -2, -1,  1,  0 },
+  };
+#endif
+
+volatile rotenc_t rotencValue = 0;
+volatile uint32_t rotencDt = 0;
+static uint8_t lastPins = 0;
+int8_t reChgPos = 0;
+// Used on start to ignore movement until encoder position on detent
+bool skipUntilDetent = false;
+
+#if ROTARY_ENCODER_GRANULARITY == 2
+  #define ON_DETENT(p) ((p == 3) || (p == 0))
+#elif ROTARY_ENCODER_GRANULARITY == 4
+  #define ON_DETENT(p) (p == 3)
+#endif
+
+rotenc_t rotaryEncoderGetValue()
+{
+  return rotencValue;
+}
+
+void rotaryEncoderCheck(uint32_t result)
+{
+    //uint8_t pinValA = ((ShadowInput & MCP_ROTARY_A_DET)^MCP_ROTARY_A_DET);
+    //uint8_t pinValB = ((ShadowInput & MCP_ROTARY_B_DET)^MCP_ROTARY_B_DET);
+	//uint8_t pins = (pinValA << 1) | pinValB;
+    uint8_t pins = ROTARY_ENCODER_POSITION();
+    if (pins == lastPins)
+    {
+        return ;
+    }
+    // Handle case where radio started with encoder not on detent position
+    if (skipUntilDetent) 
+    {
+        if (ON_DETENT(pins)) 
+        {
+            lastPins = pins;
+            skipUntilDetent = false;
+        }
+        return;
+    }
+
+    // Get increment value for pin state transition
+    int inc = reInc[lastPins][pins];
+
+#if !defined(BOOT)
+    if (g_eeGeneral.rotEncMode == ROTARY_ENCODER_MODE_INVERT_BOTH)
+    {
+        inc = -inc;
+    }
+#endif
+
+    // Update position change between detents
+    reChgPos += inc;
+
+    // Update reported value on full detent change
+    if (reChgPos >= ROTARY_ENCODER_GRANULARITY) 
+    {
+        // If ENTER pressed - ignore scrolling
+        if ((result & (1 << KEY_ENTER)) == 0) 
+        {
+            rotencValue += 1;
+        }
+        reChgPos -= ROTARY_ENCODER_GRANULARITY;
+    } 
+    else if (reChgPos <= -ROTARY_ENCODER_GRANULARITY) 
+    {
+        // If ENTER pressed - ignore scrolling
+        if ((result & (1 << KEY_ENTER)) == 0) 
+        {
+            rotencValue -= 1;
+        }
+        reChgPos += ROTARY_ENCODER_GRANULARITY;
+    }
+
+    lastPins = pins;
+
+#if !defined(BOOT) && defined(COLORLCD)
+  static uint32_t last_tick = 0;
+  static rotenc_t last_value = 0;
+
+  rotenc_t value = rotencValue;
+  rotenc_t diff = (value - last_value);
+
+  if (diff != 0) 
+  {
+    uint32_t now = timersGetMsTick();
+    uint32_t dt = now - last_tick;
+    // pre-compute accumulated dt (dx/dt is done later in LVGL driver)
+    rotencDt += dt;
+    last_tick = now;
+    last_value = value;
+  }
+#endif
+
+    TRACE("Rotary==== %d %d", pins, rotencValue);
+}
+
+void rotaryEncoderInit()
+{
+   // Get initial position
+  lastPins = ROTARY_ENCODER_POSITION();
+  skipUntilDetent = !ON_DETENT(lastPins);
+
+}
+
+#endif

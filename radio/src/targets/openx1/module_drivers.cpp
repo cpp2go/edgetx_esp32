@@ -128,6 +128,13 @@ const etx_module_port_t _external_ports[] = {
     .drv = { .serial = &proxyExtUartSerialDriver },
     .hw_def = (void *)&extmod_uart_hw_def,
   },
+    {
+        .port = ETX_MOD_PORT_UART,
+        .type = ETX_MOD_TYPE_SERIAL,
+        .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
+        .drv = { .serial = &ESPUartSerialDriver },
+        .hw_def = (void *)&extmod_uart_hw_def,
+    },    
 };
 
 static void _set_external_module_power(uint8_t on) {

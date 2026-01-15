@@ -81,6 +81,7 @@ static void board_init_i2c(void) {
 }
 
 // keep a reference of the layouts so they do not get optimized out by compiler.
+#if 1
 extern LayoutFactory Layout1P2;
 extern LayoutFactory Layout1P3;
 extern LayoutFactory layout1x1;
@@ -94,11 +95,25 @@ extern LayoutFactory layout2x2;
 extern LayoutFactory layout2x3;
 extern LayoutFactory layout2x4;
 extern LayoutFactory layout4P2;
-LayoutFactory *layouts[20] = {
+LayoutFactory *layouts[] = {
     &Layout1P2, &Layout1P3, &layout1x1, &Layout1x2, &Layout1x3, &Layout1x4,
     &layout2P1, &Layout2P3, &Layout2x1, &layout2x2, &layout2x3, &layout2x4,
     &layout4P2
 };
+
+extern WidgetFactory gaugeWidget;
+extern WidgetFactory modelBitmapWidget;
+extern WidgetFactory outputsWidget;
+extern WidgetFactory RadioInfoWidget;
+extern WidgetFactory DateTimeWidget;
+extern WidgetFactory textWidget;
+extern WidgetFactory timerWidget;
+extern WidgetFactory ValueWidget;
+WidgetFactory *widgets[] = {
+    &gaugeWidget, &modelBitmapWidget, &outputsWidget, &RadioInfoWidget, 
+	&DateTimeWidget,&textWidget, &timerWidget, &ValueWidget
+};
+#endif
 
 void boardInit()
 {
@@ -119,6 +134,10 @@ void boardInit()
     rtcInit();
 
     sdInit();
+
+#if defined(ROTARY_ENCODER_NAVIGATION)
+    rotaryEncoderInit();
+#endif
 
     //backlightInit();
     initWiFi();

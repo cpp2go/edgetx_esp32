@@ -181,15 +181,18 @@ static void task_adc()
   int16_t adcval = 0;
   while (1) {
     if (0xFFFF == ads_channels[index].mux) {
-      // for RTC Batt, OpenX1 uses main batt
-      setAnalogValue(ads_channels[index].etx_adc_channel, getAnalogValue(ADC_INPUT_VBAT));
+      // for RTC Batt, Muffin uses main batt
+      uint8_t offset = adcGetInputOffset(ADC_INPUT_VBAT);
+      int16_t vbat = getAnalogValue(offset) * 1.72;
+      setAnalogValue(offset, vbat);
+      setAnalogValue(ads_channels[index].etx_adc_channel, vbat);
     } else {
 
       adcval = readADC(ads[ads_channels[index].ads_index], ads_channels[index].mux);
 
       setAnalogValue(ads_channels[index].etx_adc_channel, adcval);
 
-      //TRACE("=X==== %d %x => %d", index, volt, ads_channels[index].etx_adc_channel, computeVolts(adcval));
+      //TRACE("=X==== %d %d => %d %f", index, ads_channels[index].etx_adc_channel, adcval, computeVolts(adcval));
     }
     index++;
     if (index >= channel_cnt) {
@@ -206,7 +209,7 @@ static task_handle_t taskIdADC;
 TASK_DEFINE_STACK(taskADC_stack, TASKADC_STACK_SIZE);
 void ads1015_adc_init(void)
 {
-#if 0
+#if 1
     m_bitShift = 4;
     m_gain = GAIN_ONE; /* +/-4.096V range = Gain 1 */
     m_dataRate = RATE_ADS1015_1600SPS;
@@ -224,5 +227,5 @@ void ads1015_adc_init(void)
 
   // The stuff (POTs, VBATT) on ADS1015 are not that critical, so start a task
   // and read it in the background
-  task_create(&taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO);
+  RTOS_CREATE_TASK_EX(taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO, MIXER_TASK_CORE);
 }

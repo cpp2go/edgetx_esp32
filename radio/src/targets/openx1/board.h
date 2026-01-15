@@ -219,4 +219,8 @@ void init_bind_espnow();
 void stop_bind_espnow();
 bool is_binding_espnow();
 void DMAInit(void);
+#if defined(ROTARY_ENCODER_NAVIGATION)
+void rotaryEncoderInit();
+#endif
+
 #endif // _BOARD_H_

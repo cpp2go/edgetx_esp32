@@ -161,6 +161,7 @@ static esp_err_t panel_ili9488_init(esp_lcd_panel_t *panel)
     esp_lcd_panel_io_handle_t io = ili9488->io;
 
 	lcd_init_cmd_t ili_init_cmds[]={
+#if 1
         {ILI9488_CMD_SLEEP_OUT, {0x05}, 0x80},
 		{ILI9488_CMD_POSITIVE_GAMMA_CORRECTION, {0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F}, 15},
 		{ILI9488_CMD_NEGATIVE_GAMMA_CORRECTION, {0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F}, 15},
@@ -178,33 +179,79 @@ static esp_err_t panel_ili9488_init(esp_lcd_panel_t *panel)
 		{ILI9488_CMD_WRITE_CTRL_DISPLAY, {0x28}, 1},
 		{ILI9488_CMD_WRITE_DISPLAY_BRIGHTNESS, {0x7F}, 1},
 		{ILI9488_CMD_ADJUST_CONTROL_3, {0xA9, 0x51, 0x2C, 0x02}, 4},
+        {ILI9488_CMD_DISP_INVERSION_ON, {0x00}, 0x80}, //ips
 		{ILI9488_CMD_DISPLAY_ON, {0x00}, 0x80},
 		{0, {0}, 0xff},
+#else
+        {0XF7, {0xA9,0xA9,0x51,0x2C,0x82}, 5},
+        {0XEC, {0x00,0x02,0x03,0x7A}, 4},
+        {0xC0, {0x13,0x13}, 2}, 	
+        {0xC1, {0x41}, 1},	
+        {0xC5, {0x00,0x28,0x80}, 3},	
+        {0xB1, {0xB0,0x11}, 2},	
+        {0xB4, {0x02}, 1},		
+        {0xB6, {0x02,0x22}, 2},
+        {0xB7, {0xc6}, 1},
+        {0xBE, {0x00,0x04}, 2},	
+        {0xE9, {0x00}, 1},
+        {0xF4, {0x00,0x00,0x0f}, 3},
+        {0xE0, {0x00,0x04,0x0E,0x08,0x17,0x0A,0x40,0x79,0x4D,0x07,0x0E,0x0A,0x1A,0x1D,0x0F}, 15}, 	
+        {0xE1, {0x00,0x1B,0x1F,0x02,0x10,0x05,0x32,0x34,0x43,0x02,0x0A,0x09,0x33,0x37,0x0F}, 15},
+        {0xF4, {0x00,0x00,0x0f}, 13},
+        {0x36, {0x08}, 1},
+        {0x3A, {0x55}, 1},		
+        {0x20, {0}, 0},
+        {0x11, {0}, 0x80},
+        {0x29, {0}, 0x80},
+#endif
 	};
 
-  	const lcd_init_cmd_t *pcmd = ili_init_cmds;
-	  uint8_t        cmd, x, numArgs;
-	  while((cmd = pcmd->cmd) > 0) { // '0' command ends list
-		    x = pcmd->databytes;
-		    numArgs = x & 0x7F;
-		    if (cmd != 0xFF) { // '255' is ignored
-			      if (x & 0x80) {  // If high bit set, numArgs is a delay time
+	//Reset the display (resetÃ»½Ó)
+    //gpio_set_level(ili9488->reset_gpio_num, 1);
+    //vTaskDelay(pdMS_TO_TICKS(10));
+    //gpio_set_level(ili9488->reset_gpio_num, 0);
+    //vTaskDelay(pdMS_TO_TICKS(20));
+    //gpio_set_level(ili9488->reset_gpio_num, 1);
+    //vTaskDelay(pdMS_TO_TICKS(120));
+
+    // reset
+	esp_lcd_panel_io_tx_param(io, ILI9488_CMD_SOFTWARE_RESET, NULL, 0);
+	vTaskDelay(pdMS_TO_TICKS(120));
+   
+      const lcd_init_cmd_t *pcmd = ili_init_cmds;
+	  uint8_t cmd, x, numArgs;
+      while ((cmd = pcmd->cmd) > 0) 
+      {  
+            // '0' command ends list
+            x = pcmd->databytes;
+            numArgs = x & 0x7F;
+            if (cmd != 0xFF) 
+            {  
+                // '255' is ignored
+              if (x & 0x80) 
+              {   // If high bit set, numArgs is a delay time
                 esp_lcd_panel_io_tx_param(io, cmd, NULL, 0);
-			      } else {
+              } 
+              else 
+              {
                 esp_lcd_panel_io_tx_param(io, cmd, pcmd->data, numArgs);
-			      }
-		    }
-		    if (x & 0x80) {       // If high bit set...
-			      vTaskDelay(numArgs * 5 / portTICK_PERIOD_MS); // numArgs is actually a delay time (5ms units)
-		    }
-        pcmd++;
-	  }
+              }
+            }
+            if (x & 0x80) 
+            {
+              // If high bit set...
+              vTaskDelay(numArgs * 5 / portTICK_PERIOD_MS);  // numArgs is actually a delay time (5ms units)
+            }
+            pcmd++;
+      }
 #if defined CONFIG_LV_DISPLAY_ORIENTATION_LANDSCAPE
     esp_lcd_panel_swap_xy(panel, true);
 #endif
 #if defined(LV_DISPLAY_ORIENTATION_LANDSCAPE_INVERTED) || defined(LV_DISPLAY_ORIENTATION_PORTRAIT_INVERTED)
     panel_ili9488_mirror(panel, true, true);
 #endif
+
+    ESP_LOGI(TAG, "panel_ili9488_init");
 
     do {
         dmabuf = (uint8_t *) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color16_t), MALLOC_CAP_DMA);

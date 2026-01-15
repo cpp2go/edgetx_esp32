@@ -44,7 +44,12 @@ extern "C" {
 }
 
 static void lcd_flush(lv_disp_drv_t *drv, uint16_t*color_map, const rect_t& rect) {
-    lv_area_t area = {.x1=(lv_coord_t)rect.left(), .y1=(lv_coord_t)rect.top(), .x2=(lv_coord_t)rect.right(), .y2=(lv_coord_t)rect.bottom()};
+    lv_area_t area = {
+        .x1=(lv_coord_t)rect.left(), 
+        .y1=(lv_coord_t)rect.top(), 
+        .x2=(lv_coord_t)rect.right(), 
+        .y2=(lv_coord_t)rect.bottom()，
+    };
     disp_driver_flush(drv, &area, (lv_color_t *)color_map);
 }
 

@@ -25,6 +25,7 @@
 #include "debug.h"
 
 static usbMode selectedUsbMode = USB_UNSELECTED_MODE;
+static bool usbDriverStarted = false;
 
 int getSelectedUsbMode()
 {
@@ -42,14 +43,23 @@ void usbInit()
 
 void usbStart()
 {
+  switch (getSelectedUsbMode()) {
+    case USB_JOYSTICK_MODE: {
+
+    } break;
+    case USB_MASS_STORAGE_MODE: {
+        
+    } break;
+  }
+    usbDriverStarted = true;
 }
 
 void usbStop()
 {
+      usbDriverStarted = false;
 }
-
 
 bool usbStarted()
 {
-    return false;
+  return usbDriverStarted;
 }
