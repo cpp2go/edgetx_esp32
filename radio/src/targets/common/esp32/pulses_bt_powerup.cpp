@@ -44,7 +44,7 @@ static void* BtPowerUPInit(uint8_t module)
 {
     if (NULL == pwrup_task_handle) {
         task_create(&taskIdPWRUP,task_pwrup,"PowerUP task",taskPWRUP_stack,TASKPWRUP_STACK_SIZE,TASKPWRUP_PRIO);
-        pwrup_task_handle = taskIdPWRUP.rtos_handle;
+        pwrup_task_handle = taskIdPWRUP._rtos_handle;
     }
 
     esp_start_ble_scan();

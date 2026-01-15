@@ -227,5 +227,5 @@ void ads1015_adc_init(void)
 
   // The stuff (POTs, VBATT) on ADS1015 are not that critical, so start a task
   // and read it in the background
-  RTOS_CREATE_TASK_EX(taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO, MIXER_TASK_CORE);
+  task_create(&taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO);
 }

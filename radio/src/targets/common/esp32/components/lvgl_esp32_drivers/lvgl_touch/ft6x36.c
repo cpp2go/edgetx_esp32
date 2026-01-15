@@ -85,28 +85,28 @@ void ft6x06_init(uint16_t dev_addr) {
 
     uint8_t data_buf;
     ESP_LOGI(TAG, "Found touch panel controller");
-    if (ret = ft6x06_i2c_read8(FT6X36_PANEL_ID_REG, &data_buf) != ESP_OK)
+    if ((ret = ft6x06_i2c_read8(FT6X36_PANEL_ID_REG, &data_buf)) != ESP_OK)
         ESP_LOGE(TAG, "ft6x06_i2c_read8 err: %s", esp_err_to_name(ret));    // Only show error the first time
     //ESP_LOGI(TAG, "\tDevice ID: 0x%02x", data_buf);
 
-    if (ret = ft6x06_i2c_read8(FT6X36_CHIPSELECT_REG, &data_buf) != ESP_OK)
+    if ((ret = ft6x06_i2c_read8(FT6X36_CHIPSELECT_REG, &data_buf)) != ESP_OK)
         ESP_LOGE(TAG, "ft6x06_i2c_read8 err: %s", esp_err_to_name(ret)); 
     //ESP_LOGI(TAG, "\tChip ID: 0x%02x", data_buf);
 
-    if (ret = ft6x06_i2c_read8(FT6X36_DEV_MODE_REG, &data_buf) != ESP_OK)
+    if ((ret = ft6x06_i2c_read8(FT6X36_DEV_MODE_REG, &data_buf)) != ESP_OK)
         ESP_LOGE(TAG, "ft6x06_i2c_read8 err: %s", esp_err_to_name(ret)); 
     //ESP_LOGI(TAG, "\tDevice mode: 0x%02x", data_buf);
 
-    if (ret = ft6x06_i2c_read8(FT6X36_FIRMWARE_ID_REG, &data_buf) != ESP_OK)
+    if ((ret = ft6x06_i2c_read8(FT6X36_FIRMWARE_ID_REG, &data_buf)) != ESP_OK)
         ESP_LOGE(TAG, "ft6x06_i2c_read8 err: %s", esp_err_to_name(ret)); 
     //ESP_LOGI(TAG, "\tFirmware ID: 0x%02x", data_buf);
 
-    if (ret = ft6x06_i2c_read8(FT6X36_RELEASECODE_REG, &data_buf) != ESP_OK)
+    if ((ret = ft6x06_i2c_read8(FT6X36_RELEASECODE_REG, &data_buf)) != ESP_OK)
         ESP_LOGE(TAG, "ft6x06_i2c_read8 err: %s", esp_err_to_name(ret)); 
     //ESP_LOGI(TAG, "\tRelease code: 0x%02x", data_buf);
     
     // Interrupt polling mode
-    if (ret = ft6x06_i2c_write8(FT6X36_G_MODE_REG, 0) != ESP_OK)
+    if ((ret = ft6x06_i2c_write8(FT6X36_G_MODE_REG, 0)) != ESP_OK)
        ESP_LOGE(TAG, "ft6x06_i2c_write8 err: %s", esp_err_to_name(ret)); 
 
 #if CONFIG_LV_FT6X36_COORDINATES_QUEUE
