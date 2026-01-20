@@ -151,9 +151,11 @@ static const uint8_t mask_radio_hardware[] __FLASH = {
 static const uint8_t mask_radio_sd_browser[] __FLASH = {
 #include "mask_radio_sd_browser.lbm"
 };
+#if defined(ESP_PLATFORM)
 static const uint8_t mask_radio_wifi[] __FLASH = {
 #include "mask_radio_wifi.lbm"
 };
+#endif
 static const uint8_t mask_radio_setup[] __FLASH = {
 #include "mask_radio_setup.lbm"
 };
