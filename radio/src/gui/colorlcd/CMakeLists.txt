@@ -100,8 +100,14 @@ set(GUI_SRC
   radio/radio_trainer.cpp
   radio/radio_version.cpp
   radio/radio_gps_tool.cpp
-  radio/radio_wifi.cpp
   )
+
+if(ESP_PLATFORM)
+  set(GUI_SRC
+    ${GUI_SRC}
+    radio/radio_wifi.cpp
+    )
+endif()
 
 macro(add_gui_src src)
   set(GUI_SRC
