@@ -277,14 +277,6 @@ class PageGroupHeader : public PageGroupHeaderBase
     menu->setCurrentTab(idx);
   }
 
-  void removeTab(unsigned index) override
-  {
-    auto pg = pages[index];
-    pages.erase(pages.begin() + index);
-    delete pg;
-    updateLayout();
-  }
-
   void updateLayout()
   {
     for (uint8_t i = 0; i < pages.size(); i += 1) {
@@ -328,7 +320,6 @@ void PageGroupBase::checkEvents()
   if (currentTab) {
     currentTab->checkEvents();
   }
-  ViewMain::instance()->runBackground();
 }
 
 void PageGroupBase::onClicked() { Keyboard::hide(false); }
@@ -409,7 +400,7 @@ void PageGroupBase::doKeyShortcut(event_t event)
   if (pg == QM_OPEN_QUICK_MENU) {
     if (!quickMenu) openMenu();
   } else {
-    if (QuickMenu::pageIcon(pg) == icon) {
+    if (QuickMenu::subMenuIcon(pg) == icon) {
       setCurrentTab(QuickMenu::pageIndex(pg));
     } else {
       onCancel();
@@ -471,13 +462,6 @@ PageGroup::PageGroup(EdgeTxIcon icon, const char* title, PageDef* pages) :
     storageCheck(true);
     ViewMain::instance()->updateTopbarVisibility();
   });
-}
-
-void PageGroup::removeTab(unsigned index)
-{
-  if (header->isCurrent(index))
-    setCurrentTab(max<unsigned>(0, index - 1));
-  header->removeTab(index);
 }
 
 void PageGroup::openMenu()

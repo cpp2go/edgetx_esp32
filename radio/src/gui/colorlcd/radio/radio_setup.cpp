@@ -31,6 +31,7 @@
 #include "edgetx.h"
 #include "page.h"
 #include "storage/modelslist.h"
+#include "sourcechoice.h"
 #include "tasks/mixer_task.h"
 #include "slider.h"
 #include "key_shortcuts.h"
@@ -189,6 +190,26 @@ class DateTimeWindow : public Window
   }
 };
 
+class ControlTextOverride : public StaticText
+{
+ public:
+  ControlTextOverride(Window* parent, coord_t x, coord_t y, FunctionsActive func) :
+        StaticText(parent, {x + XO, y + PAD_MEDIUM, 0, 0}, STR_SF_OVERRIDDEN, COLOR_THEME_WARNING_INDEX, FONT_SZ), func(func)
+  {
+  }
+
+  void checkEvents() override
+  {
+    show(isFunctionActive(func));
+  }
+
+  static LAYOUT_SIZE(FONT_SZ, FONT(STD), FONT(XS))
+  static LAYOUT_ORIENTATION(XO, PAD_LARGE * 12, PAD_LARGE * 8)
+
+ protected:
+  FunctionsActive func;
+};
+
 #if defined(AUDIO)
 static SetupLineDef soundPageSetupLines[] = {
   {
@@ -254,6 +275,16 @@ static SetupLineDef soundPageSetupLines[] = {
       (new Slider(parent, lv_pct(50), -2, +2,
                   GET_SET_DEFAULT(g_eeGeneral.backgroundVolume)))->setPos(x, y);
     }
+  },
+  {
+    // Volume source
+    STR_DEF(STR_CONTROL),
+    [](Window* parent, coord_t x, coord_t y) {
+      auto choice = new SourceChoice(parent, {x, y, 0, 0}, MIXSRC_NONE, MIXSRC_LAST_SWITCH,
+              GET_SET_DEFAULT(g_eeGeneral.volumeSrc), true);
+      choice->setAvailableHandler(isSourceAvailableForBacklightOrVolume);
+      new ControlTextOverride(parent, x, y, FUNCTION_VOLUME);
+      }
   },
 #if defined(KCX_BTAUDIO)
   {
@@ -495,6 +526,14 @@ class BacklightPage : public SubPage
                           GET_SET_DEFAULT(g_eeGeneral.keysBacklight));
         });
 #endif
+
+    // Backlight/Brightness source
+    setupLine(STR_CONTROL, [=](Window* parent, coord_t x, coord_t y) {
+          auto choice = new SourceChoice(parent, {x, y, 0, 0}, MIXSRC_NONE, MIXSRC_LAST_SWITCH,
+                  GET_SET_DEFAULT(g_eeGeneral.backlightSrc), true);
+          choice->setAvailableHandler(isSourceAvailableForBacklightOrVolume);
+          new ControlTextOverride(parent, x, y, FUNCTION_BACKLIGHT);
+        });
 
     // Flash beep
     setupLine(STR_ALARM, [=](Window* parent, coord_t x, coord_t y) {
@@ -813,19 +852,6 @@ static SetupLineDef setupLines[] = {
                       currentLanguagePack = languagePacks[currentLanguagePackIdx];
                       strncpy(g_eeGeneral.ttsLanguage, currentLanguagePack->id, 2);
                       SET_DIRTY();
-#if defined(ALL_LANGS)
-                      currentLangStrings = langStrings[currentLanguagePackIdx];
-                      extern void setLanguageFont(int idx);
-                      setLanguageFont(currentLanguagePackIdx);
-                      PageGroup* pg = (PageGroup*)Layer::getPageGroup();
-                      coord_t y = pg->getScrollY();
-                      pg->onCancel();
-                      QuickMenu::openPage(QM_RADIO_SETUP);
-                      pg = (PageGroup*)Layer::getPageGroup();
-                      pg->setScrollY(y);
-                      // Force QM rebuild for language change
-                      QuickMenu::shutdownQuickMenu();
-#endif
                     });
 #if !defined(ALL_LANGS)
       choice->setTextHandler(
@@ -845,6 +871,44 @@ static SetupLineDef setupLines[] = {
 #endif
     }
   },
+#if defined(ALL_LANGS)
+  {
+    // UI language
+    STR_DEF(STR_TEXT_LANGUAGE),
+    [](Window* parent, coord_t x, coord_t y) {
+      auto choice =
+          new Choice(parent, {x, y, 0, 0}, 0, DIM(languagePacks) - 2,
+                    GET_VALUE(getLanguageId(g_eeGeneral.uiLanguage)),
+                    [](uint8_t newValue) {
+                      strncpy(g_eeGeneral.uiLanguage, languagePacks[newValue]->id, 2);
+                      currentLangStrings = langStrings[newValue];
+                      extern void setLanguageFont(int idx);
+                      setLanguageFont(newValue);
+                      PageGroup* pg = (PageGroup*)Layer::getPageGroup();
+                      coord_t y = pg->getScrollY();
+                      pg->onCancel();
+                      QuickMenu::openPage(QM_RADIO_SETUP);
+                      pg = (PageGroup*)Layer::getPageGroup();
+                      pg->setScrollY(y);
+                      // Force QM rebuild for language change
+                      QuickMenu::shutdownQuickMenu();
+                      SET_DIRTY();
+                    });
+      choice->setAvailableHandler([=](int n) { return isTextLangAvail(n); });
+      choice->setTextHandler(
+          [](uint8_t value) {
+            // TODO: language name should always be in the language of the name, not
+            //       the current UI language. Needs translation characters to be
+            //       always available for all language names in the base font.
+            //       temp solution - prepend language id to name.
+            std::string s(languagePacks[value]->id);
+            s += " - ";
+            s += languagePacks[value]->name();
+            return s;
+          });
+    }
+  },
+#endif
   {
     // Imperial units
     STR_DEF(STR_UNITS_SYSTEM),

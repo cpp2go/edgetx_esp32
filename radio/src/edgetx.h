@@ -348,6 +348,7 @@ uint16_t isqrt32(uint32_t n);
 void setDefaultOwnerId();
 void generalDefault();
 void generalDefaultSwitches();
+void generalDefaultUILanguage();
 
 uint32_t hash(const void * ptr, uint32_t size);
 
@@ -434,6 +435,7 @@ enum FunctionsActive {
   FUNCTION_RACING_MODE,
   FUNCTION_DISABLE_TOUCH,
   FUNCTION_DISABLE_AUDIO_AMP,
+  FUNCTION_VOLUME,
 };
 
 #define VARIO_FREQUENCY_ZERO   700/*Hz*/
@@ -891,3 +893,6 @@ extern bool modelTelemetryEnabled();
 
 int pwrDelayFromYaml(int delay);
 int pwrDelayToYaml(int delay);
+
+void calcBacklightValue(int16_t source);
+void calcVolumeValue(int16_t source);

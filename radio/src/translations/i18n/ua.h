@@ -807,6 +807,8 @@
 #define TR_VOLUME                      "Загальна гучн."
 #define TR_LCD                         "LCD"		/*use english*/
 #define TR_BRIGHTNESS                  "Яскравість"
+#define TR_CONTROL                     "Control"
+#define TR_SF_OVERRIDDEN               "Overridden by SF/GF"
 #define TR_CPU_TEMP                    "CPU темп."
 #define TR_COPROC                      "Сопроцессор"
 #define TR_COPROC_TEMP                 "MB темп."
@@ -969,6 +971,7 @@
 #define TR_USBMODE                     "Режим USB"
 #define TR_JACK_MODE                   "Режим коннектора"
 #define TR_VOICE_LANGUAGE              "Мова голосу"
+#define TR_TEXT_LANGUAGE               "Text language"
 #define TR_UNITS_SYSTEM                "Одиниці"
 #define TR_UNITS_PPM                   "PPM одиниці"
 #define TR_EDIT                        "Редагувати"

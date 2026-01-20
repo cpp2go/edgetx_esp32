@@ -1,5 +1,5 @@
 /*
- * Copyright (C) EdgeTX
+* Copyright (C) EdgeTX
  *
  * Based on code named
  *   opentx - https://github.com/opentx/opentx
@@ -19,16 +19,19 @@
  * GNU General Public License for more details.
  */
 
-#include "layout.h"
+#include "usb_driver.h"
 
-// Zone map: 2x1 (2 columns, 1 row)
-// Each zone is 1/2 width, full height
-// clang-format off
-static const uint8_t zmap[] = {
-    LAYOUT_MAP_0,    LAYOUT_MAP_0, LAYOUT_MAP_HALF, LAYOUT_MAP_FULL,  // Left
-    LAYOUT_MAP_HALF, LAYOUT_MAP_0, LAYOUT_MAP_HALF, LAYOUT_MAP_FULL,  // Right
-};
-// clang-format on
+bool usbPluggedInStorageMode()
+{
+  return usbPlugged() && getSelectedUsbMode() == USB_MASS_STORAGE_MODE;
+}
 
-BaseLayoutFactory<Layout> Layout2x1("Layout2x1", "2 x 1", defaultLayoutOptions,
-                                    2, (uint8_t*)zmap);
+bool usbPluggedInJoystickMode()
+{
+  return usbPlugged() && getSelectedUsbMode() == USB_JOYSTICK_MODE;
+}
+
+bool usbPluggedInVCPMode()
+{
+  return usbPlugged() && getSelectedUsbMode() == USB_SERIAL_MODE;
+}

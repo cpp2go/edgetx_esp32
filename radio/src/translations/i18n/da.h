@@ -811,6 +811,8 @@
 #define TR_VOLUME                      "Lydstyrke"
 #define TR_LCD                         "LCD"
 #define TR_BRIGHTNESS                  "Skarphed"
+#define TR_CONTROL                     "Control"
+#define TR_SF_OVERRIDDEN               "Overridden by SF/GF"
 #define TR_CPU_TEMP                    "CPU temp."
 #define TR_COPROC                      "CoProc"
 #define TR_COPROC_TEMP                 TR("CoProc temp", "CoProc temp.")
@@ -973,6 +975,7 @@
 #define TR_USBMODE                     "USB tilstand"
 #define TR_JACK_MODE                   "Jack tilstand"
 #define TR_VOICE_LANGUAGE              "Stemme sprog"
+#define TR_TEXT_LANGUAGE               "Text language"
 #define TR_UNITS_SYSTEM                "Enheder"
 #define TR_UNITS_PPM                   "PPM enheder"
 #define TR_EDIT                        "Rediger"

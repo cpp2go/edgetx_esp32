@@ -77,7 +77,7 @@ RawSourceRange RawSource::getRange(const ModelData * model, const GeneralSetting
       break;
 
     case SOURCE_TYPE_GVAR: {
-      GVarData gv = model->gvarData[index];
+      GVarData gv = model->gvarData[index - 1];
       result.step = gv.multiplierGet();
       result.decimals = gv.prec;
       result.max = gv.getMaxPrec();
@@ -280,7 +280,10 @@ bool RawSource::isStick(Board::Type board) const
   return false;
 }
 
-bool RawSource::isAvailable(const ModelData * const model, const GeneralSettings * const gs, Board::Type board) const
+bool RawSource::isAvailable(const ModelData * const model,
+                            const GeneralSettings * const gs,
+                            Board::Type board,
+                            const int flags) const
 {
   if (type == SOURCE_TYPE_NONE && index == 0)
     return true;
@@ -390,6 +393,10 @@ bool RawSource::isAvailable(const ModelData * const model, const GeneralSettings
      (abs(index) > CPN_MAX_SPACEMOUSE ||
      (!(gs->serialPort[GeneralSettings::SP_AUX1] == GeneralSettings::AUX_SERIAL_SPACEMOUSE ||
         gs->serialPort[GeneralSettings::SP_AUX2] == GeneralSettings::AUX_SERIAL_SPACEMOUSE))))
+    return false;
+
+  if (type == SOURCE_TYPE_INPUT && (flags & AVAILABLE_CONTROLSRC) &&
+      Boards::isInputGyroAxis(abs(index) - 1, board))
     return false;
 
   return true;
