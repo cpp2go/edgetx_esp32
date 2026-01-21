@@ -82,6 +82,8 @@ static void board_init_i2c(void) {
 
 // keep a reference of the layouts so they do not get optimized out by compiler.
 #if 1
+#include "layout.h"
+
 extern LayoutFactory Layout1P2;
 extern LayoutFactory Layout1P3;
 extern LayoutFactory layout1x1;

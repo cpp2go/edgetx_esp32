@@ -73,12 +73,24 @@ if(INTERNAL_MODULE_MULTI OR EXTERNAL_MODULE_MULTI)
 
   add_definitions(-DUSE_MULTI_RX)
   option(DSM2 "DSM2 TX Module" ON)
-  add_definitions(-DDSM2)
+  option(DSMP "DSMP LemonRX TX Module" ON)
   option(MULTIMODULE "DIY Multiprotocol TX Module (https://github.com/pascallanger/DIY-Multiprotocol-TX-Module)" ON)
 
   add_definitions(-DMULTIMODULE)
   set(SRC ${SRC} pulses/multi.cpp telemetry/spektrum.cpp telemetry/hitec.cpp telemetry/hott.cpp telemetry/mlink.cpp telemetry/multi.cpp io/multi_firmware_update.cpp)
 endif()
+
+option(ALL_LANGUAGES "Enable runtime language selection" ON)
+
+if(DSM2)
+  add_definitions(-DDSM2)
+endif()
+
+if(DSMP)
+  add_definitions(-DDSM2)
+  add_definitions(-DDSMP)
+endif()
+
 
 set(SRC
   ${SRC}
@@ -87,8 +99,6 @@ set(SRC
   audio.cpp
   haptic.cpp
   dump.cpp
-  pulses/pulses.cpp
-  pulses/crossfire.cpp
   telemetry/telemetry.cpp
   telemetry/telemetry_sensors.cpp
   telemetry/crossfire.cpp
@@ -129,10 +139,29 @@ if(DSM2)
     )
 endif()
 
+if(DSMP)
+  set(PULSES_SRC
+    ${PULSES_SRC}
+    dsmp.cpp
+    )
+endif()
+
 if(SBUS)
   set(PULSES_SRC
     ${PULSES_SRC}
     sbus.cpp
+    )
+endif()
+
+if(CROSSFIRE)
+  add_definitions(-DCROSSFIRE)
+  set(PULSES_SRC
+    ${PULSES_SRC}
+    crossfire.cpp
+    )
+  set(SRC
+    ${SRC}
+    telemetry/crossfire.cpp
     )
 endif()
 

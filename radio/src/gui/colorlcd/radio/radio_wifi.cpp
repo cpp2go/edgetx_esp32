@@ -24,12 +24,12 @@
 #include "radio_diagkeys.h"
 #include "radio_diaganas.h"
 #include "edgetx.h"
-#include "libopenui.h"
 #include "hal/adc_driver.h"
 #include "hw_intmodule.h"
 #include "hw_extmodule.h"
 #include "hw_serial.h"
 #include "hw_inputs.h"
+#include "getset_helpers.h"
 
 #if defined(BLUETOOTH)
 #include "hw_bluetooth.h"
