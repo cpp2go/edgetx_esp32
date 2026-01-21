@@ -496,7 +496,7 @@ inline int8_t minModuleChannels(uint8_t idx)
   else if (isModuleSBUS(idx))
     return 16;
   else if (isModuleDSMP(idx))
-    return maxModuleChannels(idx);
+    return 1;  // FARZU:  module assume always start with Ch1. Was: maxModuleChannels(idx);
   else
     return 1;
 }
@@ -541,6 +541,9 @@ inline bool isModuleRxNumAvailable(uint8_t moduleIdx)
   if (isModuleCrossfire(moduleIdx))
     return true;
 
+  if (isModuleDSMP(moduleIdx)) 
+    return true;
+
   return false;
 }
 
@@ -565,6 +568,9 @@ inline bool isModuleModelIndexAvailable(uint8_t idx)
     return true;
 
   if (isModuleAFHDS3(idx))
+    return true;
+
+  if (isModuleDSMP(idx)) 
     return true;
   
   return false;

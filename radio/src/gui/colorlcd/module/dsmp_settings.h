@@ -21,19 +21,22 @@
 
 #pragma once
 
-#if !defined(BOOT)
-#include "libopenui_defines.h"
-#include "fonts.h"
 #include "window.h"
-#include "mainwindow.h"
-#include "static.h"
-#include "button.h"
-#include "toggleswitch.h"
-#include "numberedit.h"
-#include "choice.h"
-#include "textedit.h"
-#include "menu.h"
-#include "dialog.h"
-#include "getset_helpers.h"
-#include "LvglWrapper.h"
-#endif
+#include "module_setup.h"
+
+class ToggleSwitch;
+
+struct ModuleData;
+struct DSMPEnableAETR;
+
+class DSMPSettings : public Window, public ModuleOptions
+{
+  ModuleData* md;
+  uint8_t moduleIdx;
+  DSMPEnableAETR *enableAETR_line;
+
+ public:
+  DSMPSettings(Window* parent, const FlexGridLayout& g,
+                      uint8_t moduleIdx);
+  void update() override;
+};

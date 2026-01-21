@@ -215,6 +215,7 @@ class ModuleData {
 
     struct DSMP {
       unsigned int flags;
+      bool enableAETR;
     } dsmp;
 
     void clear();

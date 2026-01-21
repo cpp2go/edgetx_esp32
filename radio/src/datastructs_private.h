@@ -575,6 +575,7 @@ PACK(struct ModuleData {
     }) crsf);
     NOBACKUP(struct {
       uint8_t flags;
+      uint8_t enableAETR : 1;
     } dsmp);
 #if defined(ESPNOW)
     NOBACKUP(PACK(struct {

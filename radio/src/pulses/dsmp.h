@@ -1,5 +1,5 @@
 /*
- * Copyright (C) EdgeTX
+ * Copyright (C) EdgeTx
  *
  * Based on code named
  *   opentx - https://github.com/opentx/opentx
@@ -21,19 +21,19 @@
 
 #pragma once
 
-#include "lvgl/lvgl.h"
+#include "dsm2.h"
 
-class LvglWrapper
-{
- public:
-  static LvglWrapper* instance();
+struct DSMPModuleStatus {
+  uint8_t   version[2] = {1, 0};  // Default Version 1.0
+  tmr10ms_t lastUpdate;
+  uint8_t	ch_order   = 0xFF;
+  uint8_t	flags      = 0;
 
-  // Called from UI task: executes the LVGL timer handler 
-  void run();
-
- protected:
-  static LvglWrapper *_instance;
-
-  LvglWrapper();
-  ~LvglWrapper() {}
+  inline bool isValid() const { return (bool)(get_tmr10ms() - lastUpdate < 500);}
+  void getStatusString(char *statusText) const;
 };
+
+extern DSMPModuleStatus &getDSMPStatus(uint8_t module);
+
+// Lemon RX DSMP
+extern const etx_proto_driver_t DSMPDriver;
