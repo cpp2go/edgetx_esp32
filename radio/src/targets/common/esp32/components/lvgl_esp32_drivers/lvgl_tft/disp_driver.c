@@ -7,6 +7,7 @@
 #include "esp_lcd_backlight.h"
 #include "sdkconfig.h"
 #include "disp_mcu.h"
+#include "lvgl_helpers.h"
 
 void *disp_driver_init(void)
 {
