@@ -65,16 +65,16 @@ void wifiTask(void *pvParameters)
 {
     wifi_init_sta(ssid,passwd);
     int x = 0;
-    while ((wifiState!=WIFI_CONNECTED) && (x++ < STA_CONNECT_TMO)) {
+    while ((wifiState != WIFI_CONNECTED) && (x++ < STA_CONNECT_TMO)) {
         vTaskDelay(portTICK_PERIOD_MS);
     }
-    if(wifiState!=WIFI_CONNECTED) {
+    if (wifiState != WIFI_CONNECTED) {
         ESP_LOGW(TAG, "Timeout connecting to '%s'",g_eeGeneral.wifi_ssid);
         wifi_init_softap();
     }
     ftpServerTask(pvParameters);
     ota_server_stop();
-    if(wifiESPNow){
+    if (wifiESPNow) {
         startWiFiESPNow();
         resume_espnow();
     } else {

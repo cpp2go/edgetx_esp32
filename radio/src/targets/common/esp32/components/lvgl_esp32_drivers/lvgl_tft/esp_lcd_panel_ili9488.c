@@ -206,7 +206,7 @@ static esp_err_t panel_ili9488_init(esp_lcd_panel_t *panel)
 #endif
 	};
 
-	//Reset the display (resetÃ»½Ó)
+	//Reset the display (reset)
     //gpio_set_level(ili9488->reset_gpio_num, 1);
     //vTaskDelay(pdMS_TO_TICKS(10));
     //gpio_set_level(ili9488->reset_gpio_num, 0);
@@ -255,7 +255,8 @@ static esp_err_t panel_ili9488_init(esp_lcd_panel_t *panel)
 
     do {
         dmabuf = (uint8_t *) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color16_t), MALLOC_CAP_DMA);
-        if (dmabuf == NULL)  ESP_LOGW(TAG, "Could not allocate enough DMA memory!");
+        if (dmabuf == NULL)  
+            ESP_LOGW(TAG, "Could not allocate enough DMA memory! %d", DISP_BUF_SIZE * sizeof(lv_color16_t));
     } while (dmabuf == NULL);
     return ESP_OK;
 }

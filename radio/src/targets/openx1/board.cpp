@@ -147,14 +147,6 @@ void boardInit()
     
     audioInit();
     ads1015_adc_init();
-
-    //if (flysky_gimbal_init()) {
-    //    TRACE("Flysky Hall Gimbal detected");
-    //} else {
-    //    TRACE_ERROR("Flysky Hall Gimbal NOT detected");
-    //}
-
-    //toplcdInit();
 }
 
 void boardOff()

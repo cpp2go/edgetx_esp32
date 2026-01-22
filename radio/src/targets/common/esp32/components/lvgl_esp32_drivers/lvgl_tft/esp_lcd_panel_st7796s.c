@@ -257,7 +257,7 @@ static esp_err_t panel_st7796s_init(esp_lcd_panel_t *panel)
 
     do {
         dmabuf = (uint8_t *) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color16_t), MALLOC_CAP_DMA);
-        if (dmabuf == NULL)  ESP_LOGW(TAG, "Could not allocate enough DMA memory!");
+        if (dmabuf == NULL)  ESP_LOGW(TAG, "Could not allocate enough DMA memory! %d", DISP_BUF_SIZE * sizeof(lv_color16_t));
     } while (dmabuf == NULL);
     return ESP_OK;
 }
