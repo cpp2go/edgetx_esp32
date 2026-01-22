@@ -210,7 +210,7 @@ static esp_err_t panel_st7796s_init(esp_lcd_panel_t *panel)
 	};
 
 #if ST7796S_USE_RST
-	gpio_pad_select_gpio(ST7796S_RST);
+	gpio_reset_pin(ST7796S_RST);
 	gpio_set_direction(ST7796S_RST, GPIO_MODE_OUTPUT);
 
 	//Reset the display
@@ -274,13 +274,13 @@ static esp_err_t panel_st7796s_draw_bitmap(esp_lcd_panel_t *panel, int x_start, 
     y_end += st7796s->y_gap;
 
     // define an area of frame memory where MCU can access
-    esp_lcd_panel_io_tx_param(io, ILI9488_CMD_COLUMN_ADDRESS_SET, (uint8_t[]) {
+    esp_lcd_panel_io_tx_param(io, ST7796S_CMD_COLUMN_ADDRESS_SET, (uint8_t[]) {
         (x_start >> 8) & 0xFF,
         x_start & 0xFF,
         ((x_end - 1) >> 8) & 0xFF,
         (x_end - 1) & 0xFF,
     }, 4);
-    esp_lcd_panel_io_tx_param(io, ILI9488_CMD_PAGE_ADDRESS_SET, (uint8_t[]) {
+    esp_lcd_panel_io_tx_param(io, ST7796S_CMD_PAGE_ADDRESS_SET, (uint8_t[]) {
         (y_start >> 8) & 0xFF,
         y_start & 0xFF,
         ((y_end - 1) >> 8) & 0xFF,
@@ -289,7 +289,7 @@ static esp_err_t panel_st7796s_draw_bitmap(esp_lcd_panel_t *panel, int x_start, 
     // transfer frame buffer
     size_t len = (x_end - x_start) * (y_end - y_start) * st7796s->fb_bits_per_pixel / 8;
     memcpy(dmabuf, color_data, len);
-    esp_lcd_panel_io_tx_color(io, ILI9488_CMD_MEMORY_WRITE, dmabuf, len);
+    esp_lcd_panel_io_tx_color(io, ST7796S_CMD_MEMORY_WRITE, dmabuf, len);
 
     return ESP_OK;
 }
@@ -300,9 +300,9 @@ static esp_err_t panel_st7796s_invert_color(esp_lcd_panel_t *panel, bool invert_
     esp_lcd_panel_io_handle_t io = st7796s->io;
     int command = 0;
     if (invert_color_data) {
-        command = ILI9488_CMD_DISP_INVERSION_ON;
+        command = ST7796S_CMD_DISP_INVERSION_ON;
     } else {
-        command = ILI9488_CMD_DISP_INVERSION_OFF;
+        command = ST7796S_CMD_DISP_INVERSION_OFF;
     }
     esp_lcd_panel_io_tx_param(io, command, NULL, 0);
     return ESP_OK;
