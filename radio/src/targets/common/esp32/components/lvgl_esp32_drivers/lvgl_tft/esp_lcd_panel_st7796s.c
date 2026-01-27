@@ -253,10 +253,10 @@ static esp_err_t panel_st7796s_init(esp_lcd_panel_t *panel)
     panel_st7796s_mirror(panel, true, true);
 #endif
 
-    ESP_LOGI(TAG, "panel_st7796s_init");
+    ESP_LOGI(TAG, "panel_st7796s_init %d %d", esp_get_free_internal_heap_size(), esp_get_free_heap_size());
 
     do {
-        dmabuf = (uint8_t *) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color16_t), MALLOC_CAP_DMA);
+        dmabuf = (uint8_t *) heap_caps_malloc(DISP_BUF_SIZE * sizeof(lv_color16_t), MALLOC_CAP_DMA|MALLOC_CAP_SPIRAM);
         if (dmabuf == NULL)  ESP_LOGW(TAG, "Could not allocate enough DMA memory! %d", DISP_BUF_SIZE * sizeof(lv_color16_t));
     } while (dmabuf == NULL);
     return ESP_OK;
