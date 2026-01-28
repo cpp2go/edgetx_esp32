@@ -18,7 +18,7 @@ static const char *TAG = "lcd-mcu";
 #include "lvgl_helpers.h"
 #include "disp_mcu.h"
 
-#define MCU_LCD_PIXEL_CLOCK_HZ (40 * 1000 * 1000)
+#define MCU_LCD_PIXEL_CLOCK_HZ (10 * 1000 * 1000)
 
 static esp_lcd_i80_bus_handle_t i80_bus = NULL;
 static esp_lcd_i80_bus_config_t bus_config = {
@@ -59,7 +59,7 @@ static esp_lcd_panel_io_handle_t io_handle = NULL;
 static esp_lcd_panel_io_i80_config_t io_config = {
     .cs_gpio_num = CONFIG_LV_TFT_MCU_CS_NUM,
     .pclk_hz = MCU_LCD_PIXEL_CLOCK_HZ,
-    .trans_queue_depth = 10,
+    .trans_queue_depth = 15,
     .dc_levels = {
         .dc_idle_level = 0,
         .dc_cmd_level = 0,
