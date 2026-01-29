@@ -18,7 +18,7 @@ static const char *TAG = "lcd-mcu";
 #include "lvgl_helpers.h"
 #include "disp_mcu.h"
 
-#define MCU_LCD_PIXEL_CLOCK_HZ (10 * 1000 * 1000)
+#define MCU_LCD_PIXEL_CLOCK_HZ (20 * 1000 * 1000)
 
 static esp_lcd_i80_bus_handle_t i80_bus = NULL;
 static esp_lcd_i80_bus_config_t bus_config = {
