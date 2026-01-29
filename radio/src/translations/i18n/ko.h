@@ -369,6 +369,7 @@
 #define TR_SRC_BATT                   "배터리"
 #define TR_SRC_TIME                   "시간"
 #define TR_SRC_GPS                    "GPS"
+#define	TR_SRC_LIGHT                  "Ambient light"
 #define TR_SRC_TIMER                  "타이머"
 
 
@@ -1028,7 +1029,7 @@
 #define TR_PASTE_BEFORE                   "앞에 붙여넣기"
 #define TR_DELETE                         "삭제"
 #define TR_INSERT                         "삽입"
-#define TR_RESET_FLIGHT                   "세션 초기화"
+#define TR_RESET_SESSION                  "세션 초기화"
 #define TR_RESET_TIMER1                   "타이머1 초기화"
 #define TR_RESET_TIMER2                   "타이머2 초기화"
 #define TR_RESET_TIMER3                   "타이머3 초기화"

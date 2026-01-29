@@ -79,6 +79,10 @@
 #include "lua/custom_allocator.h"
 #endif
 
+#if defined(LUMINOSITY_SENSOR)
+#include "luminosity_sensor.h"
+#endif
+
 RadioData  g_eeGeneral;
 ModelData  g_model;
 
@@ -164,10 +168,6 @@ void checkValidMCU(void)
 #endif
 }
 
-#if defined(SIMU)
-static bool evalFSok = false;
-#endif
-
 void per10ms()
 {
   DEBUG_TIMER_START(debugTimerPer10ms);
@@ -212,12 +212,7 @@ void per10ms()
   }
 
 #if defined(FUNCTION_SWITCHES)
-#if defined(SIMU)
-  if (evalFSok)
-    evalFunctionSwitches();
-#else
   evalFunctionSwitches();
-#endif
 #endif
 
 #if defined(ROTARY_ENCODER_NAVIGATION) && !defined(COLORLCD)
@@ -237,6 +232,10 @@ void per10ms()
   if (mixWarning & 1) if(((g_tmr10ms&0xFF)==  0)) AUDIO_MIX_WARNING(1);
   if (mixWarning & 2) if(((g_tmr10ms&0xFF)== 64) || ((g_tmr10ms&0xFF)== 72)) AUDIO_MIX_WARNING(2);
   if (mixWarning & 4) if(((g_tmr10ms&0xFF)==128) || ((g_tmr10ms&0xFF)==136) || ((g_tmr10ms&0xFF)==144)) AUDIO_MIX_WARNING(3);
+#endif
+
+#if defined(LUMINOSITY_SENSOR)
+  getPeriodicLuxSensorValue();
 #endif
 
   outputTelemetryBuffer.per10ms();
@@ -759,14 +758,14 @@ void checkAll(bool isBootCheck)
     }
 
     dlg->setMessage(strKeys.c_str());
-    dlg->setCloseCondition([tgtime]() {
-      if (tgtime >= get_tmr10ms() && keyDown()) {
-        return false;
-      } else {
+    MainWindow::instance()->blockUntilClose(true, [=]() {
+      if (dlg->deleted()) return true;
+      if ((tgtime < get_tmr10ms()) || !keyDown()) {
+        dlg->deleteLater();
         return true;
       }
+      return false;
     });
-    dlg->runForever();
     LED_ERROR_END();
   }
 #else
@@ -839,9 +838,11 @@ void checkThrottleStick()
     }
     LED_ERROR_BEGIN();
     auto dialog = new ThrottleWarnDialog(throttleNotIdle);
-    dialog->runForever();
+    MainWindow::instance()->blockUntilClose(true, [=]() {
+      return dialog->deleted();
+    });
+    LED_ERROR_END();
   }
-  LED_ERROR_END();
 }
 #else
 void checkThrottleStick()
@@ -910,6 +911,7 @@ void checkAlarm() // added by Gohst
   }
 }
 
+#if !defined(COLORLCD)
 void alert(const char * title, const char * msg , uint8_t sound)
 {
   LED_ERROR_BEGIN();
@@ -951,6 +953,7 @@ void alert(const char * title, const char * msg , uint8_t sound)
 
   LED_ERROR_END();
 }
+#endif
 
 #if defined(GVARS)
 #if MAX_TRIMS == 8
@@ -1578,9 +1581,6 @@ void edgeTxInit()
 
 #if defined(FUNCTION_SWITCHES)
     setFSStartupPosition();
-#if defined(SIMU)
-    evalFSok = true;
-#endif
 #endif
 
 #if defined(GUI)
@@ -1611,6 +1611,8 @@ void edgeTxInit()
 #endif
 
   resetBacklightTimeout();
+
+  LED_ERROR_END();
 
   pulsesStart();
   WDG_ENABLE(WDG_DURATION);
@@ -1655,6 +1657,12 @@ int main()
 
   modulePortInit();
   pulsesInit();
+
+#if defined(COLORLCD)
+  // Do all lvgl init in case of fatal error on startup
+  extern void initLvgl();
+  initLvgl();
+#endif
 
 #if !defined(DISABLE_MCUCHECK)
   checkValidMCU();
@@ -2022,6 +2030,12 @@ void getMixSrcRange(const int source, int16_t & valMin, int16_t & valMax, LcdFla
     if (flags)
       *flags |= PREC1;
   }
+#if defined(LUMINOSITY_SENSOR)
+  else if (asrc == MIXSRC_LIGHT) {
+    valMax = 100;
+    valMin = -valMax;
+  }
+#endif
   else if (asrc == MIXSRC_TX_TIME) {
     valMax =  23 * 60 + 59;
     valMin = 0;
@@ -2037,4 +2051,54 @@ void getMixSrcRange(const int source, int16_t & valMin, int16_t & valMax, LcdFla
     valMin = -valMax;
   }
 }
-// trigger CI
+
+bool validateLSV2Range(LogicalSwitchData* cs, int16_t& v2_min, int16_t& v2_max, LcdFlags* lf)
+{
+  getMixSrcRange(cs->v1, v2_min, v2_max, lf);
+  if ((cs->func == LS_FUNC_APOS) || (cs->func == LS_FUNC_ANEG)) {
+    if (v2_min >= 0) {
+      // min >= 0 && max >= 0
+    } else if (v2_max < 0) {
+      // min < 0 && max < 0
+      int16_t v = v2_min;
+      v2_min = -v2_max;
+      v2_max = -v;
+    } else {
+      // min < 0 && max >= 0
+      v2_min = 0;
+    }
+  } else if (cs->func == LS_FUNC_DIFFEGREATER) {
+    // delta range (min - max) .. (max - min)
+    int16_t v = v2_min - v2_max;
+    v2_max = v2_max - v2_min;
+    v2_min = v;
+  } else if (cs->func == LS_FUNC_ADIFFEGREATER) {
+    // abs delta range 0 .. (max - min)
+    v2_max = v2_max - v2_min;
+    v2_min = 0;
+  }
+
+  bool rv = false;
+
+  if (cs->v2 < v2_min) { cs->v2 = v2_min; rv = true; }
+  else if (cs->v2 > v2_max) { cs->v2 = v2_max; rv = true; }
+
+  return rv;
+}
+
+bool validateSFGV(CustomFunctionData* cfn)
+{
+  bool rv = false;
+
+  if (CFN_FUNC(cfn) == FUNC_ADJUST_GVAR && CFN_GVAR_MODE(cfn) == FUNC_ADJUST_GVAR_CONSTANT) {
+    int16_t v = CFN_PARAM(cfn);
+    int16_t vmin, vmax;
+    getMixSrcRange(CFN_GVAR_INDEX(cfn) + MIXSRC_FIRST_GVAR, vmin, vmax);
+    if (v < vmin) v = vmin;
+    else if (v > vmax) v = vmax;
+    if (CFN_PARAM(cfn) != v) rv = true;
+    CFN_PARAM(cfn) = v;
+  }
+
+  return rv;
+}

@@ -19,12 +19,11 @@
  * GNU General Public License for more details.
  */
 
-#pragma once
+#ifndef _USB_DESCRIPTOR_H_
+#define _USB_DESCRIPTOR_H_
 
-#include "page.h"
+#define USB_NAME                     "TX16SMK3"
+#define USB_MANUFACTURER             'R', 'M', ' ', ' ', ' ', ' ', ' ', ' '  /* 8 bytes */
+#define USB_PRODUCT                  'T', 'X', '1', '6', 'S', 'M', 'K', '3'  /* 8 Bytes */
 
-class ThrottleParams : public SubPage
-{
- public:
-  ThrottleParams();
-};
+#endif // _USB_DESCRIPTOR_H_

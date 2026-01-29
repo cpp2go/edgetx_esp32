@@ -65,6 +65,7 @@ namespace Board {
     BOARD_JUMPER_T15PRO,
     BOARD_JUMPER_T16,
     BOARD_RADIOMASTER_TX16S,
+    BOARD_RADIOMASTER_TX16SMK3,
     BOARD_RADIOMASTER_TX15,
     BOARD_JUMPER_T18,
     BOARD_JUMPER_T20,
@@ -211,15 +212,13 @@ namespace Board {
 
   enum Capability {
     Air,
-    FactoryInstalledPots,
-    FactoryInstalledSwitches,
     FlexInputs,
     FlexSwitches,
-    FunctionSwitches,
     FunctionSwitchColors,
+    FunctionSwitches,
     FunctionSwitchGroups,
-    Gyros,
     GyroAxes,
+    Gyros,
     HasAudioMuteGPIO,
     HasBacklightColor,
     HasColorLcd,
@@ -227,22 +226,21 @@ namespace Board {
     HasIMU,
     HasInternalModuleSupport,
     HasIntModuleHeartbeatGPIO,
-    HasLedStripGPIO,
+    HasBlingLEDS,
     HasRTC,
     HasSDCard,
     HasTrainerModuleCPPM,
     HasTrainerModuleSBUS,
     HasVBat,
-    LcdOLED,
-    LcdDepth,
-    LcdHeight,
-    LcdWidth,
-    MaxAnalogs,
     Inputs,
     InputSwitches,
-    Joysticks,
     JoystickAxes,
+    Joysticks,
     Keys,
+    LcdDepth,
+    LcdHeight,
+    LcdOLED,
+    LcdWidth,
     MultiposPots,
     MultiposPotsPositions,
     NumFunctionSwitchesPositions,
@@ -572,6 +570,11 @@ inline bool IS_RADIOMASTER_TX16S(Board::Type board)
   return board == Board::BOARD_RADIOMASTER_TX16S;
 }
 
+inline bool IS_RADIOMASTER_TX16SMK3(Board::Type board)
+{
+  return board == Board::BOARD_RADIOMASTER_TX16SMK3;
+}
+
 inline bool IS_RADIOMASTER_TX15(Board::Type board)
 {
   return board == Board::BOARD_RADIOMASTER_TX15;
@@ -634,13 +637,14 @@ inline bool IS_HELLORADIOSKY_V16(Board::Type board)
 
 inline bool IS_FAMILY_T16(Board::Type board)
 {
-  return board == Board::BOARD_JUMPER_T15 ||
+  return board == Board::BOARD_FATFISH_F16 ||
+         board == Board::BOARD_HELLORADIOSKY_V16 ||
+         board == Board::BOARD_JUMPER_T15 ||
          board == Board::BOARD_JUMPER_T16 ||
          board == Board::BOARD_JUMPER_T18 ||
+         board == Board::BOARD_RADIOMASTER_TX15 ||
          board == Board::BOARD_RADIOMASTER_TX16S ||
-         board == Board::BOARD_FATFISH_F16 ||
-         board == Board::BOARD_HELLORADIOSKY_V16 ||
-         board == Board::BOARD_RADIOMASTER_TX15;
+         board == Board::BOARD_RADIOMASTER_TX16SMK3;
 }
 
 inline bool IS_FAMILY_T12(Board::Type board)
@@ -851,4 +855,9 @@ inline bool IS_STM32H7(Board::Type board)
          IS_FLYSKY_ST16(board) ||
          IS_JUMPER_T15PRO(board) ||
          IS_RADIOMASTER_TX15(board);
+}
+
+inline bool IS_STM32F2F4(Board::Type board)
+{
+  return (!IS_STM32H5(board) && !IS_STM32H7(board));
 }

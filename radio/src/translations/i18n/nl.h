@@ -371,6 +371,7 @@
 #define TR_SRC_BATT                    "Batt"
 #define TR_SRC_TIME                    "Time"
 #define TR_SRC_GPS                     "GPS"
+#define	TR_SRC_LIGHT                   "Ambient light"
 #define TR_SRC_TIMER                   "Tmr"
 
 #define TR_VTMRMODES_1                 "UIT"
@@ -980,7 +981,7 @@
 #define TR_PASTE_BEFORE                "Paste Before"
 #define TR_DELETE              "Verwijderen"
 #define TR_INSERT              "Invoegen"
-#define TR_RESET_FLIGHT        "Reset Vliegdata"
+#define TR_RESET_SESSION       "Reset Vliegdata"
 #define TR_RESET_TIMER1        "Reset Timer1"
 #define TR_RESET_TIMER2        "Reset Timer2"
 #define TR_RESET_TIMER3        "Reset Timer3"

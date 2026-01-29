@@ -854,7 +854,7 @@
 #define STR_REPEAT_AT_ZERO currentLangStrings->STR_REPEAT_AT_ZERO
 #define STR_REPEAT currentLangStrings->STR_REPEAT
 #define STR_RESET_BTN currentLangStrings->STR_RESET_BTN
-#define STR_RESET_FLIGHT currentLangStrings->STR_RESET_FLIGHT
+#define STR_RESET_SESSION currentLangStrings->STR_RESET_SESSION
 #define STR_RESET_SUBMENU currentLangStrings->STR_RESET_SUBMENU
 #define STR_RESET_TELEMETRY currentLangStrings->STR_RESET_TELEMETRY
 #define STR_RESET_TIMER1 currentLangStrings->STR_RESET_TIMER1
@@ -946,6 +946,7 @@
 #define STR_SPORT_UPDATE_POWER_MODE currentLangStrings->STR_SPORT_UPDATE_POWER_MODE
 #define STR_SRC_BATT currentLangStrings->STR_SRC_BATT
 #define STR_SRC_GPS currentLangStrings->STR_SRC_GPS
+#define STR_SRC_LIGHT currentLangStrings->STR_SRC_LIGHT
 #define STR_SRC_TIME currentLangStrings->STR_SRC_TIME
 #define STR_SRC_TIMER currentLangStrings->STR_SRC_TIMER
 #define STR_STACK_AUDIO currentLangStrings->STR_STACK_AUDIO

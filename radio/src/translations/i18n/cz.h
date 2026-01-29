@@ -372,6 +372,7 @@
 #define TR_SRC_BATT                    "Bat."
 #define TR_SRC_TIME                    "Čas"
 #define TR_SRC_GPS                     "GPS"
+#define	TR_SRC_LIGHT                   "Ambient light"
 #define TR_SRC_TIMER                   "Čas"
 
 #define TR_VTMRMODES_1                 "VYP"
@@ -982,7 +983,7 @@
 #define TR_PASTE_BEFORE                "Vložit před"
 #define TR_DELETE                      "Odstranit"
 #define TR_INSERT                      "Přidat"
-#define TR_RESET_FLIGHT                "Reset relace"
+#define TR_RESET_SESSION               "Reset relace"
 #define TR_RESET_TIMER1                "Čas1"
 #define TR_RESET_TIMER2                "Čas2"
 #define TR_RESET_TIMER3                "Čas3"

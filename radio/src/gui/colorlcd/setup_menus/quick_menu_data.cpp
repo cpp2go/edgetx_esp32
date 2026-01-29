@@ -117,7 +117,7 @@ const PageDef statsMenuItems[] = {
   { EDGETX_ICONS_COUNT }
 };
 
-const QMTopDef qmTopItems[] = {
+const QMMainDef qmTopItems[] = {
   { ICON_MODEL_SELECT, STR_DEF(STR_QM_MANAGE_MODELS), STR_DEF(STR_MANAGE_MODELS), QM_ACTION, QM_MANAGE_MODELS, nullptr, []() { new ModelLabelsWindow(); }},
   { ICON_MODEL_NOTES, STR_DEF(STR_MAIN_MENU_MODEL_NOTES), STR_DEF(STR_MAIN_MENU_MODEL_NOTES), QM_ACTION, QM_NONE, nullptr, []() { QuickMenu::openPage(QM_MODEL_NOTES); }, modelHasNotes},
   { ICON_MONITOR, STR_DEF(STR_QM_CHAN_MON), STR_DEF(STR_QM_CHAN_MON), QM_ACTION, QM_TOOLS_CHAN_MON, nullptr, []() { new ChannelsViewMenu(); }
@@ -128,7 +128,7 @@ const QMTopDef qmTopItems[] = {
   { ICON_TOOLS_RESET, STR_DEF(STR_QM_RESET), STR_DEF(STR_QM_RESET), QM_ACTION, QM_TOOLS_RESET, nullptr,
     []() {
       Menu* resetMenu = new Menu();
-      resetMenu->addLine(STR_RESET_FLIGHT, []() { flightReset(); });
+      resetMenu->addLine(STR_RESET_SESSION, []() { flightReset(); });
       resetMenu->addLine(STR_RESET_TIMER1, []() { timerReset(0); });
       resetMenu->addLine(STR_RESET_TIMER2, []() { timerReset(1); });
       resetMenu->addLine(STR_RESET_TIMER3, []() { timerReset(2); });
@@ -169,7 +169,7 @@ const PageDef toolsMenuItems[] = {
   { ICON_TOOLS_RESET, STR_DEF(STR_QM_RESET), STR_DEF(STR_QM_RESET), PAGE_ACTION, QM_TOOLS_RESET, nullptr, nullptr,
     []() {
       Menu* resetMenu = new Menu();
-      resetMenu->addLine(STR_RESET_FLIGHT, []() { flightReset(); });
+      resetMenu->addLine(STR_RESET_SESSION, []() { flightReset(); });
       resetMenu->addLine(STR_RESET_TIMER1, []() { timerReset(0); });
       resetMenu->addLine(STR_RESET_TIMER2, []() { timerReset(1); });
       resetMenu->addLine(STR_RESET_TIMER3, []() { timerReset(2); });
@@ -183,7 +183,7 @@ const PageDef toolsMenuItems[] = {
   { EDGETX_ICONS_COUNT }
 };
 
-const QMTopDef qmTopItems[] = {
+const QMMainDef qmTopItems[] = {
   { ICON_QM_FAVORITES, STR_DEF(STR_FAVORITE_LABEL), STR_DEF(STR_FAVORITE_LABEL), QM_SUBMENU, QM_NONE, favoritesMenuItems, nullptr, []() { return favoritesMenuItems[0].icon != EDGETX_ICONS_COUNT; }},
   { ICON_MODEL_SELECT, STR_DEF(STR_QM_MANAGE_MODELS), STR_DEF(STR_MANAGE_MODELS), QM_ACTION, QM_MANAGE_MODELS, nullptr, []() { new ModelLabelsWindow(); }},
   { ICON_MODEL, STR_DEF(STR_QM_MODEL_SETUP), STR_DEF(STR_MAIN_MENU_MODEL_SETTINGS), QM_SUBMENU, QM_NONE, modelMenuItems},

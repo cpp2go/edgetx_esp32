@@ -370,6 +370,7 @@
 #define TR_SRC_BATT                    "Batt"
 #define TR_SRC_TIME                    "Time"
 #define TR_SRC_GPS                     "GPS"
+#define	TR_SRC_LIGHT                   "Ambient light"
 #define TR_SRC_TIMER                   "Tmr"
 
 #define TR_VTMRMODES_1                 "OFF"
@@ -983,7 +984,7 @@
 #define TR_PASTE_BEFORE                "前に貼り付け"
 #define TR_DELETE                      "削除"
 #define TR_INSERT                      "挿入"
-#define TR_RESET_FLIGHT                "飛行記録リセット"
+#define TR_RESET_SESSION               "飛行記録リセット"
 #define TR_RESET_TIMER1                "タイマー1 リセット"
 #define TR_RESET_TIMER2                "タイマー2 リセット"
 #define TR_RESET_TIMER3                "タイマー3 リセット"

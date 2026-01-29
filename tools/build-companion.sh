@@ -25,7 +25,7 @@ if [[ "$CMAKE_GENERATOR" == "Ninja" ]]; then
     QUIET_FLAGS="-- --quiet"
 else
     # Assume Makefile generator for non-Ninja builds
-    COMMON_OPTIONS="-DCMAKE_RULE_MESSAGES=OFF"
+    COMMON_OPTIONS="${COMMON_OPTIONS} -DCMAKE_RULE_MESSAGES=OFF"
 fi
 
 COMMON_OPTIONS="${COMMON_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DCMAKE_MESSAGE_LOG_LEVEL=WARNING -Wno-dev -DGVARS=YES -DHELI=YES -DLUA=YES"
@@ -219,7 +219,7 @@ declare -a simulator_plugins=(
     t8 t12 t12max tx12 tx12mk2 t15 t15pro t16 t18 t20 t20v2
     xlite xlites
     x10 x10express x12s
-    zorro tx16s tx15
+    zorro tx16s tx16smk3 tx15
     commando8 boxer pocket mt12 gx12
     tlite tpro tprov2 tpros bumblebee lr3pro t14
     nv14 el18 pl18 pl18ev pl18u st16 pa01

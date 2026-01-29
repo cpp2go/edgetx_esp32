@@ -1,5 +1,5 @@
 /*
- * Copyright (C) EdgeTX
+* Copyright (C) EdgeTX
  *
  * Based on code named
  *   opentx - https://github.com/opentx/opentx
@@ -19,14 +19,10 @@
  * GNU General Public License for more details.
  */
 
+#include <stdint.h>
+#include "edgetx_types.h"
+
 #pragma once
 
-#include "page.h"
-
-class TrimsSetup : public SubPage
-{
- public:
-  TrimsSetup();
-
-  static LAYOUT_VAL_SCALED(HATSMODE_W, 120)
-};
+bool getPeriodicLuxSensorValue();
+uint16_t getLuxSensorValue();

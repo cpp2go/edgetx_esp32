@@ -262,6 +262,9 @@ static struct sourceAvailableCheck sourceChecks[] = {
 #if defined(IMU)
   { MIXSRC_TILT_X, MIXSRC_TILT_Y, SRC_TILT, sourceIsAvailable },
 #endif
+#if defined(LUMINOSITY_SENSOR)
+  { MIXSRC_LIGHT, MIXSRC_LIGHT, SRC_LIGHT, sourceIsAvailable },
+#endif
 #if defined(PCBHORUS)
   { MIXSRC_FIRST_SPACEMOUSE, MIXSRC_LAST_SPACEMOUSE, SRC_SPACEMOUSE, isSourceSpacemouseAvailable },
 #endif
@@ -298,7 +301,7 @@ bool checkSourceAvailable(int source, uint32_t sourceTypes)
 }
 
 #define SRC_COMMON \
-            SRC_STICK | SRC_POT | SRC_TILT | SRC_SPACEMOUSE | SRC_MINMAX | SRC_TRIM | \
+            SRC_STICK | SRC_POT | SRC_TILT | SRC_LIGHT | SRC_SPACEMOUSE | SRC_MINMAX | SRC_TRIM | \
             SRC_SWITCH | SRC_FUNC_SWITCH | SRC_LOGICAL_SWITCH | SRC_TRAINER | SRC_GVAR
 
 bool isSourceAvailable(int source)
@@ -310,7 +313,7 @@ bool isSourceAvailable(int source)
 
 bool isSourceAvailableForBacklightOrVolume(int source)
 {
-  return checkSourceAvailable(source, SRC_SWITCH | SRC_POT | SRC_NONE);
+  return checkSourceAvailable(source, SRC_SWITCH | SRC_POT | SRC_LIGHT | SRC_NONE);
 }
 
 bool isLogicalSwitchAvailable(int index)
@@ -718,32 +721,28 @@ bool isSourceAvailableInResetSpecialFunction(int index)
 
 class AntennaSelectionMenu : public Menu
 {
-  bool& done;
-
-public:
-  AntennaSelectionMenu(bool& done) : Menu(), done(done) {
+ public:
+  AntennaSelectionMenu() : Menu()
+  {
     setTitle(STR_ANTENNA);
     addLine(STR_USE_INTERNAL_ANTENNA,
             [] { globalData.externalAntennaEnabled = false; });
     addLine(STR_USE_EXTERNAL_ANTENNA,
             [] { globalData.externalAntennaEnabled = true; });
-    setCloseHandler([=]() { this->done = true; });
     setCloseWhenClickOutside(false);
   }
-protected:
+
+ protected:
   void onCancel() override {}
 };
 
 static void runAntennaSelectionMenu()
 {
-  bool finished = false;
-  new AntennaSelectionMenu(finished);
+  auto menu = new AntennaSelectionMenu();
 
-  while (!finished) {
-    WDG_RESET();
-    MainWindow::instance()->run();
-    sleep_ms(20);
-  }
+  MainWindow::instance()->blockUntilClose(true, [=]() {
+    return menu->deleted();
+  });
 }
 #else
 void onAntennaSelection(const char* result)
