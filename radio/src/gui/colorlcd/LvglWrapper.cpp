@@ -381,6 +381,9 @@ void LvglWrapper::run()
   }
 }
 
+#if defined(ESP_PLATFORM)
+extern "C" 
+#endif
 void initLvgl()
 {
   LvglWrapper::instance();

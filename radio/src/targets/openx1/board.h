@@ -170,7 +170,6 @@ void audioConsumeCurrentBuffer();
 #define DEBUG_BAUDRATE                  115200
 #define LUA_DEFAULT_BAUDRATE            115200
 
-#define LCD_DEPTH                       16
 void lcdRefresh();
 bool touchPanelInit(void);
 

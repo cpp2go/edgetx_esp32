@@ -23,6 +23,7 @@
 
 #define LCD_W                           480
 #define LCD_H                           320
+#define LCD_DEPTH                       16
 
 #define ADC_MAIN                        HAL_GIMBAL
 #define ADC_SAMPTIME                    1
