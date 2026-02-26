@@ -76,6 +76,7 @@
 #define STR_FILE_SIZE currentLangStrings->STR_FILE_SIZE
 #define STR_FILL_BACKGROUND currentLangStrings->STR_FILL_BACKGROUND
 #define STR_FIRST_CHANNEL currentLangStrings->STR_FIRST_CHANNEL
+#define STR_LAST_CHANNEL currentLangStrings->STR_LAST_CHANNEL
 #define STR_FIXED currentLangStrings->STR_FIXED
 #define STR_FLASH_DEVICE currentLangStrings->STR_FLASH_DEVICE
 #define STR_FLIGHT_MODE currentLangStrings->STR_FLIGHT_MODE
@@ -112,7 +113,6 @@
 #define STR_MAIN_MENU_THEMES currentLangStrings->STR_MAIN_MENU_THEMES
 #define STR_MAIN_MODEL_SETTINGS currentLangStrings->STR_MAIN_MODEL_SETTINGS
 #define STR_MAIN_RADIO_SETTINGS currentLangStrings->STR_MAIN_RADIO_SETTINGS
-#define STR_MANAGE_MODELS currentLangStrings->STR_MANAGE_MODELS
 #define STR_MEM_USED_EXTRA currentLangStrings->STR_MEM_USED_EXTRA
 #define STR_MEM_USED_SCRIPT currentLangStrings->STR_MEM_USED_SCRIPT
 #define STR_MEM_USED_WIDGET currentLangStrings->STR_MEM_USED_WIDGET
@@ -504,6 +504,8 @@
 #define STR_DELETE_ERROR currentLangStrings->STR_DELETE_ERROR
 #define STR_DELETE_FILE currentLangStrings->STR_DELETE_FILE
 #define STR_DELETE_MODEL currentLangStrings->STR_DELETE_MODEL
+#define STR_DELETE_INPUT_LINE currentLangStrings->STR_DELETE_INPUT_LINE
+#define STR_DELETE_MIX_LINE currentLangStrings->STR_DELETE_MIX_LINE
 #define STR_DELETE currentLangStrings->STR_DELETE
 #define STR_DELETEMODEL currentLangStrings->STR_DELETEMODEL
 #define STR_DEVICE_DATA_REFUSED currentLangStrings->STR_DEVICE_DATA_REFUSED

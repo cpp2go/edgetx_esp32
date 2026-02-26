@@ -743,7 +743,6 @@
 #define TR_CURRENT_CALIB                "전류 보정"
 #define TR_VOLTAGE                      TR("전압", "전압 소스")
 #define TR_SELECT_MODEL                 "모델 선택"
-#define TR_MANAGE_MODELS                "모델 관리"
 #define TR_MODELS                       "모델"
 #define TR_SELECT_MODE                  "모드 선택"
 #define TR_CREATE_MODEL                 "모델 생성"
@@ -772,7 +771,8 @@
 #define TR_DELETE_MODEL                   "모델 삭제"
 #define TR_RESTORE_MODEL                  "모델 복원"
 #define TR_DELETE_ERROR                   "삭제 오류"
-
+#define TR_DELETE_INPUT_LINE           "Delete input line"
+#define TR_DELETE_MIX_LINE             "Delete mix line"
 #define TR_SDCARD_ERROR                   TR("SD 오류", "SD카드 오류")
 #define TR_SDCARD                         "SD 카드"
 #define TR_NO_FILES_ON_SD                 "SD 카드에 파일 없음!"
@@ -1186,6 +1186,7 @@
 
   // Horus layouts and widgets
 #define TR_FIRST_CHANNEL                "첫 번째 채널"
+#define TR_LAST_CHANNEL              "Last channel"
 #define TR_FILL_BACKGROUND              "배경 채우기?"
 #define TR_BG_COLOR                     "배경 색상"
 #define TR_SLIDERS_TRIMS                "슬라이더 + 트림"

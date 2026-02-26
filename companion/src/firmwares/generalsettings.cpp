@@ -426,7 +426,8 @@ void GeneralSettings::convert(RadioDataConversionState & cstate)
   }
 
   if (IS_TARANIS(cstate.toType)) {
-    contrast = qBound<int>(getCurrentFirmware()->getCapability(MinContrast), contrast, getCurrentFirmware()->getCapability(MaxContrast));
+    contrast = qBound<int>(Boards::getCapability(cstate.toType, Board::MinContrast),
+               contrast, Boards::getCapability(cstate.toType, Board::MaxContrast));
   }
 
   // TODO: Would be nice at this point to have GUI pause and ask the user to set up any custom hardware they have on the destination radio.
@@ -1060,6 +1061,9 @@ QString GeneralSettings::quickMenuToString(int value, bool keys)
       return tr("Tools - Statistics");
     case QM_TOOLS_DEBUG:
       return tr("Tools - Debug");
+    // Lua stand alone script
+    case QM_APP:
+      return tr("App");
     default:
       return CPN_STR_UNKNOWN_ITEM;
   }

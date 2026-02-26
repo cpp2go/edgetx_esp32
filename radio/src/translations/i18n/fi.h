@@ -710,7 +710,6 @@
 #define TR_CURRENT_CALIB               "Current Calib"
 #define TR_VOLTAGE                     "Jännite"
 #define TR_SELECT_MODEL                "Select Model"
-#define TR_MANAGE_MODELS               "MODEL MANAGER"
 #define TR_MODELS                      "Models"
 #define TR_SELECT_MODE                 "Select mode"
 #define TR_CREATE_MODEL                "Create Model"
@@ -738,6 +737,8 @@
 #define TR_DELETE_MODEL                "Delete Model"
 #define TR_RESTORE_MODEL               "Restore Model"
 #define TR_DELETE_ERROR                "Delete error"
+#define TR_DELETE_INPUT_LINE           "Delete input line"
+#define TR_DELETE_MIX_LINE             "Delete mix line"
 #define TR_SDCARD_ERROR                "SDCARD Error"
 #define TR_SDCARD                      "SD Card"
 #define TR_NO_FILES_ON_SD              "No files on SD!"
@@ -1135,6 +1136,7 @@
 
 // Horus layouts and widgets
 #define TR_FIRST_CHANNEL             "First channel"
+#define TR_LAST_CHANNEL              "Last channel"
 #define TR_FILL_BACKGROUND           "Fill background?"
 #define TR_BG_COLOR                  "BG Color"
 #define TR_SLIDERS_TRIMS             "Sliders+Trims"

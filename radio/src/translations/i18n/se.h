@@ -715,7 +715,6 @@
 #define TR_CURRENT_CALIB                "Kalib. ström"
 #define TR_VOLTAGE                      "Volt"
 #define TR_SELECT_MODEL                 "Välj modell"
-#define TR_MANAGE_MODELS                "MODELLHANTERING"
 #define TR_MODELS                       "Modeller"
 #define TR_SELECT_MODE                  "Välj läge"
 #define TR_CREATE_MODEL                 "Skapa modell"
@@ -743,6 +742,8 @@
 #define TR_DELETE_MODEL                 "Radera modell"
 #define TR_RESTORE_MODEL                "Återställ modell"
 #define TR_DELETE_ERROR                 "Raderingsfel"
+#define TR_DELETE_INPUT_LINE           "Delete input line"
+#define TR_DELETE_MIX_LINE             "Delete mix line"
 #define TR_SDCARD_ERROR                 "SD-kortfel"
 #define TR_SDCARD                       "SD-kort"
 #define TR_NO_FILES_ON_SD               "Inga filer på SD!"
@@ -1146,6 +1147,7 @@
 
 // Horus layouts and widgets
 #define TR_FIRST_CHANNEL                "Första kanal"
+#define TR_LAST_CHANNEL              "Last channel"
 #define TR_FILL_BACKGROUND              "Fyll bakgrund?"
 #define TR_BG_COLOR                     "Bakgrundsfärg"
 #define TR_SLIDERS_TRIMS                "Reglage+Trimmar"

@@ -203,8 +203,6 @@ void Widget::onCancel()
   if (!fullscreen) ButtonBase::onCancel();
 }
 
-void Widget::update() {}
-
 void Widget::setFullscreen(bool enable)
 {
   if (!!parent->isTopBar() || (enable == fullscreen)) return;
@@ -212,8 +210,8 @@ void Widget::setFullscreen(bool enable)
   fullscreen = enable;
 
   // Show or hide ViewMain widgets and decorations
-  Messaging::send(Messaging::DECORATION_UPDATE);
   ViewMain::instance()->show(!enable);
+  Messaging::send(Messaging::DECORATION_UPDATE);
 
   // Leave Fullscreen Mode
   if (!enable) {
@@ -252,7 +250,8 @@ void Widget::setFullscreen(bool enable)
 
   onFullscreen(enable);
 
-  update();
+  if (fullscreen)
+    updateWithoutRefresh();
 }
 
 bool Widget::onLongPress()
@@ -377,6 +376,7 @@ Widget* WidgetFactory::create(Window* parent, const rect_t& rect,
     parseOptionDefaults();
   }
   if (options) {
+    checkOptions(screenNum, zoneNum);
     int i = 0;
     for (const WidgetOption* option = options; option->name; option++, i++) {
       TRACE("WidgetFactory::create() setting option '%s'", option->name);

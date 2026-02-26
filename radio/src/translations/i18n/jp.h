@@ -714,7 +714,6 @@
 #define TR_CURRENT_CALIB               "現在のキャリブレーション"
 #define TR_VOLTAGE                     TR("Voltage", "電圧ソース")
 #define TR_SELECT_MODEL                "モデル選択"
-#define TR_MANAGE_MODELS               "モデル管理"
 #define TR_MODELS                      "モデル"
 #define TR_SELECT_MODE                 "モード選択"
 #define TR_CREATE_MODEL                "モデル作成"
@@ -742,6 +741,8 @@
 #define TR_DELETE_MODEL                "モデル削除"
 #define TR_RESTORE_MODEL               "モデル復元"
 #define TR_DELETE_ERROR                "削除エラー"
+#define TR_DELETE_INPUT_LINE           "Delete input line"
+#define TR_DELETE_MIX_LINE             "Delete mix line"
 #define TR_SDCARD_ERROR                TR("SD error", "SDカードエラー")
 #define TR_SDCARD                      "SDカード"
 #define TR_NO_FILES_ON_SD              "SDにファイルがありません!!"
@@ -1134,6 +1135,7 @@
 
 // Horus layouts and widgets
 #define TR_FIRST_CHANNEL             "第1チャンネル"
+#define TR_LAST_CHANNEL              "Last channel"
 #define TR_FILL_BACKGROUND           "背景を塗り潰しますか？"
 #define TR_BG_COLOR                  "背景カラー"
 #define TR_SLIDERS_TRIMS             "スライダー＋トリム"

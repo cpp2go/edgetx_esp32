@@ -715,7 +715,6 @@
 #define TR_CURRENT_CALIB               "电流校准"
 #define TR_VOLTAGE                     TR("电压源", "电压来源")
 #define TR_SELECT_MODEL                "选择模型"
-#define TR_MANAGE_MODELS               "模型管理"
 #define TR_MODELS                      "个模型"
 #define TR_SELECT_MODE                 "选择模式"
 #define TR_CREATE_MODEL                "创建模型"
@@ -743,6 +742,8 @@
 #define TR_DELETE_MODEL                "删除模型"
 #define TR_RESTORE_MODEL               "恢复模型"
 #define TR_DELETE_ERROR                "删除失败"
+#define TR_DELETE_INPUT_LINE           "Delete input line"
+#define TR_DELETE_MIX_LINE             "Delete mix line"
 #define TR_SDCARD_ERROR                TR("存储卡错误", "存储卡错误")
 #define TR_SDCARD                      "存储卡"
 #define TR_NO_FILES_ON_SD              "存储卡中没有文件!"
@@ -1135,6 +1136,7 @@
 
 // Horus layouts and widgets
 #define TR_FIRST_CHANNEL             "起始通道"
+#define TR_LAST_CHANNEL              "Last channel"
 #define TR_FILL_BACKGROUND           "是否填充背景?"
 #define TR_BG_COLOR                  "背景颜色"
 #define TR_SLIDERS_TRIMS             "滑块和微调"

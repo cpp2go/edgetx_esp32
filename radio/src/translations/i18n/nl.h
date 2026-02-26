@@ -712,7 +712,6 @@
 #define TR_CURRENT_CALIB       "Stroom Calib"
 #define TR_VOLTAGE             TR("Spg", "Spanningsbron")  //9XR-Pro
 #define TR_SELECT_MODEL        "Kies Model"
-#define TR_MANAGE_MODELS               "MODEL MANAGER"
 #define TR_MODELS              "Models"
 #define TR_SELECT_MODE         "Select mode"
 #define TR_CREATE_MODEL        "Nieuw Model"
@@ -740,6 +739,8 @@
 #define TR_DELETE_MODEL        "Wis Model"
 #define TR_RESTORE_MODEL       "Model Terugzetten"
 #define TR_DELETE_ERROR        "Fout bij verwijderen"
+#define TR_DELETE_INPUT_LINE           "Delete input line"
+#define TR_DELETE_MIX_LINE             "Delete mix line"
 #define TR_SDCARD_ERROR        "SD-Kaart fout"
 #define TR_SDCARD              "SD Card"
 #define TR_NO_FILES_ON_SD      "No files on SD!"
@@ -1136,6 +1137,7 @@
 
 // Horus layouts and widgets
 #define TR_FIRST_CHANNEL             "First channel"
+#define TR_LAST_CHANNEL              "Last channel"
 #define TR_FILL_BACKGROUND           "Fill background?"
 #define TR_BG_COLOR                  "BG Color"
 #define TR_SLIDERS_TRIMS             "Sliders+Trims"
