@@ -1,0 +1,292 @@
+{
+  "adc_inputs": {
+    "adcs": [
+      {
+        "name": "MAIN",
+        "adc": "HAL_GIMBAL",
+        "dma": null,
+        "sample_time": 1
+      },
+      {
+        "name": "EXT",
+        "adc": 2,
+        "dma": null,
+        "sample_time": 30
+      }
+    ],
+    "inputs": [
+      {
+        "name": "LH",
+        "type": "STICK",
+        "adc": "MAIN",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_1",
+        "channel": 0
+      },
+      {
+        "name": "LV",
+        "type": "STICK",
+        "adc": "MAIN",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_0",
+        "channel": 0
+      },
+      {
+        "name": "RV",
+        "type": "STICK",
+        "adc": "MAIN",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_2",
+        "channel": 0
+      },
+      {
+        "name": "RH",
+        "type": "STICK",
+        "adc": "MAIN",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_3",
+        "channel": 0
+      },
+      {
+        "name": "P1",
+        "type": "FLEX",
+        "adc": "EXT",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_0",
+        "channel": 1,
+        "label": "F1",
+        "short_label": "F1",
+        "default": "POT"
+      },
+      {
+        "name": "P2",
+        "type": "FLEX",
+        "adc": "EXT",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_1",
+        "channel": 1,
+        "label": "F2",
+        "short_label": "F2",
+        "default": "POT"
+      },
+      {
+        "name": "VBAT",
+        "type": "VBAT",
+        "adc": "EXT",
+        "gpio": null,
+        "pin": "ADS1X15_REG_CONFIG_MUX_SINGLE_2",
+        "channel": 1
+      },
+      {
+        "name": "RTC_BAT",
+        "type": "RTC_BAT",
+        "adc": "EXT",
+        "gpio": null,
+        "pin": null,
+        "channel": 1
+      }
+    ]
+  },
+  "switches": [
+    {
+      "name": "SA",
+      "type": "2POS",
+      "flags": 0,
+      "inverted": false,
+      "default": "2POS",
+      "display": null,
+      "gpio": 3,
+      "pin": 0,
+      "is_cfs": false
+    },
+    {
+      "name": "SB",
+      "type": "2POS",
+      "flags": 0,
+      "inverted": false,
+      "default": "2POS",
+      "display": null,
+      "gpio": 3,
+      "pin": 1,
+      "is_cfs": false
+    },
+    {
+      "name": "SC",
+      "type": "3POS",
+      "flags": 0,
+      "inverted": false,
+      "default": "3POS",
+      "display": null,
+      "gpio_high": 3,
+      "pin_high": 3,
+      "gpio_low": 3,
+      "pin_low": 2,
+      "is_cfs": false
+    },
+    {
+      "name": "SD",
+      "type": "3POS",
+      "flags": 0,
+      "inverted": false,
+      "default": "2POS",
+      "display": null,
+      "gpio_high": 3,
+      "pin_high": 5,
+      "gpio_low": 3,
+      "pin_low": 4,
+      "is_cfs": false
+    },
+    {
+      "name": "SE",
+      "type": "2POS",
+      "flags": 0,
+      "inverted": false,
+      "default": "NONE",
+      "display": null,
+      "gpio": 3,
+      "pin": 6,
+      "is_cfs": false
+    },
+    {
+      "name": "SF",
+      "type": "2POS",
+      "flags": 0,
+      "inverted": false,
+      "default": "NONE",
+      "display": null,
+      "gpio": 3,
+      "pin": 7,
+      "is_cfs": false
+    }
+  ],
+  "keys": [
+    {
+      "gpio": 1,
+      "pin": 4,
+      "active_low": true,
+      "key": "KEY_EXIT",
+      "name": "EXIT",
+      "label": "EXIT"
+    },
+    {
+      "gpio": 1,
+      "pin": 5,
+      "active_low": true,
+      "key": "KEY_ENTER",
+      "name": "ENTER",
+      "label": "Enter"
+    },
+    {
+      "gpio": 1,
+      "pin": 3,
+      "active_low": true,
+      "key": "KEY_PAGEDN",
+      "name": "PAGEDN",
+      "label": "PAGE>"
+    },
+    {
+      "gpio": 1,
+      "pin": 0,
+      "active_low": true,
+      "key": "KEY_MODEL",
+      "name": "MDL",
+      "label": "MDL"
+    },
+    {
+      "gpio": 1,
+      "pin": 2,
+      "active_low": true,
+      "key": "KEY_TELE",
+      "name": "TELE",
+      "label": "TELE"
+    },
+    {
+      "gpio": 1,
+      "pin": 1,
+      "active_low": true,
+      "key": "KEY_SYS",
+      "name": "SYS",
+      "label": "SYS"
+    }
+  ],
+  "trims": [
+    {
+      "name": "T1",
+      "dec": {
+        "gpio": 2,
+        "pin": 5,
+        "active_low": true
+      },
+      "inc": {
+        "gpio": 2,
+        "pin": 4,
+        "active_low": true
+      },
+      "active_low": true
+    },
+    {
+      "name": "T2",
+      "dec": {
+        "gpio": 2,
+        "pin": 6,
+        "active_low": true
+      },
+      "inc": {
+        "gpio": 2,
+        "pin": 7,
+        "active_low": true
+      },
+      "active_low": true
+    },
+    {
+      "name": "T3",
+      "dec": {
+        "gpio": 2,
+        "pin": 2,
+        "active_low": true
+      },
+      "inc": {
+        "gpio": 2,
+        "pin": 3,
+        "active_low": true
+      },
+      "active_low": true
+    },
+    {
+      "name": "T4",
+      "dec": {
+        "gpio": 2,
+        "pin": 1,
+        "active_low": true
+      },
+      "inc": {
+        "gpio": 2,
+        "pin": 0,
+        "active_low": true
+      },
+      "active_low": true
+    }
+  ],
+  "display": {
+    "w": 480,
+    "h": 320,
+    "phys_w": 480,
+    "phys_h": 320,
+    "depth": 16,
+    "color": 1,
+    "oled": 0,
+    "backlight_color": 0
+  },
+  "custom_switches": {
+    "rgb_led": 0,
+    "groups": 0
+  },
+  "hardware": {
+    "has_audio_mute": 0,
+    "has_bling_leds": 0,
+    "has_ext_module_support": 1,
+    "has_int_module_support": 1,
+    "sport_max_baudrate": 400000,
+    "surface": 0
+  }
+}
