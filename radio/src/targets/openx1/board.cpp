@@ -19,6 +19,7 @@
  */
 
 #include "edgetx.h"
+#include "mcp_pins.h"
 
 /* Littlevgl specific */
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -154,8 +155,11 @@ void boardOff()
     pwrOff();
 }
 
+extern uint32_t ShadowInput;
+
 int usbPlugged() {
-    return 0;
+    // OpenX1 reports VBUS via MCP23017 G1B5 (see mcp_pins.h)
+    return (ShadowInput & (1u << USB_GPIO_PIN_VBUS)) != 0;
 }
 
 void enableVBatBridge() {

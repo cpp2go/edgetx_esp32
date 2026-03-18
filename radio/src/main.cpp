@@ -163,7 +163,7 @@ static UsbSDConnected* usbConnectedWindow = nullptr;
 
 void handleUsbConnection()
 {
-#if defined(STM32) && !defined(SIMU)
+#if (defined(STM32) || defined(ESP_PLATFORM)) && !defined(SIMU)
 
   static bool _pluggedUsb = false;
 
