@@ -91,6 +91,15 @@ AddHWGenTarget(${HW_DESC_JSON} mcp23017_switches mcp23017_switches.inc)
 AddHWGenTarget(${HW_DESC_JSON} hal_adc_inputs hal_adc_inputs.inc)
 AddHWGenTarget(${HW_DESC_JSON} ads1015_adc_inputs ads1015_adc_inputs.inc)
 
+# Ensure generated hardware files are produced before board_lib is built
+add_custom_target(openx1_hw_defs ALL
+  DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/mcp23017_keys.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/mcp23017_switches.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/hal_adc_inputs.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/ads1015_adc_inputs.inc
+)
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(board_lib OBJECT EXCLUDE_FROM_ALL
@@ -100,4 +109,6 @@ add_library(board_lib OBJECT EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_BINARY_DIR}/ads1015_adc_inputs.inc
   ${CMAKE_CURRENT_BINARY_DIR}/${HW_DESC_JSON}
   )
+
+add_dependencies(board_lib openx1_hw_defs)
 
