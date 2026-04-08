@@ -323,7 +323,7 @@ extern "C" void lcdInit()
 #else
     // SOFTWARE RESET
     lcdWriteCommand(0x01);
-    HAL_Delay(5000);
+    delay_ms(5000);
         
     // POWER CONTROL A
     lcdWriteCommand(0xCB);
@@ -443,7 +443,7 @@ extern "C" void lcdInit()
 
     // EXIT SLEEP
     lcdWriteCommand(0x11);
-    HAL_Delay(120);
+    delay_ms(120);
 
     // TURN ON DISPLAY
     lcdWriteCommand(0x29);
