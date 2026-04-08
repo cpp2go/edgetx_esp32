@@ -206,7 +206,7 @@ extern "C" void lcdInit()
 
   // hard reset
   lcdReset();
-
+#if 0
   // Init command start
   lcdWriteCommand( 0xFE );
   lcdWriteCommand( 0xEF );
@@ -320,7 +320,139 @@ extern "C" void lcdInit()
 
   // Exit sleep
   lcdWriteCommand( 0x11 );
+#else
+    // SOFTWARE RESET
+    lcdWriteCommand(0x01);
+    HAL_Delay(5000);
+        
+    // POWER CONTROL A
+    lcdWriteCommand(0xCB);
+    lcdWriteData(0x39);
+    lcdWriteData(0x2C);
+    lcdWriteData(0x00);
+    lcdWriteData(0x34);
+    lcdWriteData(0x02);
 
+    // POWER CONTROL B
+    lcdWriteCommand(0xCF);
+    lcdWriteData(0x00);
+    lcdWriteData(0xC1);
+    lcdWriteData(0x30);
+
+    // DRIVER TIMING CONTROL A
+    lcdWriteCommand(0xE8);
+    lcdWriteData(0x85);
+    lcdWriteData(0x00);
+    lcdWriteData(0x78);
+
+    // DRIVER TIMING CONTROL B
+    lcdWriteCommand(0xEA);
+    lcdWriteData(0x00);
+    lcdWriteData(0x00);
+
+    // POWER ON SEQUENCE CONTROL
+    lcdWriteCommand(0xED);
+    lcdWriteData(0x64);
+    lcdWriteData(0x03);
+    lcdWriteData(0x12);
+    lcdWriteData(0x81);
+
+    // PUMP RATIO CONTROL
+    lcdWriteCommand(0xF7);
+    lcdWriteData(0x20);
+
+    // POWER CONTROL,VRH[5:0]
+    lcdWriteCommand(0xC0);
+    lcdWriteData(0x23);
+
+    // POWER CONTROL,SAP[2:0];BT[3:0]
+    lcdWriteCommand(0xC1);
+    lcdWriteData(0x10);
+
+    // VCM CONTROL
+    lcdWriteCommand(0xC5);
+    lcdWriteData(0x3E);
+    lcdWriteData(0x28);
+
+    // VCM CONTROL 2
+    lcdWriteCommand(0xC7);
+    lcdWriteData(0x86);
+ 
+    // MEMORY ACCESS CONTROL
+    lcdWriteCommand(0x36);
+    lcdWriteData(0x48); // MX, BGR mode
+
+    // PIXEL FORMAT
+    lcdWriteCommand(0x3A);
+    lcdWriteData(0x55); // 16-bit color
+
+    // FRAME RATIO CONTROL, STANDARD RGB COLOR
+    lcdWriteCommand(0xB1);
+    lcdWriteData(0x00);
+    lcdWriteData(0x18);
+
+    // DISPLAY FUNCTION CONTROL
+    lcdWriteCommand(0xB6);
+    lcdWriteData(0x08);
+    lcdWriteData(0x82);
+    lcdWriteData(0x27);
+
+    // 3GAMMA FUNCTION DISABLE
+    lcdWriteCommand(0xF2);
+    lcdWriteData(0x00);
+
+    // GAMMA CURVE SELECTED
+    lcdWriteCommand(0x26);
+    lcdWriteData(0x01);
+
+    // POSITIVE GAMMA CORRECTION
+    lcdWriteCommand(0xE0);
+    lcdWriteData(0x0F);
+    lcdWriteData(0x31);
+    lcdWriteData(0x2B);
+    lcdWriteData(0x0C);
+    lcdWriteData(0x0E);
+    lcdWriteData(0x08);
+    lcdWriteData(0x4E);
+    lcdWriteData(0xF1);
+    lcdWriteData(0x37);
+    lcdWriteData(0x07);
+    lcdWriteData(0x10);
+    lcdWriteData(0x03);
+    lcdWriteData(0x0E);
+    lcdWriteData(0x09);
+    lcdWriteData(0x00);
+
+    // NEGATIVE GAMMA CORRECTION
+    lcdWriteCommand(0xE1);
+    lcdWriteData(0x00);
+    lcdWriteData(0x0E);
+    lcdWriteData(0x14);
+    lcdWriteData(0x03);
+    lcdWriteData(0x11);
+    lcdWriteData(0x07);
+    lcdWriteData(0x31);
+    lcdWriteData(0xC1);
+    lcdWriteData(0x48);
+    lcdWriteData(0x08);
+    lcdWriteData(0x0F);
+    lcdWriteData(0x0C);
+    lcdWriteData(0x31);
+    lcdWriteData(0x36);
+    lcdWriteData(0x0F);
+
+    // EXIT SLEEP
+    lcdWriteCommand(0x11);
+    HAL_Delay(120);
+
+    // TURN ON DISPLAY
+    lcdWriteCommand(0x29);
+
+    // MADCTL
+    lcdWriteCommand(0x36);
+    lcdWriteData(0xE8); // MX, BGR mode
+
+#endif
   // Init LCD RAM
   memory_write((const uint16_t*)initialFrameBuffer, LCD_W * LCD_H);
 
