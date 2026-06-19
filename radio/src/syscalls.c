@@ -26,8 +26,7 @@
 #include <errno.h>
 #include "debug.h"
 
-#undef errno
-extern int errno;
+/* errno is declared in <errno.h> which is already included above */
 
 #if !defined(ESP_PLATFORM)
 extern int _heap_start;

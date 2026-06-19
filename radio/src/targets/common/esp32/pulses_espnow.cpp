@@ -36,7 +36,7 @@
 #include "pulses_esp32.h"
 
 static const char *TAG = "tx.cpp";
-static xQueueHandle evtQueue;
+static QueueHandle_t evtQueue;
 static esp_now_peer_info_t rxPeer;
 static DRAM_ATTR int16_t locChannelOutputs[MAX_OUTPUT_CHANNELS] = {0};
 static QueueHandle_t xPulsesQueue;
@@ -129,9 +129,9 @@ inline void process_bind(Event_t &evt) {
 static void tx_task(void *pvParameter)
 {
     Event_t evt;
-    //vTaskDelay(5000 / portTICK_RATE_MS);
+    //vTaskDelay(5000 / portTICK_PERIOD_MS);
     while (pulsesON) {
-        if(xQueueReceive(evtQueue, &evt, TX_PERIOD_MS/portTICK_RATE_MS) == pdTRUE) {
+        if(xQueueReceive(evtQueue, &evt, TX_PERIOD_MS/portTICK_PERIOD_MS) == pdTRUE) {
             switch (evt.id) {
             case TX:
                 ESP_LOGD(TAG, "TX: evt.status: %d", evt.status);

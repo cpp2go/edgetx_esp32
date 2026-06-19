@@ -51,7 +51,9 @@ static char ssid[sizeof(g_eeGeneral.wifi_ssid)+1] = "EdgeTX";
 static char passwd[sizeof(g_eeGeneral.wifi_password)+1] = "";
 char ftp_pass[FTP_USER_PASS_LEN_MAX > sizeof(g_eeGeneral.ftppass) ? FTP_USER_PASS_LEN_MAX +1 : sizeof(g_eeGeneral.ftppass)+1] = "edgetx";
 SemaphoreHandle_t wifi_mutex = NULL;
+#ifdef ESPNOW
 static bool wifiESPNow = false;
+#endif
 static bool wifiServers = false;
 
 
@@ -74,13 +76,17 @@ void wifiTask(void *pvParameters)
     }
     ftpServerTask(pvParameters);
     ota_server_stop();
+#ifdef ESPNOW
     if (wifiESPNow) {
         startWiFiESPNow();
         resume_espnow();
     } else {
+#endif
         ESP_LOGI(TAG, "Stopping WiFi ...");
         ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_stop());
+#ifdef ESPNOW
     }
+#endif
     wifiServers = false;
     wifiTaskHandle = NULL;
     wifiState=WIFI_IDLE;
@@ -101,6 +107,7 @@ exit:
     vTaskDelete(NULL);
 }
 
+#ifdef ESPNOW
 void startWiFiESPNow(){
     wifi_init_sta((char *)"", (char *)"");
     ESP_ERROR_CHECK_WITHOUT_ABORT( esp_wifi_set_channel(g_model.moduleData[INTERNAL_MODULE].espnow.ch, (wifi_second_chan_t)0) );
@@ -114,11 +121,14 @@ void stopWiFiESPNow(){
     }
     wifiESPNow = false;
 }
+#endif
 
 void startWiFi( char *ssid_zchar, char *passwd_zchar, char* ftppass_zchar)
 {
     if(!(wifiState & WIFI_IDLE) && wifiServers) return;
+#ifdef ESPNOW
     pause_espnow();
+#endif
     wifiServers = true;
     wifiState = WIFI_STARTING;
     if(NULL != ssid_zchar) {
@@ -154,9 +164,11 @@ void stopWiFi()
 
 const char* getWiFiStatus()
 {
+#ifdef ESPNOW
     if(wifiESPNow && !wifiServers){
         return "ESP-NOW";
     }
+#endif
     static char stat[STATUS_LEN]="Idle";
     switch(wifiState) {
     case WIFI_IDLE:

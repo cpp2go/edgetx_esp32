@@ -947,13 +947,13 @@ static int luaSportTelemetryPop(lua_State * L)
   return 0;
 }
 
-#define BIT(x, index) (((x) >> index) & 0x01)
+#define GET_BIT(x, index) (((x) >> index) & 0x01)
 uint8_t getDataId(uint8_t physicalId)
 {
   uint8_t result = physicalId;
-  result += (BIT(physicalId, 0) ^ BIT(physicalId, 1) ^ BIT(physicalId, 2)) << 5;
-  result += (BIT(physicalId, 2) ^ BIT(physicalId, 3) ^ BIT(physicalId, 4)) << 6;
-  result += (BIT(physicalId, 0) ^ BIT(physicalId, 2) ^ BIT(physicalId, 4)) << 7;
+  result += (GET_BIT(physicalId, 0) ^ GET_BIT(physicalId, 1) ^ GET_BIT(physicalId, 2)) << 5;
+  result += (GET_BIT(physicalId, 2) ^ GET_BIT(physicalId, 3) ^ GET_BIT(physicalId, 4)) << 6;
+  result += (GET_BIT(physicalId, 0) ^ GET_BIT(physicalId, 2) ^ GET_BIT(physicalId, 4)) << 7;
   return result;
 }
 

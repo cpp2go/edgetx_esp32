@@ -27,7 +27,9 @@
 #include "yaml_tree_walker.h"
 #include "yaml_parser.h"
 
+#ifndef MIN
 #define MIN(a,b) (a < b ? a : b)
+#endif
 
 static void copy_string(char* dst, uint16_t dst_len, const char* src,
                         uint8_t src_len)

@@ -24,7 +24,7 @@ static esp_lcd_i80_bus_handle_t i80_bus = NULL;
 static esp_lcd_i80_bus_config_t bus_config = {
     .dc_gpio_num = CONFIG_LV_TFT_MCU_DC_NUM,
     .wr_gpio_num = CONFIG_LV_TFT_MCU_WR_NUM,
-    .clk_src = LCD_CLK_SRC_PLL160M,
+    .clk_src = LCD_CLK_SRC_DEFAULT,
     .data_gpio_nums = {
         CONFIG_LV_TFT_MCU_DATA0,
         CONFIG_LV_TFT_MCU_DATA1,
