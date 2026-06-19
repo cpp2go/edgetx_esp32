@@ -32,15 +32,8 @@ static i2s_chan_handle_t tx_chan;  // I2S tx channel handler
 void audioInit()
 {
     // Create a new channel for speaker
-    i2s_chan_config_t chan_cfg = {
-        .id = (i2s_port_t)0,
-        .role = I2S_ROLE_MASTER,
-        .dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM,
-        .dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM,
-        .auto_clear_after_cb = true,
-        .auto_clear_before_cb = false,
-        .intr_priority = 0,
-    };
+    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
+    chan_cfg.auto_clear_after_cb = true;
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_chan, nullptr));
 
     i2s_std_config_t std_cfg = {

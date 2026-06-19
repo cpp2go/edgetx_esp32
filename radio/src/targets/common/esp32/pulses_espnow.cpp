@@ -109,7 +109,7 @@ inline void process_bind(Event_t &evt) {
             storageDirty(EE_MODEL);
 
             rxPeer.channel = g_model.moduleData[INTERNAL_MODULE].espnow.ch;
-            rxPeer.ifidx = (wifi_interface_t)ESP_IF_WIFI_STA;
+            rxPeer.ifidx = WIFI_IF_STA;
             rxPeer.encrypt = false;
             if (esp_now_is_peer_exist(rxPeer.peer_addr) == false) {
                 esp_now_add_peer(&rxPeer);
@@ -263,7 +263,7 @@ esp_err_t initTX(){
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_register_send_cb(send_cb));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_register_recv_cb(recv_cb));
   
-    rxPeer.ifidx = (wifi_interface_t)ESP_IF_WIFI_STA;
+    rxPeer.ifidx = WIFI_IF_STA;
     rxPeer.encrypt = false;
     memcpy(rxPeer.peer_addr, broadcast_mac, ESPNOW_ETH_ALEN);
     rxPeer.channel = BIND_CH;

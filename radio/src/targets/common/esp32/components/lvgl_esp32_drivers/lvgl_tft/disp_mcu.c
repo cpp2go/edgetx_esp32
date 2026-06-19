@@ -90,7 +90,7 @@ static esp_lcd_panel_io_i80_config_t io_config = {
 static esp_lcd_panel_handle_t panel_handle = NULL;
 static esp_lcd_panel_dev_config_t panel_config = {
     .reset_gpio_num = CONFIG_LV_TFT_MCU_RST_NUM,
-    .color_space = ESP_LCD_COLOR_SPACE_BGR,
+    .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
     .bits_per_pixel = 16,
 };
 
