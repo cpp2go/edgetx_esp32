@@ -323,7 +323,7 @@ extern "C" void lcdInit()
 #else
     // SOFTWARE RESET
     lcdWriteCommand(0x01);
-    delay_ms(5000);
+    delay_ms(500);
         
     // POWER CONTROL A
     lcdWriteCommand(0xCB);
