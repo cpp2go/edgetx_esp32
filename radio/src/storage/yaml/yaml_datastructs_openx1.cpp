@@ -810,13 +810,12 @@ static const struct YamlNode struct_LayoutPersistentData[] = {
 };
 static const struct YamlNode struct_CustomScreenData[] = {
   YAML_IDX,
-  YAML_STRING("LayoutId", 12),
-  YAML_STRUCT("layoutData", 6720, struct_LayoutPersistentData, NULL),
+  YAML_CUSTOM("LayoutId",r_screen_id,w_screen_id),
+  YAML_STRUCT("layoutData", 0, struct_LayoutPersistentData, isAlwaysActive),
   YAML_END
 };
 static const struct YamlNode struct_TopBarPersistentData[] = {
-  YAML_ARRAY("zones", 576, 6, struct_ZonePersistentData, NULL),
-  YAML_ARRAY("options", 96, 1, struct_ZoneOptionValueTyped, NULL),
+  YAML_ARRAY("zones", 0, 6, struct_ZonePersistentData, widget_is_active),
   YAML_END
 };
 static const struct YamlNode struct_USBJoystickChData[] = {
@@ -880,8 +879,8 @@ static const struct YamlNode struct_ModelData[] = {
   YAML_UNSIGNED( "potsWarnEnabled", 16 ),
   YAML_ARRAY("potsWarnPosition", 8, 16, struct_signed_8, NULL),
   YAML_ARRAY("telemetrySensors", 112, 60, struct_TelemetrySensor, NULL),
-  YAML_ARRAY("screenData", 6816, 5, struct_CustomScreenData, NULL),
-  YAML_STRUCT("topbarData", 3552, struct_TopBarPersistentData, NULL),
+  YAML_ARRAY("screenData", 0, 5, struct_CustomScreenData, screen_is_active),
+  YAML_STRUCT("topbarData", 0, struct_TopBarPersistentData, isAlwaysActive),
   YAML_UNSIGNED( "view", 8 ),
   YAML_STRING("modelRegistrationID", 8),
   YAML_UNSIGNED( "usbJoystickExtMode", 1 ),
