@@ -19,6 +19,7 @@
  */
 
 #include "edgetx.h"
+#include "hal/usb_driver.h"
 
 /* Littlevgl specific */
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -34,6 +35,11 @@
 //#include "nimble/nimble_port.h"
 //#include "nimble/nimble_port_freertos.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#if defined(CONFIG_TINYUSB_ENABLED)
+#include "tusb.h"
+#endif
 #include "driver/i2c_master.h"
 #include "driver/gpio.h"
 #include "flyskyHallStick_driver.h"
@@ -43,6 +49,7 @@
 #include "mcp_pins.h"
 
 extern void ads1015_adc_init(void);
+extern uint32_t ShadowInput;
 
 i2c_master_bus_handle_t i2c_0_bus_handle;
 i2c_master_bus_handle_t lvgl_i2c_bus_handle;
@@ -158,18 +165,34 @@ void boardInit()
     //}
 
     //toplcdInit();
+
+    usbInit();
+#if defined(CONFIG_TINYUSB_ENABLED)
+    xTaskCreatePinnedToCore(usb_device_task, "usb_dev", 4096, NULL, 5, NULL, 0);
+#endif
 }
 
 void boardOff()
 {
+    lcdFadeOut();
+
+    while (pwrPressed()) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
     pwrOff();
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
 }
 
 int usbPlugged() {
     static uint8_t debouncedState = 0;
     static uint8_t lastState = 0;
 
-    uint8_t state = gpio_get_level((gpio_num_t)USB_GPIO_PIN_VBUS);
+    // USB_GPIO_PIN_VBUS = (8*3+5) = 29, MCP23017 G1B5 in ShadowInput
+    uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1 : 0;
 
     if (state == lastState) {
         debouncedState = state;
@@ -179,6 +202,17 @@ int usbPlugged() {
 
     return debouncedState;
 }
+
+#if defined(CONFIG_TINYUSB_ENABLED)
+static void usb_device_task(void *param)
+{
+    (void)param;
+    while (1) {
+        tud_task();
+        vTaskDelay(1);
+    }
+}
+#endif
 
 void enableVBatBridge() {
 }

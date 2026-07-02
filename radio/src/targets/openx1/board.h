@@ -149,6 +149,7 @@ void backlightDisable();
 void backlightEnable(uint8_t level = 0);
 #define BACKLIGHT_ENABLE()            backlightEnable(currentBacklightBright)
 bool isBacklightEnabled();
+void lcdFadeOut();
 
 // Audio driver
 void audioInit() ;

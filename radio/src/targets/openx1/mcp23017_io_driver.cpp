@@ -149,8 +149,6 @@ void pwrOff()
     TRACE("Power off");
     RTOS_WAIT_MS(200);
     mcp_set_gpio(MCP_PWR_EN, 0);
-    //mcp_set_gpio(MCP_PWR_EN, 0);
-    while (1) RTOS_WAIT_MS(20); // should never return
 }
 
 bool pwrPressed()
