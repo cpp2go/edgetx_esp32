@@ -72,6 +72,15 @@ static inline void check_struct()
   CHKSIZE(LimitData, 13);
   CHKSIZE(TimerData, 17);
   CHKSIZE(ModelHeader, 131);
+#elif defined(PCB_OPENX1)
+  CHKSIZE(LimitData, 13);
+  CHKSIZE(LogicalSwitchData, 9);
+  CHKSIZE(CustomFunctionData, 11);
+  CHKSIZE(FlightModeData, 32 + 2*MAX_TRIMS);
+  CHKSIZE(TimerData, 17);
+  CHKSIZE(SwashRingData, 8);
+  CHKSIZE(ModelHeader, 131);
+  CHKSIZE(CurveHeader, 4);
 #else
   #error CHKSIZE not set up
 #endif
@@ -80,6 +89,8 @@ static inline void check_struct()
   CHKSIZE(RadioData, 947);
 #elif defined(RADIO_ST16) || defined(PCBPA01) || defined(RADIO_TX15) || defined(RADIO_T15PRO) || defined(RADIO_TX16SMK3) || defined(RADIO_T22)
   CHKSIZE(RadioData, 1179);
+#elif defined(PCB_OPENX1)
+  CHKSIZE(RadioData, 1143);  
 #elif defined(COLORLCD)
   CHKSIZE(RadioData, 1059);
 #elif defined(RADIO_GX12)
@@ -118,6 +129,8 @@ static inline void check_struct()
   // CHKSIZE()
 #elif defined(PCBHORUS)
   CHKSIZE(ModelData, 6841);
+#elif defined(PCB_OPENX1)
+  //CHKSIZE(ModelData, 6877);
 #else
   #error CHKSIZE not set up
 #endif

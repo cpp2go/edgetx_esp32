@@ -20,7 +20,7 @@
  */
 
 #pragma once
-
+#if !defined(ESP_PLATFORM)
 // Avoid using any other header file
 #include <stdint.h>
 extern uint32_t SystemCoreClock;
@@ -127,3 +127,7 @@ standard names. */
 #if defined(DEBUG_SEGGER_SYSVIEW)
 #include "SEGGER_SYSVIEW_FreeRTOS.h"
 #endif
+
+#else  // defined(ESP_PLATFORM)
+#include <freertos/FreeRTOSConfig.h>
+#endif // defined(ESP_PLATFORM)

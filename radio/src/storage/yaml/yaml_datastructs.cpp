@@ -84,6 +84,8 @@
  #else
   #include "yaml_datastructs_x9dp2019.cpp"
  #endif
+#elif defined(PCB_OPENX1)
+ #include "yaml_datastructs_openx1.cpp"
 #else
 #error "Board not supported by YAML storage"
 #endif

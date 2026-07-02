@@ -21,7 +21,7 @@
 
 #include "os/sleep.h"
 #include "os/time.h"
-#if !defined(SIMU)
+#if !defined(SIMU)&&!defined(ESP_PLATFORM)
 #include "stm32_ws2812.h"
 #include "boards/generic_stm32/rgb_leds.h"
 #include "stm32_hal.h"
@@ -131,7 +131,7 @@ void toggleLatencySwitch()
 
 void checkValidMCU(void)
 {
-#if !defined(SIMU) && !defined(BOOT)
+#if !defined(SIMU) && !defined(BOOT) && !defined(ESP_PLATFORM)
   // Checks the radio MCU type matches intended firmware type
   uint32_t idcode = DBGMCU->IDCODE & 0xFFF;
 
@@ -1625,7 +1625,11 @@ extern "C" void initialise_monitor_handles();
 #if defined(SIMU)
 void simuMain()
 #else
+#if defined(ESP_PLATFORM)
+extern "C" void app_main()
+#else
 int main()
+#endif
 #endif
 {
 #if defined(SEMIHOSTING)
@@ -1637,7 +1641,7 @@ int main()
   SEGGER_SYSVIEW_Start();
 #endif
 
-#if !defined(SIMU)
+#if !defined(SIMU) && !defined(ESP_PLATFORM)
   /* Ensure all priority bits are assigned as preemption priority bits. */
   NVIC_SetPriorityGrouping( NVIC_PRIORITYGROUP_4 );
 #endif
@@ -1928,6 +1932,8 @@ uint32_t availableMemory()
 {
 #if defined(SIMU)
   return 1000;
+#elif defined(ESP_PLATFORM)
+  return esp_get_free_heap_size();
 #else
   extern unsigned char *heap;
   extern int _heap_end;

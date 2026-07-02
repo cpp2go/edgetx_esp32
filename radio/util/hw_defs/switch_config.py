@@ -661,6 +661,12 @@ SWITCH_CONFIG = {
         "SD": { "default": "2POS",   "display": [ 1, 0 ] },
         "SC": { "default": "3POS", "display": [ 1, 1 ] },
     },
+    "openx1": {
+        "SA": {"default": "2POS"},
+        "SB": {"default": "2POS"},
+        "SC": {"default": "3POS"},
+        "SD": {"default": "2POS"},
+    },
 }
 
 

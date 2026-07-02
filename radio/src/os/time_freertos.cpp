@@ -21,8 +21,13 @@
 
 #include "time.h"
 
+#ifdef ESP_PLATFORM
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/task.h>
+#endif
 
 uint32_t time_get_ms()
 {

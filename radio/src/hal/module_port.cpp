@@ -107,6 +107,7 @@ static bool _match_port(const etx_module_port_t* p, uint8_t type, uint8_t port,
                         uint8_t polarity, uint8_t direction, bool softserial_fallback)
 {
   if ((p->dir_flags & direction) != direction) {
+    TRACE("_match_port #%d %d", p->dir_flags, direction);
     return false;
   }
   
@@ -140,7 +141,9 @@ static const etx_module_port_t* _find_port(uint8_t module, uint8_t type,
                                            bool softserial_fallback)
 {
   if (module >= MAX_MODULES || module >= _n_modules || !_modules[module])
+  {
     return nullptr;
+  }
 
   uint8_t n_ports = _modules[module]->n_ports;
   const etx_module_port_t* p = _modules[module]->ports;
@@ -210,7 +213,11 @@ etx_module_state_t* modulePortInitSerial(uint8_t module, uint8_t port,
                                                    port, params->polarity,
                                                    params->direction,
                                                    softserial_fallback);
-  if (!found_port) return nullptr;
+  if (!found_port) 
+  {
+    TRACE("Module #%d !found_port", module);
+    return nullptr;
+  }
 
   auto state = &(_module_states[module]);
 
@@ -218,14 +225,15 @@ etx_module_state_t* modulePortInitSerial(uint8_t module, uint8_t port,
   uint8_t dir = params->direction & duplex;
 
   bool init_ok = false;
-  if (dir == duplex) {
-
+  if (dir == duplex) 
+  {
     // init RX first, in case TX was already done previously
     init_ok = _init_serial_driver(&state->rx, found_port, params);
 
     // do not overwrite TX state if it has already been set:
     // -> support using S.PORT in bidir mode
-    if (!state->tx.port) {
+    if (!state->tx.port) 
+    {
       state->tx.port = state->rx.port;
       state->tx.ctx = state->rx.ctx;
     }

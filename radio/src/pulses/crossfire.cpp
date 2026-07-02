@@ -19,7 +19,7 @@
  * GNU General Public License for more details.
  */
 
-#if !defined(SIMU)
+#if !defined(SIMU) && !defined(ESP_PLATFORM)
 #include "stm32_exti_driver.h"
 #include "stm32_hal_ll.h"
 #endif
@@ -343,7 +343,7 @@ static void _crsf_intmodule_frame_received(void*)
 }
 #endif
 
-#if defined(HARDWARE_EXTERNAL_MODULE)
+#if defined(HARDWARE_EXTERNAL_MODULE)&& !defined(ESP_PLATFORM)
 static void _crsf_extmodule_frame_received()
 {
   telemetryFrameTrigger_ISR(EXTERNAL_MODULE, &CrossfireDriver);
@@ -397,7 +397,7 @@ static void* crossfireInit(uint8_t module)
   }
 #endif
 
-#if defined(HARDWARE_EXTERNAL_MODULE)
+#if defined(HARDWARE_EXTERNAL_MODULE) && !defined(ESP_PLATFORM)
   if (module == EXTERNAL_MODULE) {
     params.baudrate = EXT_CROSSFIRE_BAUDRATE;
     mod_st = modulePortInitSerial(module, ETX_MOD_PORT_SPORT, &params, false);
@@ -447,10 +447,12 @@ static void crossfireDeInit(void* ctx)
     auto drv = modulePortGetSerialDrv(mod_st->rx);
     auto ctx = modulePortGetCtx(mod_st->rx);
     if (drv && ctx && drv->setIdleCb) {
+#if defined(TELEMETRY_RX_FRAME_EXTI_LINE)
 #if defined(TELEMETRY_USE_CUSTOM_EXTI)
       stm32_exti_custom_disable(TELEMETRY_RX_FRAME_EXTI_LINE);
 #else
-     stm32_exti_disable(TELEMETRY_RX_FRAME_EXTI_LINE);
+      stm32_exti_disable(TELEMETRY_RX_FRAME_EXTI_LINE);
+#endif
 #endif
     }
   }

@@ -22,7 +22,14 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
-#include "FatFs/ff.h"
+#ifdef ESP_PLATFORM
+  /* Use ESP-IDF FatFS header for correct FIL struct layout (FF_FS_TINY=0, FF_MAX_SS=4096).
+     EdgeTX's FatFs/ff.h has FF_FS_TINY=1 giving a ~38-byte FIL, while ESP-IDF's
+     f_open writes ~4134 bytes — corrupting memory beyond the LStream userdata. */
+#  include "ff.h"
+#else
+#  include "FatFs/ff.h"
+#endif
 
 // #define l_getc(f)         fatfs_getc(f)
 // #define l_lockfile(f)     ((void)0)

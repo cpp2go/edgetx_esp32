@@ -240,8 +240,10 @@ void StaticImage::setSource(std::string filename)
     lv_obj_center(image);
     lv_img_set_src(image, fullpath.c_str());
     if (!hasImage()) {
-      // Failed to load
-      TRACE_ERROR("could not load image '%s' - %s\n", filename.c_str(), stbi_failure_reason());
+      // Failed to load; stbi_failure_reason() is NULL if file open failed (no STB decode attempted)
+      const char* stb_reason = stbi_failure_reason();
+      TRACE_ERROR("could not load image '%s' - %s\n", filename.c_str(),
+                  stb_reason ? stb_reason : "file open failed");
       clearSource();
     }
     setZoom();

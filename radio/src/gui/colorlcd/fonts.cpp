@@ -24,6 +24,10 @@
 #if !defined(SIMU)
 #include <unistd.h>
 #endif
+#if defined(ESP_PLATFORM)
+#include "esp_heap_caps.h"
+#include "esp_log.h"
+#endif
 
 #include "fonts.h"
 #include "lz4/lz4.h"
@@ -166,6 +170,8 @@ void initFontBuffers()
   // Allocate buffer and assign to fonts
 #if defined(SIMU)
   uint8_t* b = (uint8_t*)malloc(sz);
+#elif defined(ESP_PLATFORM)
+  uint8_t* b = (uint8_t*)heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
 #else
   uint8_t* b = (uint8_t*)sbrk(sz);
 #endif
@@ -296,6 +302,10 @@ void initFontBuffers()
   // Allocate buffer and assign to fonts
 #if defined(SIMU)
   uint8_t* b = (uint8_t*)malloc(sz);
+#elif defined(ESP_PLATFORM)
+  ESP_EARLY_LOGI("fonts", "initFontBuffers: alloc %d bytes from PSRAM", sz);
+  uint8_t* b = (uint8_t*)heap_caps_malloc(sz, MALLOC_CAP_SPIRAM);
+  ESP_EARLY_LOGI("fonts", "initFontBuffers: b=%p", b);
 #else
   uint8_t* b = (uint8_t*)sbrk(sz);
 #endif

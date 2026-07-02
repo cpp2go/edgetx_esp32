@@ -25,7 +25,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#if defined(ESP_PLATFORM)
+#include "targets/common/esp32/memory_sections.h"
+#else
 #include "memory_sections.h"
+#endif
 
 #if !defined(ALL_LANGS) || defined(BOOT)
 typedef const char* STR_TYP;

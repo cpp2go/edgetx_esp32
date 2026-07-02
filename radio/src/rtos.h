@@ -31,12 +31,39 @@ extern "C++" {
 
 #elif defined(FREE_RTOS)
 
+#if defined(ESP_PLATFORM)
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/task.h"
+  #include "freertos/semphr.h"
+  #ifndef tskNO_AFFINITY
+    #define tskNO_AFFINITY ((BaseType_t)0x7FFFFFFF)
+  #endif
+  #include "freertos/idf_additions.h"
+#else
   #include <FreeRTOS/include/FreeRTOS.h>
   #include <FreeRTOS/include/task.h>
-  
+#endif
+
+  typedef TaskHandle_t RTOS_TASK_HANDLE;
+
+  #define RTOS_DEFINE_STACK(handle, stack_name, size) \
+    static StackType_t stack_name[(size)]; \
+    static StaticTask_t _##handle##_tcb
+
+  #define RTOS_CREATE_TASK_EX(handle, func, name, stack, size, prio, core) \
+    (handle) = xTaskCreateStaticPinnedToCore((func), (name), (size), NULL, (prio), (stack), &_##handle##_tcb, (core))
+
+  #define RTOS_WAIT_MS(ms) vTaskDelay(pdMS_TO_TICKS(ms))
+  #define RTOS_GET_MS()    (pdTICKS_TO_MS(xTaskGetTickCount()))
+
   static inline void RTOS_START()
   {
+#ifdef ESP_PLATFORM
+    // ESP-IDF starts the scheduler before EdgeTX; delete this task to free resources
+    vTaskDelete(NULL);
+#else
     vTaskStartScheduler();
+#endif
   }
 
 #endif  // RTOS type

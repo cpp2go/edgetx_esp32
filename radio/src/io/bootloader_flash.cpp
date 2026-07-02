@@ -23,11 +23,13 @@
 #include "edgetx.h"
 
 #include "bootloader_flash.h"
+
+#ifndef ESP_PLATFORM
 #include "timers_driver.h"
 #include "flash_driver.h"
-
 #include "hal/watchdog_driver.h"
 #include "os/sleep.h"
+#endif
 
 #if !defined(COLORLCD)
   #include "lib_file.h"
@@ -39,6 +41,10 @@
 
 bool isBootloader(const char * filename)
 {
+#ifdef ESP_PLATFORM
+  // ESP32 does not use the STM32 bootloader format
+  return false;
+#else
   FIL file;
   f_open(&file, filename, FA_READ);
   uint8_t buffer[1024];
@@ -57,10 +63,16 @@ bool isBootloader(const char * filename)
     }
   }
   return false;
+#endif
 }
 
 void BootloaderFirmwareUpdate::flashFirmware(const char * filename, ProgressHandler progressHandler)
 {
+#ifdef ESP_PLATFORM
+  // ESP32 uses OTA (app_update) for firmware updates, not raw flash writes.
+  (void)filename; (void)progressHandler;
+  return;
+#else
   FIL file;
   uint8_t buffer[1024];
   UINT count;
@@ -114,4 +126,5 @@ void BootloaderFirmwareUpdate::flashFirmware(const char * filename, ProgressHand
 
   f_close(&file);
   pulsesStart();
+#endif // !ESP_PLATFORM
 }

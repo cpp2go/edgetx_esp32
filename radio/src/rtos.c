@@ -23,9 +23,13 @@
 
 #if configSUPPORT_STATIC_ALLOCATION > 0
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/task.h>
-
+#endif
 /* configSUPPORT_STATIC_ALLOCATION is set to 1, so the application must provide an
    implementation of vApplicationGetIdleTaskMemory() to provide the memory that is
    used by the Idle task. */

@@ -28,6 +28,8 @@
 
 #undef errno
 extern int errno;
+
+#if !defined(ESP_PLATFORM)
 extern int _heap_start;
 extern int _heap_end;
 
@@ -45,11 +47,17 @@ extern caddr_t _sbrk(int nbytes)
     return ((void *)-1);
   }
 }
+#endif
 
 #if defined(THREADSAFE_MALLOC) && !defined(BOOT)
 
+#ifdef ESP_PLATFORM
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#else
 #include <FreeRTOS/include/FreeRTOS.h>
 #include <FreeRTOS/include/task.h>
+#endif
 
 void __malloc_lock(struct _reent *r)
 {
@@ -124,11 +132,13 @@ extern int _getpid()
 }
 #endif
 
+#if !defined(ESP_PLATFORM)
 extern void _exit(int status)
 {
   TRACE("_exit(%d)", status);
   for (;;);
 }
+#endif
 
 extern void _kill(int pid, int sig)
 {
@@ -137,7 +147,11 @@ extern void _kill(int pid, int sig)
 
 extern void __assert_func (const char *p1, int p2, const char *p3, const char *p4)
 {
+#if defined(__arm__)
   asm("BKPT");
+#elif defined(__xtensa__)
+  asm("break 0,0");
+#endif
 #if defined(DEBUG)
   while(1);
 #endif

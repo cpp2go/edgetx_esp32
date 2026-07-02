@@ -21,9 +21,15 @@
 
 #pragma once
 
-#include <FreeRTOS/include/FreeRTOS.h>
-#include <FreeRTOS/include/task.h>
-#include <FreeRTOS/include/semphr.h>
+#ifdef ESP_PLATFORM
+  #include "freertos/FreeRTOS.h"
+  #include "freertos/task.h"
+  #include "freertos/semphr.h"
+#else
+  #include <FreeRTOS/include/FreeRTOS.h>
+  #include <FreeRTOS/include/task.h>
+  #include <FreeRTOS/include/semphr.h>
+#endif
 
 #include "definitions.h"
 

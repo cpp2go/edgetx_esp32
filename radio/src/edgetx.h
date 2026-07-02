@@ -34,7 +34,7 @@
 
 #include "board.h"
 
-#if !defined(SIMU)
+#if !defined(SIMU) && !defined(ESP_PLATFORM)
 #include "usbd_msc_conf.h"
 #endif
 
@@ -181,7 +181,7 @@ struct CustomFunctionsContext {
 #include "gui.h"
 #endif
 
-#if !defined(SIMU)
+#if !defined(SIMU) && !defined(assert)
   #define assert(x)
   #if !defined(DEBUG)
     #define printf printf_not_allowed

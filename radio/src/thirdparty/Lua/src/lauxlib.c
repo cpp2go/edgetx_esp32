@@ -665,7 +665,15 @@ LUALIB_API void luaL_unref (lua_State *L, int t, int ref) {
 #  define freopen_bin(f,fn) freopen(f,"rb",fn)
 #  define read_buff(b, f) fread(b, 1, sizeof(b), f)
 #else
-#  include "FatFs/ff.h"
+#  ifdef ESP_PLATFORM
+     /* On ESP32, use ESP-IDF's FatFS header so FIL matches the linked f_open/f_read/f_close.
+        EdgeTX's thirdparty FatFs/ff.h has FF_FS_TINY=1 (no buf[]) while ESP-IDF FatFS has
+        FF_FS_TINY=0 and FF_MAX_SS=4096, giving a FIL.buf[4096].  Using the wrong header
+        causes f_open to write 4096 bytes into a ~38-byte stack slot, corrupting the frame. */
+#    include "ff.h"
+#  else
+#    include "FatFs/ff.h"
+#  endif
 #  define file(f) FIL f;
 #  define read_buff(b, f) fatfs_read_buff(&f, b, sizeof(b))
 #  undef getc
@@ -764,7 +772,14 @@ static int skipcomment (LoadF *lf, int *cp) {
 
 LUALIB_API int luaL_loadfilex (lua_State *L, const char *filename,
                                              const char *mode) {
+#ifdef ESP_PLATFORM
+  /* On ESP32, LoadF contains FIL.buf[4096] (~4.6 KB total), which would overflow the
+     3.5 KB main task stack.  Lua file loading is non-reentrant in EdgeTX (lua_load
+     only parses/compiles, never calls back into luaL_loadfilex), so static is safe. */
+  static LoadF lf;
+#else
   LoadF lf;
+#endif
   int status, readstatus;
   int c;
   int fnameindex = lua_gettop(L) + 1;  /* index of filename on the stack */
