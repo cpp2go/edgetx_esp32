@@ -14,7 +14,30 @@
 
 #pragma once
 
-#include_next "ff.h"
+#if defined(ESP_PLATFORM) || defined(IDF_VER)
+/* Prefer the ESP-IDF FatFS header explicitly for ESP32 builds. The shim itself
+ * is named ff.h, so a plain __has_include(<ff.h>) probe can resolve to this
+ * file instead of the real FatFS header. */
+#  if defined(__has_include)
+#    if __has_include("C:/esp/v6.0.1/esp-idf/components/fatfs/src/ff.h")
+#      include "C:/esp/v6.0.1/esp-idf/components/fatfs/src/ff.h"
+#    elif __has_include_next("ff.h")
+#      include_next "ff.h"
+#    elif __has_include("FatFs/ff.h")
+#      include "FatFs/ff.h"
+#    endif
+#  else
+#    include "C:/esp/v6.0.1/esp-idf/components/fatfs/src/ff.h"
+#  endif
+#elif defined(__has_include_next)
+#  include_next "ff.h"
+#elif defined(__has_include)
+#  if __has_include("FatFs/ff.h")
+#    include "FatFs/ff.h"
+#  endif
+#else
+#  include "FatFs/ff.h"
+#endif
 
 /* Add DIR alias only when ESP-IDF's FatFS was actually included */
 #if defined(_FFCONF_DEFINED)

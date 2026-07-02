@@ -14,7 +14,7 @@ option(EdgeTX_SUPERBUILD "Cross-compile EdgeTX for each toolchain" OFF)
 add_subdirectory(${EDGETX_ROOTDIR} edgetx)
 
 target_link_libraries(radiolib_esp32 stdc++)
-target_link_libraries(radiolib_esp32 idf::esp_adc idf::nimble_central_utils idf::lvgl_esp32_drivers idf::lvgl idf::bt idf::esp_timer idf::esp_wifi idf::driver idf::nvs_flash idf::app_update idf::sdmmc idf::esp_driver_i2s idf::esp_driver_rmt idf::esp_driver_uart idf::esp_driver_gptimer idf::esp_driver_sdmmc idf::esp_driver_sdspi idf::esp_ringbuf)
+target_link_libraries(radiolib_esp32 idf::esp_adc idf::nimble_central_utils idf::lvgl_esp32_drivers idf::lvgl idf::bt idf::esp_timer idf::esp_wifi idf::driver idf::nvs_flash idf::app_update idf::sdmmc idf::esp_driver_i2s idf::esp_driver_rmt idf::esp_driver_uart idf::esp_driver_gptimer idf::esp_driver_sdmmc idf::esp_driver_sdspi idf::fatfs idf::esp_ringbuf)
 
 target_compile_options(radiolib_esp32 PRIVATE -I${EDGETX_TGT_CMN})
 target_compile_options(radiolib_esp32 PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>)
