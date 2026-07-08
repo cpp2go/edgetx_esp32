@@ -153,11 +153,12 @@ void pwrOff()
 
 bool pwrPressed()
 {
-  return (0 != (ShadowInput & MCP_PWR_SW_DET));
+  // PWR_BUTTON_PRESS semantics: return true when "button held" = switch OFF = user wants power off
+  return (0 == (ShadowInput & MCP_PWR_SW_DET));
 }
 
 bool pwrOffPressed() {
-    return !pwrPressed(); // OpenX1 uses switch for power    
+    return pwrPressed();
 }
 
 #if defined(ROTARY_ENCODER_NAVIGATION)

@@ -126,6 +126,7 @@ void pwrOn();
 void pwrOff();
 bool pwrPressed();
 bool pwrOffPressed();
+#define pwrForcePressed() false
 
 void INTERNAL_MODULE_ON(void);
 void INTERNAL_MODULE_OFF(void);

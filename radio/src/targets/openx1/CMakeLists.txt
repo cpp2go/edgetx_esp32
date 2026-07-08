@@ -4,7 +4,8 @@ add_definitions(-DPCB_OPENX1)
 option(SHUTDOWN_CONFIRMATION "Shutdown confirmation" OFF)
 option(AUTOUPDATE "Auto update internal chips from SD" OFF)
 
-set(PWR_BUTTON "SWITCH" CACHE STRING "Pwr button type (PRESS/SWITCH)")
+set(PWR_BUTTON "PRESS" CACHE STRING "Pwr button type (PRESS/SWITCH)")
+add_definitions(-DPWR_BUTTON_${PWR_BUTTON})
 
 set(GUI_DIR colorlcd)
 set(BITMAPS_DIR 480x272)

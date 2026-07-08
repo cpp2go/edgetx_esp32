@@ -175,13 +175,7 @@ void boardInit()
 void boardOff()
 {
     lcdFadeOut();
-
-    while (pwrPressed()) {
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-
     pwrOff();
-
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(20));
     }
