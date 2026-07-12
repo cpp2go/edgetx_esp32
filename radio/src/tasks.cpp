@@ -21,6 +21,9 @@
 
 #include "debug.h"
 #include "edgetx.h"
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#endif
 #include "os/sleep.h"
 #include "os/task.h"
 #include "os/time.h"
@@ -65,14 +68,21 @@ static void menusTask()
   mixerTaskInit();
 
 #if defined(PWR_BUTTON_PRESS)
+  static uint32_t pwr_press_logged = 0;
   while (task_running()) {
     uint32_t pwr_check = pwrCheck();
     if (pwr_check == e_power_off) {
+      TRACE("PWR: boardOff triggered (pwrCheck=e_power_off)");
       break;
     } else if (pwr_check == e_power_press) {
+      if (!pwr_press_logged) {
+        TRACE("PWR: pwrPressed=true, shutdown countdown started");
+        pwr_press_logged = 1;
+      }
       sleep_ms(MENU_TASK_PERIOD);
       continue;
     }
+    pwr_press_logged = 0;
 #else
   while (pwrCheck() != e_power_off) {
 #endif
@@ -151,7 +161,9 @@ void tasksStart()
   cliStart();
 #endif
 
+#if !defined(ESP_PLATFORM)
   timer10msStart();
+#endif
 
   task_create(&menusTaskId, menusTask, "menus", menusStack, MENUS_STACK_SIZE,
               MENUS_TASK_PRIO);

@@ -39,17 +39,20 @@ void rotaryEncoderCheck(uint32_t result);
 
 static void mcp_set_gpio(uint32_t pin, uint32_t level)
  {
-    if (0 == level) 
+    if (0 == level)
     {
         ShadowOutput &= ~(1 << pin);
-    } 
+    }
     else
     {
         ShadowOutput |= (1 << pin);
     }
     uint32_t port = MCP_PORT(pin);
 
-    ESP_ERROR_CHECK(i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), pShadowData[port]));
+    esp_err_t ret = i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), pShadowData[port]);
+    if (ret != ESP_OK) {
+        TRACE_ERROR("mcp_set_gpio pin=%d err=%d", (int)pin, (int)ret);
+    }
 }
 
 uint32_t readKeys()
@@ -57,7 +60,11 @@ uint32_t readKeys()
     uint32_t result = 0;
 
     for (int i = 0; i < 4; i++) {
-        ESP_ERROR_CHECK(i2c_register_read(MCP_HANDLE(i), MCP_REG_ADDR(MCP23XXX_GPIO, i), &pShadowInput[i], 1));
+        esp_err_t ret = i2c_register_read(MCP_HANDLE(i), MCP_REG_ADDR(MCP23XXX_GPIO, i), &pShadowInput[i], 1);
+        if (ret != ESP_OK) {
+            TRACE_ERROR("readKeys I2C[%d] err=%d", i, (int)ret);
+            // Keep previous ShadowInput byte; recover on next poll
+        }
     }
 
     for (int i = 0; i < sizeof(key_mapping)/sizeof(key_mapping[0]); i++) {
@@ -96,6 +103,9 @@ void keysInit()
         .scl_speed_hz = 400000,
     };
     ESP_ERROR_CHECK(i2c_master_bus_add_device(gpioext_i2c_bus_handle, &i2c_dev1_conf, &mcp[1]));
+
+    // Pre-set PWR_EN bit so the GPIO write doesn't briefly kill power during init
+    ShadowOutput |= (1U << MCP_PWR_EN);
 
     esp_err_t ret  = ESP_OK;
     uint32_t pullup = MCP23017_PULLUP;

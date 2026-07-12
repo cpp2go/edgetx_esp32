@@ -51,58 +51,43 @@ static bool ads1015_hal_adc_init() {
     return true; 
 }
 
-static void startADCReading(i2c_master_dev_handle_t ads, uint16_t mux)
+static esp_err_t startADCReading(i2c_master_dev_handle_t ads, uint16_t mux)
 {
-  // Start with default values
   uint16_t config =
-      ADS1X15_REG_CONFIG_CQUE_1CONV |    // Set CQUE to any value other than
-                                         // None so we can use it in RDY mode
-      ADS1X15_REG_CONFIG_CLAT_NONLAT |   // Non-latching (default val)
-      ADS1X15_REG_CONFIG_CPOL_ACTVLOW |  // Alert/Rdy active low   (default val)
-      ADS1X15_REG_CONFIG_CMODE_TRAD;     // Traditional comparator (default val)
+      ADS1X15_REG_CONFIG_CQUE_1CONV |
+      ADS1X15_REG_CONFIG_CLAT_NONLAT |
+      ADS1X15_REG_CONFIG_CPOL_ACTVLOW |
+      ADS1X15_REG_CONFIG_CMODE_TRAD |
+      ADS1X15_REG_CONFIG_MODE_SINGLE;
 
-  //if (continuous) {
-  //  config |= ADS1X15_REG_CONFIG_MODE_CONTIN;
-  //} else {
-    config |= ADS1X15_REG_CONFIG_MODE_SINGLE;
-  //}
-
-  // Set PGA/voltage range
   config |= m_gain;
-
-  // Set data rate
   config |= m_dataRate;
-
-  // Set channels
   config |= mux;
-
-  // Set 'start single-conversion' bit
   config |= ADS1X15_REG_CONFIG_OS_SINGLE;
 
-  // Write config register to the ADC
-  ESP_ERROR_CHECK(i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_CONFIG, config));
+  esp_err_t ret = i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_CONFIG, config);
+  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC config err=%d", (int)ret); return ret; }
 
-  // Set ALERT/RDY to RDY mode.
-  ESP_ERROR_CHECK(i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_HITHRESH, 0x8000));
-  ESP_ERROR_CHECK(i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_LOWTHRESH, 0x0000));
+  ret = i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_HITHRESH, 0x8000);
+  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC hithresh err=%d", (int)ret); return ret; }
+
+  ret = i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_LOWTHRESH, 0x0000);
+  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC lowthresh err=%d", (int)ret); }
+  return ret;
 }
 
 static int16_t getLastConversionResults(i2c_master_dev_handle_t ads)
 {
-  // Read the conversion results
   uint16_t res = 0;
-  ESP_ERROR_CHECK(i2c_register_read_uint16(ads, ADS1X15_REG_POINTER_CONVERT, &res));
+  esp_err_t ret = i2c_register_read_uint16(ads, ADS1X15_REG_POINTER_CONVERT, &res);
+  if (ret != ESP_OK) { TRACE_ERROR("ADS getResult err=%d", (int)ret); return 0; }
 
   if (m_bitShift == 0) {
     return (int16_t)res;
   }
 
   res = res >> m_bitShift;
-
-  // Shift 12-bit results right 4 bits for the ADS1015,
-  // making sure we keep the sign bit intact
   if (res > 0x07FF) {
-    // negative number - extend the sign to 16th bit
     res |= 0xF000;
   }
   return (int16_t)res;
@@ -111,19 +96,22 @@ static int16_t getLastConversionResults(i2c_master_dev_handle_t ads)
 static bool conversionComplete(i2c_master_dev_handle_t ads)
 {
   uint16_t result = 0;
-  ESP_ERROR_CHECK(i2c_register_read_uint16(ads, ADS1X15_REG_POINTER_CONFIG, &result));
+  esp_err_t ret = i2c_register_read_uint16(ads, ADS1X15_REG_POINTER_CONFIG, &result);
+  if (ret != ESP_OK) return true; // treat as done to break the wait loop
   return (result & 0x8000) != 0;
 }
 
 static int16_t readADC(i2c_master_dev_handle_t ads, uint16_t mux)
 {
-  startADCReading(ads, mux);
+  if (startADCReading(ads, mux) != ESP_OK) return 0;
 
-  // Wait for the conversion to complete
-  while (!conversionComplete(ads))
+  // Wait for conversion with timeout (~10ms at 3300 SPS)
+  int timeout = 200;
+  while (!conversionComplete(ads) && --timeout > 0)
     ;
 
-  // Read the conversion results
+  if (timeout <= 0) { TRACE_ERROR("ADS conversionComplete timeout"); return 0; }
+
   return getLastConversionResults(ads);
 }
 

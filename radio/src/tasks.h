@@ -24,7 +24,10 @@
 #include "os/task.h"
 
 // stack sizes should be in multiples of 8 for better alignment
-#if defined (COLORLCD)
+#if defined(COLORLCD) && defined(ESP_PLATFORM)
+  // ESP32 COLORLCD needs more stack for complex LVGL page rendering
+  #define MENUS_STACK_SIZE     (16 * 1024)
+#elif defined(COLORLCD)
   #define MENUS_STACK_SIZE     (8 * 1024)
 #else
   #define MENUS_STACK_SIZE     2000
