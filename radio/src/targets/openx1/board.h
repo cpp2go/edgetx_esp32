@@ -119,6 +119,7 @@ SD_CS   7
 #define I2S_DOUT  GPIO_NUM_16
 #define I2S_BCLK  GPIO_NUM_17
 #define I2S_LRCLK GPIO_NUM_18
+#define AUDIO_SAMPLE_FMT AUDIO_SAMPLE_FMT_S16
 
 #define SOFT_PWR_CTRL
 uint32_t pwrCheck();

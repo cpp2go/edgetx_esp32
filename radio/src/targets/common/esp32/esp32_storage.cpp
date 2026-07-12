@@ -105,8 +105,39 @@ extern "C" FRESULT f_chdir(const TCHAR* path)
   if (!path || !path[0]) return FR_INVALID_NAME;
 
   if (path[0] == '/') {
-    // absolute path
-    strncpy(s_cwd, path, sizeof(s_cwd) - 1);
+    // Absolute path — resolve into s_cwd, handling ".." and "." components
+    char tmp[512];
+    tmp[0] = '/';
+    size_t len = 1;
+    tmp[1] = '\0';
+
+    const char* p = path + 1;
+    while (*p) {
+      const char* seg = p;
+      while (*p && *p != '/') p++;
+      size_t seglen = p - seg;
+
+      if (seglen == 2 && seg[0] == '.' && seg[1] == '.') {
+        // go up one level
+        char* slash = strrchr(tmp, '/');
+        if (slash && slash != tmp) {
+          *slash = '\0';
+          len = (size_t)(slash - tmp);
+        } else {
+          tmp[0] = '/'; tmp[1] = '\0'; len = 1;
+        }
+      } else if (seglen == 1 && seg[0] == '.') {
+        // stay — skip
+      } else if (seglen > 0 && len + 1 + seglen < sizeof(tmp)) {
+        if (len > 1) tmp[len++] = '/';
+        memcpy(tmp + len, seg, seglen);
+        len += seglen;
+        tmp[len] = '\0';
+      }
+
+      if (*p == '/') p++;
+    }
+    strncpy(s_cwd, tmp, sizeof(s_cwd) - 1);
     s_cwd[sizeof(s_cwd) - 1] = '\0';
   } else if (path[0] == '.' && path[1] == '.' &&
              (path[2] == '/' || path[2] == '\0')) {
