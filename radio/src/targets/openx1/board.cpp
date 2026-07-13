@@ -20,6 +20,7 @@
 
 #include "edgetx.h"
 #include "hal/usb_driver.h"
+#include "hal/adc_driver.h"
 
 /* Littlevgl specific */
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -31,15 +32,13 @@
 #include "lvgl_helpers.h"
 
 #include "nvs_flash.h"
+#include "esp_log.h"
 /* BLE */
 //#include "nimble/nimble_port.h"
 //#include "nimble/nimble_port_freertos.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#if defined(CONFIG_TINYUSB_ENABLED)
-#include "tusb.h"
-#endif
 #include "driver/i2c_master.h"
 #include "driver/gpio.h"
 #include "flyskyHallStick_driver.h"
@@ -128,48 +127,49 @@ WidgetFactory *widgets[] = {
 
 void boardInit()
 {
-    /* Initialize NVS ¡ª it is used to store PHY calibration data */
+    ESP_EARLY_LOGI("BOARD", "boardInit start");
+
+    /* Initialize NVS â€” it is used to store PHY calibration data */
     esp_err_t ret = nvs_flash_init();
     if  (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+    ESP_EARLY_LOGI("BOARD", "nvs_flash_init done");
 
-    // À¶ÑÀÐ­Òé³õÊ¼»¯
     nimble_port_init();
+    ESP_EARLY_LOGI("BOARD", "nimble_port_init done");
 
     board_init_i2c();
-
+    ESP_EARLY_LOGI("BOARD", "board_init_i2c done");
 
     keysInit();
     rtcInit();
+    ESP_EARLY_LOGI("BOARD", "keysInit+rtcInit done");
 
     sdInit();
+    ESP_EARLY_LOGI("BOARD", "sdInit done");
 
 #if defined(ROTARY_ENCODER_NAVIGATION)
     rotaryEncoderInit();
+    ESP_EARLY_LOGI("BOARD", "rotaryEncoderInit done");
 #endif
 
     //backlightInit();
     initWiFi();
+    ESP_EARLY_LOGI("BOARD", "initWiFi done");
     init2MhzTimer();
-    
+
     audioInit();
+    ESP_EARLY_LOGI("BOARD", "audioInit done");
     ads1015_adc_init();
+    ESP_EARLY_LOGI("BOARD", "ads1015_adc_init done");
 
-    //if (flysky_gimbal_init()) {
-    //    TRACE("Flysky Hall Gimbal detected");
-    //} else {
-    //    TRACE_ERROR("Flysky Hall Gimbal NOT detected");
-    //}
-
-    //toplcdInit();
-
-    usbInit();
-#if defined(CONFIG_TINYUSB_ENABLED)
-    xTaskCreatePinnedToCore(usb_device_task, "usb_dev", 4096, NULL, 5, NULL, 0);
-#endif
+    ESP_EARLY_LOGI("BOARD", "boardInit complete");
+    // usbInit() / usb_device_task removed: tinyusb_driver_install() (called lazily
+    // from usbStart()) creates its own tinyusb_device_task; a duplicate tud_task()
+    // loop here would race against it and cause a crash.
 }
 
 void boardOff()
@@ -197,17 +197,6 @@ int usbPlugged() {
     return debouncedState;
 }
 
-#if defined(CONFIG_TINYUSB_ENABLED)
-static void usb_device_task(void *param)
-{
-    (void)param;
-    while (1) {
-        tud_task();
-        vTaskDelay(1);
-    }
-}
-#endif
-
 void enableVBatBridge() {
 }
 void disableVBatBridge() {
@@ -218,7 +207,14 @@ bool isVBatBridgeEnabled() {
 
 uint16_t getBatteryVoltage()
 {
-    return 0;
+    if (adcGetMaxInputs(ADC_INPUT_VBAT) < 1) return 0;
+    // ADS1015 GAIN_ONE: FSR=4.096V, 1 LSB=2mV; anaIn() returns raw_12bit/2.
+    // Each anaIn() step = 4mV.  Voltage divider: 10k (top) + 3k (bottom),
+    // ratio = 3/13 â†’ V_bat = V_adc Ã— 13/3.
+    // Result in 0.01V units: val * 4mV * 13/3 / 10 = val * 52 / 30.
+    uint16_t val = anaIn(adcGetInputOffset(ADC_INPUT_VBAT));
+    int32_t result = (int32_t)val * 52 / 30 + g_eeGeneral.txVoltageCalibration;
+    return result > 0 ? (uint16_t)result : 0;
 }
 
 uint16_t getRTCBatteryVoltage()

@@ -132,3 +132,8 @@ const diskio_driver_t sdcard_spi_driver = {
     .ioctl = sdcard_spi_ioctl,
 };
 
+sdmmc_card_t* sdcard_spi_get_card(void)
+{
+    return card_present ? card : NULL;
+}
+

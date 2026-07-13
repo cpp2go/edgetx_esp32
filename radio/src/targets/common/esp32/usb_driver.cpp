@@ -26,11 +26,19 @@
 #include "sdcard.h"
 #include "usb_joystick.h"
 
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
+#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_MSC_ENABLED)
+#include "tinyusb.h"
+#include "tinyusb_msc.h"
+#include "diskio_spi.h"
 #include "tusb.h"
-#include "class/cdc/cdc_device.h"
-#include "class/msc/msc_device.h"
-#include "class/hid/hid_device.h"
+#include "esp_rom_sys.h"
+// Disable the USB_SERIAL_JTAG hardware chip-reset signal before TinyUSB
+// switches the USB_WRAP PHY mux to OTG (which would otherwise cause rst:0x15).
+#include "hal/usb_serial_jtag_ll.h"
+#include "soc/rtc_cntl_reg.h"
+
+static bool s_tusb_installed = false;
+static tinyusb_msc_storage_handle_t s_msc_storage = NULL;
 #endif
 
 static usbMode selectedUsbMode = USB_UNSELECTED_MODE;
@@ -47,103 +55,15 @@ void setSelectedUsbMode(int mode)
     selectedUsbMode = usbMode(mode);
 }
 
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
-extern "C" void tud_mount_cb(void) {}
-extern "C" void tud_umount_cb(void) {}
-extern "C" void tud_suspend_cb(bool) {}
-extern "C" void tud_resume_cb(void) {}
-
-extern "C" void tud_cdc_rx_cb(uint8_t) {}
-
-extern "C" void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4])
-{
-    (void) lun;
-    memcpy(vendor_id, "EdgeTX  ", 8);
-    memcpy(product_id, "MASS STORAGE    ", 16);
-    memcpy(product_rev, "1.00", 4);
-}
-
-extern "C" bool tud_msc_is_ready_cb(uint8_t lun)
-{
-    (void) lun;
-    return SD_CARD_PRESENT();
-}
-
-extern "C" bool tud_msc_is_write_protected_cb(uint8_t lun)
-{
-    (void) lun;
-    return false;
-}
-
-extern "C" void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size)
-{
-    (void) lun;
-    *block_size = 512;
-    *block_count = 0;
-
-    if (SD_CARD_PRESENT()) {
-        auto drv = storageGetDefaultDriver();
-        if (drv && drv->ioctl(0, GET_SECTOR_COUNT, block_count) == RES_OK) {
-        } else {
-            *block_count = 0;
-        }
-    }
-}
-
-extern "C" int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize)
-{
-    (void) lun;
-    (void) offset;
-
-    if (!SD_CARD_PRESENT()) return -1;
-
-    auto drv = storageGetDefaultDriver();
-    if (!drv) return -1;
-
-    uint32_t blocks = bufsize / 512;
-    if (drv->read(0, (BYTE*)buffer, lba, (UINT)blocks) != RES_OK) {
-        return -1;
-    }
-    return bufsize;
-}
-
-extern "C" int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, const void* buffer, uint32_t bufsize)
-{
-    (void) lun;
-    (void) offset;
-
-    if (!SD_CARD_PRESENT()) return -1;
-
-    auto drv = storageGetDefaultDriver();
-    if (!drv) return -1;
-
-    uint32_t blocks = bufsize / 512;
-    if (drv->write(0, (const BYTE*)buffer, lba, (UINT)blocks) != RES_OK) {
-        return -1;
-    }
-    return bufsize;
-}
-
-extern "C" void tud_msc_scsi_cb(uint8_t lun, const uint8_t* scsi_cmd, void* buffer, uint16_t bufsize)
-{
-    (void) lun;
-    (void) scsi_cmd;
-    (void) buffer;
-    (void) bufsize;
-}
-#endif
-
 void usbInit()
 {
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
-    tud_init(0);
-#endif
     usbDriverStarted = false;
 }
 
 void usbStart()
 {
     usbInit();
+    esp_rom_printf("USB: usbStart mode=%d\n", getSelectedUsbMode());
 
     if (getSelectedUsbMode() == USB_UNSELECTED_MODE) {
         usbDriverStarted = false;
@@ -158,11 +78,65 @@ void usbStart()
             break;
 
         case USB_MASS_STORAGE_MODE:
-            if (!SD_CARD_PRESENT()) {
-                TRACE("USB mass storage selected but no SD card");
-            } else {
-                storageInit();
+#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_MSC_ENABLED)
+            if (!s_tusb_installed) {
+                // Prevent USB_SERIAL_JTAG from issuing a hardware chip reset
+                // (rst:0x15) when the USB_WRAP PHY mux switches to OTG below.
+                REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
+                usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+
+                // Correct init order (same as component test app and reference examples):
+                // Step 1 — MSC class driver
+                tinyusb_msc_driver_config_t msc_cfg = {};
+                msc_cfg.user_flags.auto_mount_off = 1;
+                esp_err_t err = tinyusb_msc_install_driver(&msc_cfg);
+                esp_rom_printf("USB: msc_install_driver=0x%x\n", err);
+                if (err != ESP_OK) break;
+
+                // Step 2 — storage (SD card), configured BEFORE USB starts
+                sdmmc_card_t* sdcard = sdcard_spi_get_card();
+                esp_rom_printf("USB: sdcard=%p\n", sdcard);
+                if (sdcard) {
+                    tinyusb_msc_storage_config_t cfg = {};
+                    cfg.medium.card = sdcard;
+                    cfg.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
+                    cfg.fat_fs.do_not_format = true;
+                    err = tinyusb_msc_new_storage_sdmmc(&cfg, &s_msc_storage);
+                    esp_rom_printf("USB: msc_new_storage=0x%x handle=%p\n", err, s_msc_storage);
+                }
+
+                // Step 3 — start USB stack last, after storage is configured
+                // Defaults from TINYUSB_DEFAULT_CONFIG(): FS port, CPU1, prio 5, 4096B stack.
+                tinyusb_config_t tusb_cfg = {};
+                tusb_cfg.port = TINYUSB_PORT_FULL_SPEED_0;
+                tusb_cfg.phy.skip_setup = false;
+                tusb_cfg.phy.self_powered = false;
+                tusb_cfg.phy.vbus_monitor_io = -1;
+                tusb_cfg.task.size = 4096;
+                tusb_cfg.task.priority = 5;
+                tusb_cfg.task.xCoreID = 1;   // CPU1 (TINYUSB_DEFAULT_TASK_AFFINITY)
+                err = tinyusb_driver_install(&tusb_cfg);
+                esp_rom_printf("USB: driver_install=0x%x\n", err);
+                if (err == ESP_OK) s_tusb_installed = true;
+            } else if (!s_msc_storage) {
+                // USB stack already running (from a previous MSC session that was
+                // stopped via usbStop). Re-create the storage handle.
+                sdmmc_card_t* sdcard = sdcard_spi_get_card();
+                if (sdcard) {
+                    tinyusb_msc_storage_config_t cfg = {};
+                    cfg.medium.card = sdcard;
+                    cfg.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
+                    cfg.fat_fs.do_not_format = true;
+                    esp_err_t err = tinyusb_msc_new_storage_sdmmc(&cfg, &s_msc_storage);
+                    esp_rom_printf("USB: re-create storage=0x%x handle=%p\n", err, s_msc_storage);
+                    if (err == ESP_OK) {
+                        tud_disconnect();
+                        vTaskDelay(pdMS_TO_TICKS(250));
+                        tud_connect();
+                    }
+                }
             }
+#endif
             break;
 
 #if defined(USB_SERIAL)
@@ -180,9 +154,13 @@ void usbStart()
 
 void usbStop()
 {
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
-    if (tud_ready()) {
-        tud_disconnect();
+#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_MSC_ENABLED)
+    if (s_msc_storage) {
+        tinyusb_msc_delete_storage(s_msc_storage);
+        s_msc_storage = NULL;
+    }
+    if (!sdMounted()) {
+        sdInit();
     }
 #endif
 
@@ -198,36 +176,17 @@ bool usbStarted()
 
 uint32_t usbSerialFreeSpace()
 {
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
-    if (!cdcActive) return 0;
-    return tud_cdc_write_available();
-#else
     return 0;
-#endif
 }
 
 void usbJoystickUpdate()
 {
-    if (!usbStarted() || getSelectedUsbMode() != USB_JOYSTICK_MODE) return;
-
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
-    if (tud_hid_ready()) {
-        struct usbReport_t report = usbReport();
-        tud_hid_report(0, 0, report.ptr, report.size);
-    }
-#endif
 }
 
 #if defined(USB_SERIAL)
 void usbSerialPutc(void*, uint8_t c)
 {
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_ENABLED)
-    if (!cdcActive || !tud_cdc_connected()) return;
-    tud_cdc_write_char((char)c);
-    tud_cdc_write_flush();
-#else
     (void)c;
-#endif
 }
 
 static void* usbSerialInit(void*, const etx_serial_init*)

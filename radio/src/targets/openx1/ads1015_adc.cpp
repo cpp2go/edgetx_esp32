@@ -166,10 +166,9 @@ static void task_adc(void* pdata)
   int16_t adcval = 0;
   while (1) {
     if (0xFFFF == ads_channels[index].mux) {
-      // for RTC Batt, OpenX1 uses main batt
+      // OpenX1 has no separate RTC battery — mirror main VBAT channel.
       uint8_t offset = adcGetInputOffset(ADC_INPUT_VBAT);
-      int16_t vbat = getAnalogValue(offset) * 1.72;
-      setAnalogValue(offset, vbat);
+      uint16_t vbat = getAnalogValue(offset);
       setAnalogValue(ads_channels[index].etx_adc_channel, vbat);
     } else {
 

@@ -3633,13 +3633,17 @@ CONFIG_TINYUSB_DESC_MANUFACTURER_STRING="Espressif Systems"
 CONFIG_TINYUSB_DESC_PRODUCT_STRING="Espressif Device"
 # default:
 CONFIG_TINYUSB_DESC_SERIAL_STRING="123456"
+# default:
+CONFIG_TINYUSB_DESC_MSC_STRING="Espressif MSC Device"
 # end of Descriptor configuration
 
 #
 # Mass Storage Class (MSC)
 #
+CONFIG_TINYUSB_MSC_ENABLED=y
+CONFIG_TINYUSB_MSC_BUFSIZE=512
 # default:
-# CONFIG_TINYUSB_MSC_ENABLED is not set
+CONFIG_TINYUSB_MSC_MOUNT_PATH="/data"
 # end of Mass Storage Class (MSC)
 
 #
