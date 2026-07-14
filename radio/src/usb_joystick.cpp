@@ -483,6 +483,11 @@ int setupUSBJoystick()
   return oldChecksum != newChecksum;
 }
 
+uint8_t usbJoystickReportDescSize()
+{
+  return _hidReportDescSize;
+}
+
 extern "C" struct usbReport_t usbReportDesc()
 {
   usbReport_t res = {_hidReportDesc, _hidReportDescSize};

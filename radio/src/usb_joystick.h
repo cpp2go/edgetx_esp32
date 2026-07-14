@@ -103,6 +103,7 @@ int usbJoystickSettingsChanged();
 // Initializes the data based on the model settings
 // Return value (true = description changed, false = desc. update not needed)
 int setupUSBJoystick();
+uint8_t usbJoystickReportDescSize();
 
 void onUSBJoystickModelChanged();
 

@@ -185,8 +185,13 @@ int usbPlugged() {
     static uint8_t debouncedState = 0;
     static uint8_t lastState = 0;
 
-    // USB_GPIO_PIN_VBUS = (8*3+5) = 29, MCP23017 G1B5 in ShadowInput
-    uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1 : 0;
+#if defined(USB_GPIO_PIN_VBUS)
+    // Match the STM32 VBUS sense path: only commit a new state after the
+    // input has been observed in the same level on consecutive reads.
+    const uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1 : 0;
+#else
+    const uint8_t state = 0;
+#endif
 
     if (state == lastState) {
         debouncedState = state;

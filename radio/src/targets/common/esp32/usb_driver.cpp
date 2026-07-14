@@ -26,10 +26,8 @@
 #include "sdcard.h"
 #include "usb_joystick.h"
 
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_MSC_ENABLED)
+#if defined(ESP_PLATFORM)
 #include "tinyusb.h"
-#include "tinyusb_msc.h"
-#include "diskio_spi.h"
 #include "tusb.h"
 #include "esp_rom_sys.h"
 // Disable the USB_SERIAL_JTAG hardware chip-reset signal before TinyUSB
@@ -38,12 +36,48 @@
 #include "soc/rtc_cntl_reg.h"
 
 static bool s_tusb_installed = false;
+static uint8_t s_hid_cfg_desc[64] = {};
+#if defined(CONFIG_TINYUSB_MSC_ENABLED)
+#include "tinyusb_msc.h"
+#include "diskio_spi.h"
 static tinyusb_msc_storage_handle_t s_msc_storage = NULL;
+#endif
 #endif
 
 static usbMode selectedUsbMode = USB_UNSELECTED_MODE;
 static bool usbDriverStarted = false;
 static bool cdcActive = false;
+
+#if defined(ESP_PLATFORM)
+extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance)
+{
+    (void)instance;
+    if (!usbJoystickActive()) {
+        setupUSBJoystick();
+    }
+    usbReport_t report = usbReportDesc();
+    return report.ptr;
+}
+
+extern "C" uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t* buffer, uint16_t reqlen)
+{
+    (void)instance;
+    (void)report_id;
+    (void)report_type;
+    (void)buffer;
+    (void)reqlen;
+    return 0;
+}
+
+extern "C" void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_t report_type, uint8_t const* buffer, uint16_t bufsize)
+{
+    (void)instance;
+    (void)report_id;
+    (void)report_type;
+    (void)buffer;
+    (void)bufsize;
+}
+#endif
 
 int getSelectedUsbMode()
 {
@@ -58,6 +92,7 @@ void setSelectedUsbMode(int mode)
 void usbInit()
 {
     usbDriverStarted = false;
+    usbPlugged();
 }
 
 void usbStart()
@@ -72,9 +107,85 @@ void usbStart()
 
     switch (getSelectedUsbMode()) {
         case USB_JOYSTICK_MODE:
+#if defined(ESP_PLATFORM)
             if (!setupUSBJoystick()) {
                 TRACE("USB joystick setup failed");
             }
+
+            if (!s_tusb_installed) {
+                REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
+                usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+
+                if (!setupUSBJoystick()) {
+                    TRACE("USB joystick setup failed");
+                }
+
+                uint8_t report_desc_len = usbJoystickReportDescSize();
+                if (report_desc_len > 0) {
+                    memset(s_hid_cfg_desc, 0, sizeof(s_hid_cfg_desc));
+                    uint16_t total_len = TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN;
+                    s_hid_cfg_desc[0] = 9;
+                    s_hid_cfg_desc[1] = TUSB_DESC_CONFIGURATION;
+                    s_hid_cfg_desc[2] = (uint8_t)(total_len & 0xff);
+                    s_hid_cfg_desc[3] = (uint8_t)((total_len >> 8) & 0xff);
+                    s_hid_cfg_desc[4] = 1;
+                    s_hid_cfg_desc[5] = 1;
+                    s_hid_cfg_desc[6] = 0;
+                    s_hid_cfg_desc[7] = 0x80;
+                    s_hid_cfg_desc[8] = 100;
+
+                    s_hid_cfg_desc[9] = 9;
+                    s_hid_cfg_desc[10] = TUSB_DESC_INTERFACE;
+                    s_hid_cfg_desc[11] = 0;
+                    s_hid_cfg_desc[12] = 0;
+                    s_hid_cfg_desc[13] = 1;
+                    s_hid_cfg_desc[14] = TUSB_CLASS_HID;
+                    s_hid_cfg_desc[15] = 0;
+                    s_hid_cfg_desc[16] = 0;
+                    s_hid_cfg_desc[17] = 0;
+
+                    s_hid_cfg_desc[18] = 9;
+                    s_hid_cfg_desc[19] = HID_DESC_TYPE_HID;
+                    s_hid_cfg_desc[20] = 0x11;
+                    s_hid_cfg_desc[21] = 0x01;
+                    s_hid_cfg_desc[22] = 0;
+                    s_hid_cfg_desc[23] = 1;
+                    s_hid_cfg_desc[24] = HID_DESC_TYPE_REPORT;
+                    s_hid_cfg_desc[25] = (uint8_t)(report_desc_len & 0xff);
+                    s_hid_cfg_desc[26] = (uint8_t)((report_desc_len >> 8) & 0xff);
+
+                    s_hid_cfg_desc[27] = 7;
+                    s_hid_cfg_desc[28] = TUSB_DESC_ENDPOINT;
+                    s_hid_cfg_desc[29] = 0x81;
+                    s_hid_cfg_desc[30] = TUSB_XFER_INTERRUPT;
+                    s_hid_cfg_desc[31] = 16;
+                    s_hid_cfg_desc[32] = 0;
+                    s_hid_cfg_desc[33] = 10;
+                }
+
+                tinyusb_config_t tusb_cfg = {};
+                tusb_cfg.port = TINYUSB_PORT_FULL_SPEED_0;
+                tusb_cfg.phy.skip_setup = false;
+                tusb_cfg.phy.self_powered = false;
+                tusb_cfg.phy.vbus_monitor_io = -1;
+                tusb_cfg.task.size = 4096;
+                tusb_cfg.task.priority = 5;
+                tusb_cfg.task.xCoreID = 1;
+                tusb_cfg.descriptor.full_speed_config = s_hid_cfg_desc;
+                tusb_cfg.descriptor.high_speed_config = s_hid_cfg_desc;
+
+                esp_err_t err = tinyusb_driver_install(&tusb_cfg);
+                esp_rom_printf("USB: joystick driver_install=0x%x\n", err);
+                if (err == ESP_OK) {
+                    s_tusb_installed = true;
+                    tud_connect();
+                }
+            }
+#else
+            if (!setupUSBJoystick()) {
+                TRACE("USB joystick setup failed");
+            }
+#endif
             break;
 
         case USB_MASS_STORAGE_MODE:
@@ -181,6 +292,15 @@ uint32_t usbSerialFreeSpace()
 
 void usbJoystickUpdate()
 {
+#if defined(ESP_PLATFORM)
+    if (!usbStarted() || getSelectedUsbMode() != USB_JOYSTICK_MODE) return;
+    if (!tud_hid_ready()) return;
+
+    usbReport_t report = usbReport();
+    if (report.ptr && report.size) {
+        tud_hid_report(0, report.ptr, report.size);
+    }
+#endif
 }
 
 #if defined(USB_SERIAL)
