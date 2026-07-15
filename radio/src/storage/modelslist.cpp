@@ -26,6 +26,9 @@
 using std::list;
 
 #include "edgetx.h"
+#if defined(COLORLCD)
+#include "gui/colorlcd/libui/popups.h"
+#endif
 #include "storage/sdcard_yaml.h"
 #include "yaml/yaml_datastructs.h"
 #include "yaml/yaml_labelslist.h"
@@ -1091,7 +1094,7 @@ bool ModelsList::loadYaml()
         // Move model into unused folder.
         const char *warning = sdMoveFile(fhas.name.c_str(), MODELS_PATH, fhas.name.c_str(), UNUSED_MODELS_PATH);
         if(warning)
-          POPUP_WARNING(warning);
+          POPUP_BUBBLE(warning, 3000);
       } else {
         newFileHash.push_back(fhas); // File exists, keep it
       }
@@ -1100,12 +1103,12 @@ bool ModelsList::loadYaml()
     if(foundInRadio) {
       const char *warning = sdMoveFile(MODELS_FILENAME, RADIO_PATH, MODELS_FILENAME ".old", UNUSED_MODELS_PATH);
       if(warning)
-        POPUP_WARNING(warning);
+        POPUP_BUBBLE(warning, 3000);
     }
     if(foundInModels) { // Will overwrite the copy from /radio if both existed, do last
       const char *warning = sdMoveFile(MODELS_FILENAME, MODELS_PATH, MODELS_FILENAME ".old", UNUSED_MODELS_PATH);
       if(warning)
-        POPUP_WARNING(warning);
+        POPUP_BUBBLE(warning, 3000);
     }
     if(moveRequired) {
       fileHashInfo = newFileHash; // Update the new file list
@@ -1113,8 +1116,7 @@ bool ModelsList::loadYaml()
       s += "\n";
       s += UNUSED_MODELS_PATH;
       s += "\n";
-      s += STR_PRESS_ANY_KEY_TO_SKIP;
-      POPUP_WARNING(s.c_str());
+      POPUP_BUBBLE(s.c_str(), 3000);
     }
   }
 

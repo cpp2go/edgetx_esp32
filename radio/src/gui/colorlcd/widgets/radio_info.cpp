@@ -125,7 +125,16 @@ class RadioInfoWidget : public TopBarWidget
   {
     TopBarWidget::checkEvents();
 
+#if defined(ESP_PLATFORM) && defined(PCB_OPENX1)
+    const bool usbActive = usbPlugged() &&
+                           (usbStarted() ||
+                            getSelectedUsbMode() != USB_UNSELECTED_MODE);
+    usbIcon->show(usbActive);
+#else
     usbIcon->show(usbPlugged());
+#endif
+
+
     if (getSelectedUsbMode() == USB_UNSELECTED_MODE)
       usbIcon->setColor(COLOR_THEME_PRIMARY3_INDEX);
     else

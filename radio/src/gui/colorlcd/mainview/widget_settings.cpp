@@ -104,6 +104,7 @@ WidgetSettings::WidgetSettings(Widget* w) :
         new ModelStringEdit(line, rect_t{}, widgetData->getString(optIdx),
                             [=](const char* s) {
                               widgetData->setString(optIdx, s);
+                              SET_DIRTY();
                             });
         break;
 

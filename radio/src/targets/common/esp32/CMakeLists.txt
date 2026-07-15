@@ -2,6 +2,10 @@
 add_definitions(-DAUDIO -DVOICE -DRTCLOCK)
 add_definitions(-DSBUS_TRAINER)
 
+if(USB_SERIAL)
+  add_definitions(-DUSB_SERIAL)
+endif()
+
 add_definitions(-DSTORAGE_USE_SDCARD_SPI)
 
 # TARGET_SRC relative dir TODO-OPENX1

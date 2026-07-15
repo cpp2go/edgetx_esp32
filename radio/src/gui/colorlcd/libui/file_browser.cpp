@@ -111,10 +111,14 @@ static int scan_files(std::list<std::string>& files,
   DIR dir;
 
   // "." requires FF_FS_RPATH; use the absolute CWD instead so this
-  // works when FF_FS_RPATH = 0 (e.g. ESP-IDF FatFS default).
+  // works when FF_FS_RPATH = 0 (e.g. ESP-IDF FatFS default).  
+#if defined(ESP_PLATFORM)
   char cwdbuf[FF_MAX_LFN + 1];
   if (f_getcwd((TCHAR*)cwdbuf, sizeof(cwdbuf)) != FR_OK) cwdbuf[0] = '\0';
   FRESULT res = f_opendir(&dir, cwdbuf[0] ? cwdbuf : "/");
+#else
+  FRESULT res = f_opendir(&dir, "."); // Open the directory
+#endif
   if (res != FR_OK) return -1;
 
   // read all entries

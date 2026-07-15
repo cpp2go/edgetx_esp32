@@ -186,20 +186,20 @@ int usbPlugged() {
     static uint8_t lastState = 0;
 
 #if defined(USB_GPIO_PIN_VBUS)
-    // Match the STM32 VBUS sense path: only commit a new state after the
-    // input has been observed in the same level on consecutive reads.
-    const uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1 : 0;
+#if defined(USB_GPIO_VBUS_ACTIVE_LOW)
+    uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 0u : 1u;
 #else
-    const uint8_t state = 0;
+    uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1u : 0u;
 #endif
-
-    if (state == lastState) {
+    if (state == lastState)
         debouncedState = state;
-    } else {
+    else
         lastState = state;
-    }
 
     return debouncedState;
+#else
+    return 0;
+#endif
 }
 
 void enableVBatBridge() {
@@ -219,7 +219,7 @@ uint16_t getBatteryVoltage()
     // Result in 0.01V units: val * 4mV * 13/3 / 10 = val * 52 / 30.
     uint16_t val = anaIn(adcGetInputOffset(ADC_INPUT_VBAT));
     int32_t result = (int32_t)val * 52 / 30 + g_eeGeneral.txVoltageCalibration;
-    return result > 0 ? (uint16_t)result : 0;
+    return result > 0 ? (uint16_t)result*2 : 0;
 }
 
 uint16_t getRTCBatteryVoltage()

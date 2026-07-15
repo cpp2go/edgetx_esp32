@@ -16,6 +16,10 @@ set(BITMAPS_TARGET bm480_bitmaps)
 set(STORAGE_MODELSLIST YES)
 
 set(STATUS_LEDS NO)
+set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)" )
+if(USB_SERIAL)
+add_definitions(-DUSB_SERIAL)
+endif()
 
 if(DEBUG)
 add_definitions(-DDEBUG)

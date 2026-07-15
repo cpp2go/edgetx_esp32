@@ -49,6 +49,23 @@ static bool usbDriverStarted = false;
 static bool cdcActive = false;
 
 #if defined(ESP_PLATFORM)
+static void teardownTinyUsbStack()
+{
+    if (s_tusb_installed) {
+        tud_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(50));
+        tinyusb_driver_uninstall();
+        s_tusb_installed = false;
+    }
+
+#if defined(CONFIG_TINYUSB_MSC_ENABLED)
+    if (s_msc_storage) {
+        tinyusb_msc_delete_storage(s_msc_storage);
+        s_msc_storage = NULL;
+    }
+#endif
+}
+
 extern "C" uint8_t const* tud_hid_descriptor_report_cb(uint8_t instance)
 {
     (void)instance;
@@ -104,6 +121,10 @@ void usbStart()
         usbDriverStarted = false;
         return;
     }
+
+#if defined(ESP_PLATFORM)
+    teardownTinyUsbStack();
+#endif
 
     switch (getSelectedUsbMode()) {
         case USB_JOYSTICK_MODE:
@@ -265,11 +286,9 @@ void usbStart()
 
 void usbStop()
 {
-#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_MSC_ENABLED)
-    if (s_msc_storage) {
-        tinyusb_msc_delete_storage(s_msc_storage);
-        s_msc_storage = NULL;
-    }
+#if defined(ESP_PLATFORM)
+    teardownTinyUsbStack();
+
     if (!sdMounted()) {
         sdInit();
     }

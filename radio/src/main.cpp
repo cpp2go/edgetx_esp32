@@ -145,7 +145,7 @@ static UsbSDConnected* usbConnectedWindow = nullptr;
 
 void handleUsbConnection()
 {
-#if (defined(STM32) || defined(ESP_PLATFORM)) && !defined(SIMU)
+#if defined(STM32) && !defined(SIMU)
 
   static bool _pluggedUsb = false;
 
@@ -189,10 +189,9 @@ void handleUsbConnection()
   }
 
   if (usbStarted() && !usbPlugged()) {
-    usbMode previousMode = usbMode(getSelectedUsbMode());
     usbStop();
     TRACE("USB stopped");
-    if (previousMode == USB_MASS_STORAGE_MODE) {
+    if (getSelectedUsbMode() == USB_MASS_STORAGE_MODE) {
       edgeTxResume();
 #if defined(COLORLCD)
       usbConnectedWindow->deleteLater();
@@ -200,7 +199,7 @@ void handleUsbConnection()
 #else
       pushEvent(EVT_ENTRY);
 #endif
-    } else if (previousMode == USB_SERIAL_MODE) {
+    } else if (getSelectedUsbMode() == USB_SERIAL_MODE) {
       serialStop(SP_VCP);
     }
     TRACE("reset selected USB mode");
