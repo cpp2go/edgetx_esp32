@@ -9,8 +9,6 @@
 
 // input pins
 #define USB_GPIO_PIN_VBUS  (8 * 3 + 5)  // G1B5  active-high: HIGH=USB present, LOW=absent
-
-// drives G1B5 HIGH when USB is connected and LOW (via external pull-down) when absent.
 #define MCP_PWR_SW_DET (1 << (8 * 3 + 7))  // G1B7
 
 // output pins

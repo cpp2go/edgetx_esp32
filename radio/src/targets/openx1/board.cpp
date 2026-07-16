@@ -185,21 +185,13 @@ int usbPlugged() {
     static uint8_t debouncedState = 0;
     static uint8_t lastState = 0;
 
-#if defined(USB_GPIO_PIN_VBUS)
-#if defined(USB_GPIO_VBUS_ACTIVE_LOW)
-    uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 0u : 1u;
-#else
     uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1u : 0u;
-#endif
     if (state == lastState)
         debouncedState = state;
     else
         lastState = state;
 
     return debouncedState;
-#else
-    return 0;
-#endif
 }
 
 void enableVBatBridge() {

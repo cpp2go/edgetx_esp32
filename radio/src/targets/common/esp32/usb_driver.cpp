@@ -42,6 +42,10 @@ static uint8_t s_hid_cfg_desc[64] = {};
 #include "diskio_spi.h"
 static tinyusb_msc_storage_handle_t s_msc_storage = NULL;
 #endif
+#if defined(CONFIG_TINYUSB_CDC_ENABLED)
+#include "tinyusb_cdc_acm.h"
+static bool s_cdc_acm_inited = false;
+#endif
 #endif
 
 static usbMode selectedUsbMode = USB_UNSELECTED_MODE;
@@ -51,6 +55,13 @@ static bool cdcActive = false;
 #if defined(ESP_PLATFORM)
 static void teardownTinyUsbStack()
 {
+#if defined(CONFIG_TINYUSB_CDC_ENABLED)
+    if (s_cdc_acm_inited) {
+        tinyusb_cdcacm_deinit(TINYUSB_CDC_ACM_0);
+        s_cdc_acm_inited = false;
+    }
+#endif
+
     if (s_tusb_installed) {
         tud_disconnect();
         vTaskDelay(pdMS_TO_TICKS(50));
@@ -116,6 +127,7 @@ void usbStart()
 {
     usbInit();
     esp_rom_printf("USB: usbStart mode=%d\n", getSelectedUsbMode());
+    bool startOk = false;
 
     if (getSelectedUsbMode() == USB_UNSELECTED_MODE) {
         usbDriverStarted = false;
@@ -127,9 +139,10 @@ void usbStart()
 #endif
 
     switch (getSelectedUsbMode()) {
-        case USB_JOYSTICK_MODE:
+        case USB_JOYSTICK_MODE: {
 #if defined(ESP_PLATFORM)
-            if (!setupUSBJoystick()) {
+            bool joystickReady = setupUSBJoystick();
+            if (!joystickReady) {
                 TRACE("USB joystick setup failed");
             }
 
@@ -202,12 +215,16 @@ void usbStart()
                     tud_connect();
                 }
             }
+
+            startOk = (joystickReady && s_tusb_installed);
 #else
-            if (!setupUSBJoystick()) {
+            startOk = setupUSBJoystick();
+            if (!startOk) {
                 TRACE("USB joystick setup failed");
             }
 #endif
             break;
+        }
 
         case USB_MASS_STORAGE_MODE:
 #if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_MSC_ENABLED)
@@ -223,19 +240,24 @@ void usbStart()
                 msc_cfg.user_flags.auto_mount_off = 1;
                 esp_err_t err = tinyusb_msc_install_driver(&msc_cfg);
                 esp_rom_printf("USB: msc_install_driver=0x%x\n", err);
-                if (err != ESP_OK) break;
+                if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) break;
 
                 // Step 2 — storage (SD card), configured BEFORE USB starts
                 sdmmc_card_t* sdcard = sdcard_spi_get_card();
-                esp_rom_printf("USB: sdcard=%p\n", sdcard);
-                if (sdcard) {
-                    tinyusb_msc_storage_config_t cfg = {};
-                    cfg.medium.card = sdcard;
-                    cfg.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
-                    cfg.fat_fs.do_not_format = true;
-                    err = tinyusb_msc_new_storage_sdmmc(&cfg, &s_msc_storage);
-                    esp_rom_printf("USB: msc_new_storage=0x%x handle=%p\n", err, s_msc_storage);
+                if (!sdcard) {
+                    sdInit();
+                    sdcard = sdcard_spi_get_card();
                 }
+                esp_rom_printf("USB: sdcard=%p\n", sdcard);
+                if (!sdcard) break;
+
+                tinyusb_msc_storage_config_t cfg = {};
+                cfg.medium.card = sdcard;
+                cfg.mount_point = TINYUSB_MSC_STORAGE_MOUNT_USB;
+                cfg.fat_fs.do_not_format = true;
+                err = tinyusb_msc_new_storage_sdmmc(&cfg, &s_msc_storage);
+                esp_rom_printf("USB: msc_new_storage=0x%x handle=%p\n", err, s_msc_storage);
+                if (err != ESP_OK || !s_msc_storage) break;
 
                 // Step 3 — start USB stack last, after storage is configured
                 // Defaults from TINYUSB_DEFAULT_CONFIG(): FS port, CPU1, prio 5, 4096B stack.
@@ -254,6 +276,10 @@ void usbStart()
                 // USB stack already running (from a previous MSC session that was
                 // stopped via usbStop). Re-create the storage handle.
                 sdmmc_card_t* sdcard = sdcard_spi_get_card();
+                if (!sdcard) {
+                    sdInit();
+                    sdcard = sdcard_spi_get_card();
+                }
                 if (sdcard) {
                     tinyusb_msc_storage_config_t cfg = {};
                     cfg.medium.card = sdcard;
@@ -268,20 +294,68 @@ void usbStart()
                     }
                 }
             }
+
+            startOk = (s_tusb_installed && s_msc_storage != NULL);
 #endif
             break;
 
 #if defined(USB_SERIAL)
         case USB_SERIAL_MODE:
+#if defined(ESP_PLATFORM)
+            REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
+            usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+
+            if (!s_tusb_installed) {
+                tinyusb_config_t tusb_cfg = {};
+                tusb_cfg.port = TINYUSB_PORT_FULL_SPEED_0;
+                tusb_cfg.phy.skip_setup = false;
+                tusb_cfg.phy.self_powered = false;
+                tusb_cfg.phy.vbus_monitor_io = -1;
+                tusb_cfg.task.size = 4096;
+                tusb_cfg.task.priority = 5;
+                tusb_cfg.task.xCoreID = 1;
+                esp_err_t err = tinyusb_driver_install(&tusb_cfg);
+                esp_rom_printf("USB: cdc driver_install=0x%x\n", err);
+                if (err == ESP_OK) {
+                    s_tusb_installed = true;
+                }
+            }
+
+#if defined(CONFIG_TINYUSB_CDC_ENABLED)
+            if (s_tusb_installed && !s_cdc_acm_inited) {
+                tinyusb_config_cdcacm_t acm_cfg = {};
+                acm_cfg.cdc_port = TINYUSB_CDC_ACM_0;
+                esp_err_t err = tinyusb_cdcacm_init(&acm_cfg);
+                esp_rom_printf("USB: cdcacm_init=0x%x\n", err);
+                if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+                    s_cdc_acm_inited = tinyusb_cdcacm_initialized(TINYUSB_CDC_ACM_0);
+                }
+            }
+
+            cdcActive = (s_tusb_installed && s_cdc_acm_inited);
+            startOk = cdcActive;
+#else
+            esp_rom_printf("USB: CDC not enabled in sdkconfig\n");
+            cdcActive = false;
+            startOk = false;
+#endif
+#else
             cdcActive = true;
+            startOk = true;
+#endif
             break;
 #endif
 
         default:
+            startOk = false;
             break;
     }
 
-    usbDriverStarted = (getSelectedUsbMode() != USB_UNSELECTED_MODE);
+    usbDriverStarted = startOk;
+    if (!startOk) {
+        esp_rom_printf("USB: start failed mode=%d\n", getSelectedUsbMode());
+        setSelectedUsbMode(USB_UNSELECTED_MODE);
+    }
 }
 
 void usbStop()
@@ -325,12 +399,45 @@ void usbJoystickUpdate()
 #if defined(USB_SERIAL)
 void usbSerialPutc(void*, uint8_t c)
 {
+#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_CDC_ENABLED)
+    if (!cdcActive || !tinyusb_cdcacm_initialized(TINYUSB_CDC_ACM_0)) return;
+    if (tinyusb_cdcacm_write_queue_char(TINYUSB_CDC_ACM_0, (char)c)) {
+        (void)tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 0);
+    }
+#else
     (void)c;
+#endif
+}
+
+static void usbSerialSendBuffer(void*, const uint8_t* data, uint32_t size)
+{
+#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_CDC_ENABLED)
+    if (!cdcActive || !data || size == 0 || !tinyusb_cdcacm_initialized(TINYUSB_CDC_ACM_0)) return;
+    (void)tinyusb_cdcacm_write_queue(TINYUSB_CDC_ACM_0, data, size);
+    (void)tinyusb_cdcacm_write_flush(TINYUSB_CDC_ACM_0, 0);
+#else
+    (void)data;
+    (void)size;
+#endif
+}
+
+static int usbSerialGetByte(void*, uint8_t* data)
+{
+#if defined(ESP_PLATFORM) && defined(CONFIG_TINYUSB_CDC_ENABLED)
+    if (!cdcActive || !data || !tinyusb_cdcacm_initialized(TINYUSB_CDC_ACM_0)) return 0;
+    size_t rx_size = 0;
+    if (tinyusb_cdcacm_read(TINYUSB_CDC_ACM_0, data, 1, &rx_size) == ESP_OK && rx_size == 1) {
+        return 1;
+    }
+#else
+    (void)data;
+#endif
+    return 0;
 }
 
 static void* usbSerialInit(void*, const etx_serial_init*)
 {
-    cdcActive = true;
+    cdcActive = false;
     return (void*)1;
 }
 
@@ -338,9 +445,9 @@ static const etx_serial_driver_t usbSerialDriver = {
     .init = usbSerialInit,
     .deinit = nullptr,
     .sendByte = usbSerialPutc,
-    .sendBuffer = nullptr,
+    .sendBuffer = usbSerialSendBuffer,
     .waitForTxCompleted = nullptr,
-    .getByte = nullptr,
+    .getByte = usbSerialGetByte,
     .clearRxBuffer = nullptr,
     .getBaudrate = nullptr,
     .setReceiveCb = nullptr,
