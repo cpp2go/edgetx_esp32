@@ -11,13 +11,18 @@ set(CMAKE_BUILD_TYPE Release)
 
 option(EdgeTX_SUPERBUILD "Cross-compile EdgeTX for each toolchain" OFF)
 
+set(RADIO_LANGUAGES CN EN TW)
+set(TRANSLATIONS "EN" CACHE STRING "Radio language")
+set_property(CACHE TRANSLATIONS PROPERTY STRINGS ${RADIO_LANGUAGES})
+
 add_subdirectory(${EDGETX_ROOTDIR} edgetx)
 
 target_link_libraries(radiolib_esp32 stdc++)
 target_link_libraries(radiolib_esp32 idf::esp_adc idf::nimble_central_utils idf::lvgl_esp32_drivers idf::lvgl idf::bt idf::esp_timer idf::esp_wifi idf::driver idf::nvs_flash idf::app_update idf::sdmmc idf::esp_driver_i2s idf::esp_driver_rmt idf::esp_driver_uart idf::esp_driver_gptimer idf::esp_driver_sdmmc idf::esp_driver_sdspi idf::fatfs idf::esp_ringbuf idf::wear_levelling idf::espressif__esp_tinyusb idf::espressif__tinyusb)
 
+target_compile_options(radiolib_esp32 PRIVATE -DTRANSLATIONS_EN -DTRANSLATIONS="EN")
 target_compile_options(radiolib_esp32 PRIVATE -I${EDGETX_TGT_CMN})
 target_compile_options(radiolib_esp32 PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=gnu++17>)
 target_compile_options(radiolib_esp32 PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wno-deprecated-enum-enum-conversion>)
-target_compile_options(radiolib_esp32 PRIVATE -Wno-ignored-qualifiers -Wno-error=dangling-pointer= -Wno-error=format -Wno-format -Wno-missing-field-initializers -Wno-extra)
+target_compile_options(radiolib_esp32 PRIVATE -Wno-ignored-qualifiers -Wno-error=dangling-pointer= -Wno-error=format -Wno-format -Wno-missing-field-initializers -Wno-extra -Wno-error=array-bounds)
 
