@@ -106,7 +106,7 @@ class ModelButton : public Button
     addDetails();
   }
 
-  const char *modelFilename() { return modelCell->modelFilename; }
+  const char *modelFilename() { return modelCell ? modelCell->modelFilename : ""; }
   ModelCell *getModelCell() const { return modelCell; }
 
   void setFocused()
@@ -127,7 +127,7 @@ class ModelButton : public Button
       coord_t h = height() - PAD_SMALL * 2;
 
       if (modelLayouts[layout].hasImage) {
-        if (modelCell->modelBitmap[0]) {
+        if (modelCell && modelCell->modelBitmap[0]) {
           GET_FILENAME(filename, BITMAPS_PATH, modelCell->modelBitmap, "");
           auto bitmap = new StaticBitmap(this, {PAD_TINY, PAD_TINY, w, h}, filename);
           lv_obj_move_background(bitmap->getLvObj());
@@ -169,6 +169,7 @@ class ModelButton : public Button
 
   void checkEvents() override
   {
+    if (!modelCell) return;
     bool chk = (modelCell == modelslist.getCurrentModel());
     if (chk != checked()) {
       check(chk);

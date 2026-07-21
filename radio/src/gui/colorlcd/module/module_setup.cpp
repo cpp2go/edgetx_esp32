@@ -69,6 +69,10 @@
 #include "dsmp_settings.h"
 #endif
 
+#if defined(ESPNOW)
+#include "espnow_settings.h"
+#endif
+
 #define SET_DIRTY() storageDirty(EE_MODEL)
 
 #define ETX_STATE_UNIQUE_ID_WARN LV_STATE_USER_1
@@ -170,6 +174,11 @@ class ModuleWindow : public Window
   #if defined(DSMP)
     else if (isModuleDSMP(moduleIdx)) {
       modOpts = new DSMPSettings(this, grid, moduleIdx);
+    }
+  #endif
+  #if defined(ESPNOW)
+    else if (isModuleESPNOW(moduleIdx)) {
+      modOpts = new EspNowSettings(this, grid, moduleIdx);
     }
   #endif
 
@@ -763,7 +772,7 @@ ModulePage::ModulePage(uint8_t moduleIdx) : Page(ICON_MODEL_SETUP)
 
   moduleChoice->setAvailableHandler([=](int8_t moduleType) {
     if (moduleType == MODULE_TYPE_NONE) return true;
-    return moduleIdx == INTERNAL_MODULE ? isInternalModuleAvailable(moduleType)
+    return moduleIdx == INTERNAL_MODULE ? isInternalModuleSupported(moduleType)
                                         : isExternalModuleAvailable(moduleType);
   });
 

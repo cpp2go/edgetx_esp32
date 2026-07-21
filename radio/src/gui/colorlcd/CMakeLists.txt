@@ -121,6 +121,10 @@ if(DSMP)
    add_gui_src(module/dsmp_settings.cpp)
 endif()
 
+if(ESPNOW)
+   add_gui_src(module/espnow_settings.cpp)
+endif()
+
 if(LUA)
   add_gui_src(standalone_lua.cpp)
   set(SRC ${SRC}

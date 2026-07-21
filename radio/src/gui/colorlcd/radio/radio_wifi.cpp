@@ -70,9 +70,6 @@ struct PasswordEdit : public RadioTextEdit {
 
 static uint8_t wifi_en = 0;
 static char wifi_status[20];
-static void onSetWiFiEnabled(uint8_t newValue) {
-  wifi_en = newValue;
-}
 
 RadioWiFiPage::RadioWiFiPage(PageDef& pageDef) 
   : PageGroupItem(pageDef) 

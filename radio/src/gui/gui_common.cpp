@@ -901,6 +901,9 @@ bool isInternalModuleSupported(int moduleType)
 #if defined(INTERNAL_MODULE_AFHDS3)
   case MODULE_TYPE_FLYSKY_AFHDS3: return true;
 #endif
+#if defined(INTERNAL_MODULE_ESPNOW)
+  case MODULE_TYPE_ESPNOW: return true;
+#endif
   }
   return false;
 }

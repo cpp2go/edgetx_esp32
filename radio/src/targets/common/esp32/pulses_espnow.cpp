@@ -45,6 +45,8 @@ static volatile LinkState_t linkState = IDLE;
 uint32_t volatile packSent = 0;
 uint32_t volatile packAckn = 0;
 uint32_t volatile sendPeriod = 0;
+int8_t volatile espnowRssi = 0;
+uint8_t volatile espnowLinkState = 0;
 static bool volatile pulsesON = false;
 static bool volatile paused = false;
 static TXState_t volatile txState = PAUSED;
@@ -79,6 +81,7 @@ inline void process_data(Event_t &evt) {
         switch (rp->type){
         case ACK:
             if (rp->idx == packet.idx && rp->crc == packet.crc){
+                espnowLinkState = 1;
                 linkState = GOTACKN;
                 packAckn++;
             } else {
@@ -139,6 +142,7 @@ static void tx_task(void *pvParameter)
                     linkState = WAITACKN;
                     packSent++;
                 } else {
+                    espnowLinkState = 0;
                     linkState = SENDERR;
                 }
                 break;
@@ -228,6 +232,11 @@ static void recv_cb(const esp_now_recv_info_t * esp_now_info, const uint8_t *dat
         return;
     }
 
+    // Capture RSSI from received packets
+    if (esp_now_info->rx_ctrl != NULL) {
+        espnowRssi = esp_now_info->rx_ctrl->rssi;
+    }
+
     evt.id = RX;
     memcpy(evt.mac_addr, esp_now_info->src_addr, ESPNOW_ETH_ALEN);
     evt.data = (uint8_t *)malloc(len);
@@ -272,6 +281,8 @@ esp_err_t initTX(){
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_add_peer(&rxPeer));
 
     linkState = IDLE;
+    espnowLinkState = 0;
+    espnowRssi = 0;
     pulsesON = true;
     txState = PULSES;
     if (NULL == xTaskCreateStaticPinnedToCore(tx_task, "tx_task", ESPNOW_STACK_SIZE, NULL, ESP_TASK_PRIO_MAX-6, espnow_stack, &espnowTaskBuffer, PULSES_TASK_CORE)) {

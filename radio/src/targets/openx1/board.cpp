@@ -216,7 +216,7 @@ uint16_t getBatteryVoltage()
 
 uint16_t getRTCBatteryVoltage()
 {
-    return 0;
+    return 300; // CR2032 fixed full (3.00V in 0.01V units)
 }
 
 void pollKeys()

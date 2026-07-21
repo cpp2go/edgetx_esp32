@@ -27,7 +27,7 @@ enum EventId_t {
 
 typedef struct {
     EventId_t id;
-    esp_now_send_status_t status;
+    uint8_t status;
     uint8_t mac_addr[ESPNOW_ETH_ALEN];
     uint8_t *data;
     uint16_t data_len;
@@ -38,6 +38,8 @@ const uint8_t broadcast_mac[ESPNOW_ETH_ALEN] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0
 extern volatile uint32_t packSent;
 extern volatile uint32_t packAckn;
 extern volatile uint32_t sendPeriod;
+extern volatile int8_t  espnowRssi;
+extern volatile uint8_t espnowLinkState;
 
 esp_err_t initTX();
 void moduleSendNextFrame(int16_t *channelOutputs);

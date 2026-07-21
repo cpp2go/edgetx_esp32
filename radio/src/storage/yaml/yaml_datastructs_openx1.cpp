@@ -94,6 +94,17 @@ const struct YamlIdStr enum_Functions[] = {
   {  FUNC_TEST, "TEST"  },
   {  0, NULL  }
 };
+const struct YamlIdStr enum_SwitchConfig[] = {
+  {  SWITCH_NONE, "NONE"  },
+  {  SWITCH_TOGGLE, "TOGGLE"  },
+  {  SWITCH_2POS, "2POS"  },
+  {  SWITCH_3POS, "3POS"  },
+  {  SWITCH_none, "none"  },
+  {  SWITCH_toggle, "toggle"  },
+  {  SWITCH_2pos, "2pos"  },
+  {  SWITCH_3pos, "3pos"  },
+  {  0, NULL  }
+};
 const struct YamlIdStr enum_TimerModes[] = {
   {  TMRMODE_OFF, "OFF"  },
   {  TMRMODE_ON, "ON"  },
@@ -277,17 +288,7 @@ static const struct YamlNode struct_CustomFunctionData[] = {
   YAML_PADDING( 7 ),
   YAML_END
 };
-const struct YamlIdStr enum_SwitchConfig[] = {
-  {  SWITCH_NONE, "NONE"  },
-  {  SWITCH_TOGGLE, "TOGGLE"  },
-  {  SWITCH_2POS, "2POS"  },
-  {  SWITCH_3POS, "3POS"  },
-  {  SWITCH_none, "none"  },
-  {  SWITCH_toggle, "toggle"  },
-  {  SWITCH_2pos, "2pos"  },
-  {  SWITCH_3pos, "3pos"  },
-  {  0, NULL  }
-};
+
 static const struct YamlNode struct_switchDef[] = {
   YAML_IDX_CUST("sw",sw_idx_read,sw_idx_write),
   YAML_STRING("name", 3),
