@@ -776,7 +776,7 @@ LEGACY_NAMES = [
         }
     },
     {
-        "targets": {"v12", "v14"},
+        "targets": {"v12", "v14", "v14lcd"},
         "inputs": {
             "LH": {
                 "yaml": "Rud",
@@ -822,7 +822,7 @@ LEGACY_NAMES = [
         }
     },
     {
-        "targets": {"t20","t20v2"},
+        "targets": {"t20","t20v2", "t22"},
         "inputs": {
             "LH": {
                 "yaml": "Rud",
@@ -1013,7 +1013,7 @@ LEGACY_NAMES = [
         },
     },
     {
-        "targets": {"st16"},
+        "targets": {"st16","c14"},
         "inputs": {
             "LH": {"yaml": "Rud", "lua": "rud", "description": "Rudder"},
             "LV": {"yaml": "Ele", "lua": "ele", "description": "Elevator"},

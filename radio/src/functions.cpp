@@ -23,8 +23,7 @@
 #include "switches.h"
 
 #include "hal/audio_driver.h"
-
-#include "boards/generic_stm32/rgb_leds.h"
+#include "os/time.h"
 
 #if defined(COLORLCD)
 void setRequestedMainView(uint8_t view);
@@ -138,8 +137,20 @@ bool isRepeatDelayElapsed(const CustomFunctionData * functions, CustomFunctionsC
   const CustomFunctionData * cfn = &functions[index];
   tmr10ms_t tmr10ms = get_tmr10ms();
   int8_t repeatParam = CFN_PLAY_REPEAT(cfn);
-  if (!IS_SILENCE_PERIOD_ELAPSED() && repeatParam == CFN_PLAY_REPEAT_NOSTART) {
-    functionsContext.lastFunctionTime[index] = tmr10ms;
+
+  // hold prompts during startup: silence window is the floor, extended while permanent Lua scripts load
+  bool startupBusy = !IS_SILENCE_PERIOD_ELAPSED();
+#if defined(LUA)
+  if (luaState >= INTERPRETER_RELOAD_PERMANENT_SCRIPTS && luaState < INTERPRETER_RUNNING)
+    startupBusy = true;
+#endif
+
+  if (startupBusy) {
+    if (repeatParam == CFN_PLAY_REPEAT_NOSTART) {
+      functionsContext.lastFunctionTime[index] = tmr10ms;  // '!1x': suppress at startup
+    } else {
+      return false;  // defer until startup settles, don't stamp
+    }
   }
   if (!functionsContext.lastFunctionTime[index] || (repeatParam && repeatParam!=CFN_PLAY_REPEAT_NOSTART && (signed)(tmr10ms-functionsContext.lastFunctionTime[index])>=100*repeatParam)) {
     functionsContext.lastFunctionTime[index] = tmr10ms;
@@ -380,9 +391,10 @@ void evalFunctions(CustomFunctionData * functions, CustomFunctionsContext & func
           case FUNC_PUSH_CUST_SWITCH:
             if (CFN_PARAM(cfn)) {   // Duration is set
               if (! CFN_VAL2(cfn) ) { // Duration not started yet
-                CFN_VAL2(cfn) = timersGetMsTick() + CFN_PARAM(cfn) * 100;
+                CFN_VAL2(cfn) = time_get_ms() + CFN_PARAM(cfn) * 100;
                 g_model.cfsSetSFState(CFN_CS_INDEX(cfn), 1);
-              } else if (timersGetMsTick() < (uint32_t)CFN_VAL2(cfn) ) {  // Still within push duration
+              }
+              else if (time_get_ms() < (uint32_t)CFN_VAL2(cfn) ) {  // Still within push duration
                 g_model.cfsSetSFState(CFN_CS_INDEX(cfn), 1);
               }
             } else { // No duration set
@@ -457,7 +469,7 @@ void evalFunctions(CustomFunctionData * functions, CustomFunctionsContext & func
 #if defined(FUNCTION_SWITCHES)
         if (CFN_FUNC(cfn) == FUNC_PUSH_CUST_SWITCH) {
           // Handling duration after function is active
-          if (timersGetMsTick() < (uint32_t)CFN_VAL2(cfn)) {
+          if (time_get_ms() < (uint32_t)CFN_VAL2(cfn)) {
             g_model.cfsSetSFState(CFN_CS_INDEX(cfn), 1);
           }
           else {
@@ -546,7 +558,7 @@ const char* funcGetLabel(uint8_t func)
   case FUNC_LOGS:
     return STR_SF_LOGS;
   case FUNC_BACKLIGHT:
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
     return STR_BRIGHTNESS;
 #else
     return STR_SF_BACKLIGHT;

@@ -25,7 +25,8 @@ set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
 set(HARDWARE_EXTERNAL_MODULE YES)
 set(INTERNAL_MODULE_AFHDS3 NO)
 set(ROTARY_ENCODER YES)
-set(FUNCTION_SWITCHES_WITH_RGB YES)
+set(FUNCTION_SWITCHES YES)
+set(FUNCTION_SWITCHES_RGB_LEDS YES)
 
 #option(STICK_DEAD_ZONE "Enable sticks dead zone" YES)
 
@@ -61,7 +62,8 @@ set(RADIO_DEPENDENCIES ${RADIO_DEPENDENCIES} ${BITMAPS_TARGET})
 set(FIRMWARE_DEPENDENCIES datacopy)
 set(SOFTWARE_KEYBOARD ON)
 set(FLYSKY_GIMBAL OFF)
-set(FUNCTION_SWITCHES_WITH_RGB YES)
+set(FUNCTION_SWITCHES YES)
+set(FUNCTION_SWITCHES_RGB_LEDS YES)
 
 add_definitions(
   -DSTM32H750XBTx -DSTM32H750xx
@@ -89,10 +91,14 @@ if(DISK_CACHE)
   add_definitions(-DDISK_CACHE)
 endif()
 
-if(FUNCTION_SWITCHES_WITH_RGB)
-  set(FUNCTION_SWITCHES YES)
-  add_definitions(-DFUNCTION_SWITCHES)
+if(FUNCTION_SWITCHES_RGB_LEDS)
+  set(RGB_LEDS YES)
   add_definitions(-DFUNCTION_SWITCHES_RGB_LEDS)
+  add_definitions(-DRGB_LEDS_900NS)
+endif()
+
+if(RGB_LEDS)
+  add_definitions(-DRGB_LEDS)
 endif()
 
 if(FUNCTION_SWITCHES)
@@ -149,14 +155,13 @@ add_library(board OBJECT EXCLUDE_FROM_ALL
   ${BOARD_SRC_DIR}/touch_driver.cpp
   targets/common/arm/stm32/audio_dac_driver.cpp
   targets/common/arm/stm32/heartbeat_driver.cpp
-  targets/common/arm/stm32/lsm6ds_driver.cpp
   targets/common/arm/stm32/mixer_scheduler_driver.cpp
   targets/common/arm/stm32/module_timer_driver.cpp
   targets/common/arm/stm32/stm32_pulse_driver.cpp
   targets/common/arm/stm32/stm32_softserial_driver.cpp
   targets/common/arm/stm32/stm32_qspi.cpp
   targets/common/arm/stm32/stm32_switch_driver.cpp
-  targets/common/arm/stm32/stm32_ws2812.cpp
+  targets/common/arm/stm32/stm32_rgbleds.cpp
   targets/common/arm/stm32/trainer_driver.cpp
 )
 add_dependencies(board board_lib)

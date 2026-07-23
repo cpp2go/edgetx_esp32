@@ -92,6 +92,7 @@ bool GeneralSettings::isInputAvailable(int index) const
   const InputConfig &config = inputConfig[index];
 
   return (config.type == Board::AIT_STICK ||
+          config.type == Board::AIT_LUX ||
           (config.type == Board::AIT_FLEX && config.flexType != Board::FLEX_NONE));
 }
 
@@ -124,10 +125,11 @@ bool GeneralSettings::isInputPot(int index) const
   if (isInputAvailable(index)) {
     const InputConfig &config = inputConfig[index];
 
-    return (config.type == Board::AIT_FLEX &&
+    return (config.type == Board::AIT_LUX ||
+            (config.type == Board::AIT_FLEX &&
            (config.flexType == Board::FLEX_POT ||
             config.flexType == Board::FLEX_POT_CENTER ||
-            config.flexType == Board::FLEX_MULTIPOS));
+            config.flexType == Board::FLEX_MULTIPOS)));
   }
 
   return false;
@@ -227,12 +229,14 @@ void GeneralSettings::init()
   backlightOffBright = IS_FAMILY_HORUS_OR_T16(board) ? 20 : 0;
 
   backgroundVolume = 1;
-  speakerVolume = 12;
+  speakerVolume = 0;
   wavVolume = 2;
 
   hatsMode = HATSMODE_SWITCHABLE;
   inactivityTimer = 10;
   internalModule = g.profile[g.sessionId()].defaultInternalModule();
+  stickMode = g.profile[g.sessionId()].defaultMode();
+  templateSetup = g.profile[g.sessionId()].channelOrder();
 
   QString lang = getCurrentFirmware()->getLanguage();
   if (lang.size() > 1) {

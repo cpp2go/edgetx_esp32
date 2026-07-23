@@ -243,6 +243,19 @@
 #define STR_MAIN_VIEW_9 currentLangStrings->STR_MAIN_VIEW_9
 // Main Menu
 
+#if defined(PDM_CLOCK)
+#define STR_MIC_RECORDER currentLangStrings->STR_MIC_RECORDER
+#define STR_PUSH_TO_RECORD currentLangStrings->STR_PUSH_TO_RECORD
+#define STR_RECORD currentLangStrings->STR_RECORD
+#define STR_STOP currentLangStrings->STR_STOP
+#define STR_REC currentLangStrings->STR_REC
+#define STR_STARTING_IN currentLangStrings->STR_STARTING_IN
+#define STR_GET_READY currentLangStrings->STR_GET_READY
+#define STR_SAVED currentLangStrings->STR_SAVED
+#define STR_SAVE_AS currentLangStrings->STR_SAVE_AS
+#define STR_OPEN_ERROR currentLangStrings->STR_OPEN_ERROR
+#endif
+
 #else // !COLORLCD
 
 #if LCD_W >= 212
@@ -586,6 +599,7 @@
 #define STR_GPS_COORDS_FORMAT currentLangStrings->STR_GPS_COORDS_FORMAT
 #define STR_GPS currentLangStrings->STR_GPS
 #define STR_GPSSENSOR currentLangStrings->STR_GPSSENSOR
+#define STR_GYRO currentLangStrings->STR_GYRO
 #define STR_GV currentLangStrings->STR_GV
 #define STR_GVARS currentLangStrings->STR_GVARS
 #define STR_HARDWARE currentLangStrings->STR_HARDWARE
@@ -1155,3 +1169,8 @@
 #define STR_VUNITSSYSTEM currentLangStrings->STR_VUNITSSYSTEM
 #define STR_VVARIOCENTER currentLangStrings->STR_VVARIOCENTER
 #define STR_XJT_ACCST_RF_PROTOCOLS currentLangStrings->STR_XJT_ACCST_RF_PROTOCOLS
+#define STR_ONE_LOG_PER_DAY currentLangStrings->STR_ONE_LOG_PER_DAY
+#define STR_KEY_LOCK_FMT currentLangStrings->STR_KEY_LOCK_FMT
+#define STR_KEYS_LOCKED currentLangStrings->STR_KEYS_LOCKED
+#define STR_KEYS_LOCKED_FMT currentLangStrings->STR_KEYS_LOCKED_FMT
+#define STR_KEYS_UNLOCKED currentLangStrings->STR_KEYS_UNLOCKED

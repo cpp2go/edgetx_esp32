@@ -209,6 +209,11 @@ def main():
         cmake_options["PCBREV"] = "V14"
         firmware_options = options_helloradiosky_v14
         maxsize = 65536 * 8 * 2
+    elif board_name == "v14lcd":
+        cmake_options["PCB"] = "X7"
+        cmake_options["PCBREV"] = "V14LCD"
+        firmware_options = options_helloradiosky_v14
+        maxsize = 65536 * 8 * 2
     elif board_name == "v16":
         cmake_options["PCB"] = "X10"
         cmake_options["PCBREV"] = "V16"
@@ -221,10 +226,6 @@ def main():
         binary = "firmware.bin"
         ext = ".bin"
         filename = "opentx"
-    elif target == "libsimulator":
-        binary = "libopentx-" + board_name + "-simulator.so"
-        ext = ".so"
-        filename = "libopentx"
     else:
         return INVALID_BOARD
 

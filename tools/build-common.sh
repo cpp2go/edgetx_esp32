@@ -87,7 +87,7 @@ get_target_build_options() {
             BUILD_OPTIONS+="-DPCB=X9D+"
             ;;
         x9dp2019)
-            BUILD_OPTIONS+="-DPCB=X9D+ -DPCBREV=2019"
+            BUILD_OPTIONS+="-DPCB=X9D+ -DPCBREV=2019 -DUSE_FW_LTO=y"
             ;;
         x9e)
             BUILD_OPTIONS+="-DPCB=X9E"
@@ -116,6 +116,9 @@ get_target_build_options() {
         t15pro)
             BUILD_OPTIONS+="-DPCB=T15PRO"
             ;;
+        t22)
+            BUILD_OPTIONS+="-DPCB=T22"
+            ;;
         tx15)
             BUILD_OPTIONS+="-DPCB=TX15"
             ;;
@@ -133,6 +136,9 @@ get_target_build_options() {
             ;;
         v14)
             BUILD_OPTIONS+="-DPCB=X7 -DPCBREV=V14"
+            ;;
+        v14lcd)
+            BUILD_OPTIONS+="-DPCB=X7 -DPCBREV=V14LCD"
             ;;
         v16)
             BUILD_OPTIONS+="-DPCB=X10 -DPCBREV=V16"
@@ -157,6 +163,9 @@ get_target_build_options() {
             ;;
         st16)
             BUILD_OPTIONS+="-DPCB=ST16"
+            ;;
+        c14)
+            BUILD_OPTIONS+="-DPCB=C14"
             ;;
         pa01)
             BUILD_OPTIONS+="-DPCB=PA01"

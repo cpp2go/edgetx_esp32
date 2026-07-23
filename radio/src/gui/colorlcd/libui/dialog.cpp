@@ -76,7 +76,7 @@ ProgressDialog::ProgressDialog(const char* title,
                                std::function<void()> onClose) :
     BaseDialog(title, false), onClose(std::move(onClose))
 {
-  progress = new Progress(form, rect_t{0, 0, LV_PCT(100), 32});
+  progress = new Progress(form, rect_t{0, 0, LV_PCT(100), EdgeTxStyles::UI_ELEMENT_HEIGHT});
   updateProgress(0);
 }
 
@@ -176,9 +176,7 @@ LabelDialog::LabelDialog(const char *label, int length, const char* title,
             std::function<void(std::string)> _saveHandler) :
     ModalWindow(false), saveHandler(std::move(_saveHandler))
 {
-  assert(length <= MAX_LABEL_LENGTH);
-
-  strncpy(this->label, label, length);
+  strncpy(this->label, label, std::min(length, MAX_LABEL_LENGTH));
   this->label[length] = '\0';
 
   auto form = new Window(this, rect_t{});

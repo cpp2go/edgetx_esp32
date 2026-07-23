@@ -50,11 +50,11 @@ ModelData & ModelData::operator=(const ModelData & src)
 
 void ModelData::copy(const ModelData & src)
 {
-  memcpy(&semver, &src.semver, sizeof(semver));
+  semver = src.semver;
   used = src.used;
-  memcpy(&name, &src.name, sizeof(name));
-  memcpy(&filename, &src.filename, sizeof(filename));
-  memcpy(&labels, &src.labels, sizeof(labels));
+  name = src.name;
+  filename = src.filename;
+  labels = src.labels;
   modelIndex = src.modelIndex;
   modelUpdated = src.modelUpdated;
   modelErrors = src.modelErrors;
@@ -230,11 +230,11 @@ void ModelData::clear()
   // memset(reinterpret_cast<void *>(this), 0, sizeof(ModelData));
   // as struct contains complex data types eg std::string
 
-  memset(&semver, 0, sizeof(semver));
+  semver.clear();
   used = false;
-  memset(&name, 0, sizeof(name));
-  memset(&filename, 0, sizeof(filename));
-  memset(&labels, 0, sizeof(labels));
+  name.clear();
+  filename.clear();
+  labels.clear();
   modelIndex = -1;  // an invalid index, this is managed by the TreeView data model
   modelUpdated = false;
   modelErrors = false;
@@ -308,8 +308,14 @@ void ModelData::clear()
     sensorData[i].clear();
 
   toplcdTimer = 0;
-  RadioLayout::init("Layout2P1", customScreens);
-  topBarData.clear();
+
+  if (Boards::getCapability(getCurrentBoard(), Board::HasColorLcd)) {
+    RadioLayout::init("Layout2P1", customScreens);
+    initTopBar();
+  } else {
+    customScreens.clear();
+    topBarData.clear();
+  }
 
   for (int i = 0; i < MAX_TOPBAR_ZONES; i++)
     topbarWidgetWidth[i] = 1;
@@ -413,7 +419,7 @@ void ModelData::setDefaultValues(unsigned int id, const GeneralSettings & settin
 {
   clear();
   used = true;
-  sprintf(name, "MODEL%02d", id + 1);
+  name = QString::asprintf("MODEL%02d", id + 1);
 
   for (int i = 0; i < CPN_MAX_MODULES; i++) {
     moduleData[i].modelId = id + 1;
@@ -586,7 +592,7 @@ void ModelData::convert(RadioDataConversionState & cstate)
 {
   // Here we can add explicit conversions when moving from one board to another
 
-  QString origin = QString(name);
+  QString origin = name.toQString();
   if (origin.isEmpty())
     origin = QString::number(cstate.modelIdx+1);
   cstate.setOrigin(tr("Model: ") % origin);
@@ -2122,7 +2128,7 @@ void ModelData::validate()
 
 QStringList ModelData::errorsList()
 {
-  QStringList list;
+  QStringList list { "" };
 
   for (int i = 0; i < CPN_MAX_INPUTS; i++) {
     if (!expoData[i].isEmpty() && expoData[i].srcRaw == SOURCE_TYPE_NONE)
@@ -2174,7 +2180,7 @@ const Board::SwitchType ModelData::getSwitchType(int sw, const GeneralSettings &
 
 QString ModelData::getChecklistFilename() const
 {
-  return QString(name).replace(" ", "_").append(".txt").toLower();
+  return name.toQString().replace(" ", "_").append(".txt").toLower();
 }
 
 void ModelData::gvarClear(const int index, bool updateRefs)
@@ -2306,4 +2312,64 @@ void ModelData::updateSourceNumRef(int & value)
     if (srcnum.isSource())
       updateSourceIntRef(value);
   }
+}
+
+void ModelData::initTopBar()
+{
+  topBarData.clear();
+  int zones = RadioLayout::topBarZones();
+
+  if (zones - 1 >= 0) {
+    ZonePersistentData & zone = topBarData.zones[zones - 1];
+    zone.widgetName = "Date Time";
+  }
+
+  if (zones - 2 >= 0) {
+    ZonePersistentData & zone = topBarData.zones[zones - 2];
+    zone.widgetName = "Radio Info";
+  }
+
+  if (zones - 3 >= 0 && Boards::getCapability(getCurrentBoard(), Board::HasInternalGPS)) {
+    ZonePersistentData & zone = topBarData.zones[zones - 3];
+    zone.widgetName = "Internal GPS";
+  }
+}
+
+QString ModelData::getImageFilename() const
+{
+  if (!isBitmapEmpty()) {
+    QString extn;
+
+    if (!getCurrentFirmware()->getCapability(ModelImageKeepExtn))
+      extn = "." % getDefaultImageFileExtn();
+
+    return QString(bitmap).append(extn);
+  } else {
+    return QString();
+  }
+}
+
+QString ModelData::getImageFileExtn() const
+{
+  if (getCurrentFirmware()->getCapability(ModelImageKeepExtn)) {
+    QStringList strl = QString(bitmap).split(".");
+    return strl.count() > 1 ? strl.at(strl.count() - 1) : "";
+  } else {
+    return getDefaultImageFileExtn();
+  }
+}
+
+QString ModelData::getDefaultImageFileExtn()
+{
+  QString ret;
+
+  if (!getCurrentFirmware()->getCapability(ModelImageKeepExtn))
+    ret = getCurrentFirmware()->getCapabilityStr(ModelImageFilters).replace("*.", "");
+
+  return ret;
+}
+
+bool ModelData::isBitmapEmpty() const
+{
+  return bitmap[0] == '\0';
 }

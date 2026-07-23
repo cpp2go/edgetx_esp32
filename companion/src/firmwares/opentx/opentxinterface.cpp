@@ -93,7 +93,7 @@ int OpenTxFirmware::getCapability(::Capability capability)
       return id.contains("internalelrs") || IS_RADIOMASTER_TX12_MK2(board) ||
              IS_IFLIGHT_COMMANDO8(board) || IS_RADIOMASTER_BOXER(board) ||
              IS_RADIOMASTER_POCKET(board) || IS_JUMPER_T20(board) ||
-             IS_RADIOMASTER_MT12(board) || IS_RADIOMASTER_TX15(board) || IS_JUMPER_T15PRO(board);
+             IS_RADIOMASTER_MT12(board) || IS_RADIOMASTER_TX15(board) || IS_JUMPER_T15PRO(board) || IS_JUMPER_T22(board);
     case HasIntModuleFlySky:
       return  id.contains("afhds2a") || id.contains("afhds3") ||
               IS_FLYSKY_NV14(board) || IS_FLYSKY_EL18(board) || IS_FAMILY_PL18(board);
@@ -107,7 +107,8 @@ int OpenTxFirmware::getCapability(::Capability capability)
     case HasMixerNames:
       return (IS_TARANIS_X9(board) ? 8 : 6);
     case HasModelImage:
-      return (board == BOARD_TARANIS_X9D || IS_TARANIS_PLUS(board) || board == BOARD_TARANIS_X9DP_2019 || IS_FAMILY_HORUS_OR_T16(board));
+      return (board == BOARD_TARANIS_X9D || IS_TARANIS_PLUS(board) || board == BOARD_TARANIS_X9DP_2019 ||
+              IS_FAMILY_HORUS_OR_T16(board) || Boards::getCapability(board, Board::HasColorLcd));
     case HasModelLabels:
       return IS_FAMILY_HORUS_OR_T16(board);
     case HasModelsList:
@@ -501,6 +502,13 @@ void registerOpenTxFirmwares()
   registerOpenTxFirmware(firmware);
   addOpenTxRfOptions(firmware, FLEX);
 
+  /* HelloRadioSky V14LCD board */
+  firmware = new OpenTxFirmware(FIRMWAREID("v14lcd"), Firmware::tr("HelloRadioSky V14LCD"), BOARD_HELLORADIOSKY_V14LCD);
+  addOpenTxCommonOptions(firmware);
+  addOpenTxFontOptions(firmware);
+  registerOpenTxFirmware(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+
   /* HelloRadioSky V16 board */
   firmware = new OpenTxFirmware(FIRMWAREID("v16"), Firmware::tr("HelloRadioSky V16"), BOARD_HELLORADIOSKY_V16);
   addOpenTxFrskyOptions(firmware);
@@ -509,7 +517,7 @@ void registerOpenTxFirmwares()
   registerOpenTxFirmware(firmware);
 
   /* iFlight Commando8 board */
-  firmware = new OpenTxFirmware(FIRMWAREID("commando8"), QCoreApplication::translate("Firmware", "iFlight Commando8"), BOARD_IFLIGHT_COMMANDO8);
+  firmware = new OpenTxFirmware(FIRMWAREID("commando8"), QCoreApplication::translate("Firmware", "iFlight Commando 8"), BOARD_IFLIGHT_COMMANDO8);
   addOpenTxCommonOptions(firmware);
   firmware->addOption("noheli", Firmware::tr("Disable HELI menu and cyclic mix support"));
   firmware->addOption("nogvars", Firmware::tr("Disable Global variables"));
@@ -517,6 +525,12 @@ void registerOpenTxFirmwares()
   addOpenTxFontOptions(firmware);
   registerOpenTxFirmware(firmware);
   addOpenTxRfOptions(firmware, NONE);
+
+  /* iFlight Commando 14 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("c14"), Firmware::tr("iFlight Commando 14"), BOARD_IFLIGHT_COMMANDO14);
+  addOpenTxFrskyOptions(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+  registerOpenTxFirmware(firmware);
 
   /* Jumper T-Lite board */
   firmware = new OpenTxFirmware(FIRMWAREID("tlite"), QCoreApplication::translate("Firmware", "Jumper T-Lite"), BOARD_JUMPER_TLITE);
@@ -601,6 +615,12 @@ void registerOpenTxFirmwares()
 
   /* Jumper T15 Pro board */
   firmware = new OpenTxFirmware(FIRMWAREID("t15pro"), Firmware::tr("Jumper T15 Pro"), BOARD_JUMPER_T15PRO);
+  addOpenTxFrskyOptions(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+  registerOpenTxFirmware(firmware);
+
+  /* Jumper T22 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("t22"), Firmware::tr("Jumper T22"), BOARD_JUMPER_T22);
   addOpenTxFrskyOptions(firmware);
   addOpenTxRfOptions(firmware, FLEX);
   registerOpenTxFirmware(firmware);

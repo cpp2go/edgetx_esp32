@@ -433,6 +433,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -569,6 +570,11 @@
 #define TR_BLOFFBRIGHTNESS             "Aus-Helligkeit"
 #define TR_KEYS_BACKLIGHT              "Tastenbeleucht."
 #define TR_BLCOLOR                     "Farbe"
+#define TR_ONE_LOG_PER_DAY             "One log per day"
+#define TR_KEY_LOCK_FMT                "Key lock (%s+%s hold)"
+#define TR_KEYS_LOCKED                 "Keys locked"
+#define TR_KEYS_LOCKED_FMT             "Keys locked (%s+%s)"
+#define TR_KEYS_UNLOCKED               "Keys unlocked"
 #define TR_SPLASHSCREEN                TR("Startbild Ein", "Startbild Anzeigedauer")
 #define TR_PLAY_HELLO                  "Startton abspielen"
 #define TR_PWR_ON_DELAY                TR("PWR EIN Verzög.", "Einschaltverzögerung")
@@ -964,6 +970,16 @@
 #define TR_POWERMETER_ATTN             "Dämpf."
 #define TR_POWERMETER_FREQ             "Freq."
 #define TR_MENUTOOLS                   TR_BW_COL("TOOLS", "Tools")
+#define TR_MIC_RECORDER                TR_BW_COL("Mikrofon Rek.", "Mikrofon Rekorder")
+#define TR_PUSH_TO_RECORD              TR_BW_COL("Drücken=Aufnahme", "Drücken zum Aufnehmen")
+#define TR_RECORD                      "Aufnahme"
+#define TR_STOP                        "Stop"
+#define TR_REC                         "REC"
+#define TR_STARTING_IN                 "Start in"
+#define TR_GET_READY                   "Bereit machen..."
+#define TR_SAVED                       "Gespeichert:"
+#define TR_SAVE_AS                     "Speichern als"
+#define TR_OPEN_ERROR                  "Öffnungsfehler"
 #define TR_TURN_OFF_RECEIVER           "Empf. ausschalten"
 #define TR_STOPPING                    "Stoppe..."
 #define TR_MENU_SPECTRUM_ANALYSER      TR_BW_COL("SPEKTRUM ANALYSATOR", "Spektrum Analysator")
@@ -1201,6 +1217,7 @@
 #define TR_ALTSENSOR                   "Höhen Sensor"
 #define TR_CELLSENSOR                  "Zellen Sensor"
 #define TR_GPSSENSOR                   "GPS Sensor"
+#define TR_GYRO                        "Gyro"
 #define TR_CURRENTSENSOR               "Sensor"
 #define TR_AUTOOFFSET                  "Auto Offset"
 #define TR_ONLYPOSITIVE                "Nur Positiv"

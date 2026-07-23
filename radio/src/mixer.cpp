@@ -386,10 +386,10 @@ getvalue_t _getValue(mixsrc_t i, bool* valid)
 
 #if defined(IMU)
   else if (i == MIXSRC_TILT_X) {
-    return gyro.scaledX();
+    return gyroScaledX();
   }
   else if (i == MIXSRC_TILT_Y) {
-    return gyro.scaledY();
+    return gyroScaledY();
   }
 #endif
 
@@ -1200,7 +1200,6 @@ void evalMixes(uint8_t tick10ms)
         weight += fp_act[p];
       }
     }
-    assert(weight);
     mixerCurrentFlightMode = fm;
   }
   else {
@@ -1235,7 +1234,8 @@ void evalMixes(uint8_t tick10ms)
       if (g_eeGeneral.volumeSrc) {
         calcVolumeValue(g_eeGeneral.volumeSrc);
       } else {
-        requiredSpeakerVolume = g_eeGeneral.speakerVolume + VOLUME_LEVEL_DEF;
+        requiredSpeakerVolume =
+            limit<int>(0, g_eeGeneral.speakerVolume + VOLUME_LEVEL_DEF, VOLUME_LEVEL_MAX);
       }
     }
 #endif

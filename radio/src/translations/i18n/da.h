@@ -31,61 +31,61 @@
  */
 
 // Main menu
-#define TR_QM_MANAGE_MODELS             "Administrer\nmodeller"
-#define TR_QM_MODEL_SETUP               "Model\nsetup"
-#define TR_QM_RADIO_SETUP               "Radio\nsetup"
-#define TR_QM_UI_SETUP                  "UI\nsetup"
-#define TR_QM_TOOLS                     "Værktøj"
-#define TR_QM_MODEL_SETTINGS            "Model\nindstillinger"
-#define TR_QM_RADIO_SETTINGS            "Radio\nindstillinger"
-#define TR_QM_FLIGHT_MODES              TR_SFC_AIR("Køre\ntilstande", "Flyve\ntilstande")
-#define TR_QM_INPUTS                    "Input"
-#define TR_QM_MIXES                     "Mix"
-#define TR_QM_OUTPUTS                   "Udgange"
-#define TR_QM_CURVES                    "Kurver"
-#define TR_QM_GLOBAL_VARS               "Globale\nvariable"
-#define TR_QM_LOGICAL_SW                "Logiske\nkontakter"
-#define TR_QM_SPEC_FUNC                 "Special\nfunktioner"
-#define TR_QM_CUSTOM_LUA                "Brugerstyret\nLua skript"
-#define TR_QM_TELEM                     "Telemetri"
-#define TR_QM_GLOB_FUNC                 "Global\nfunktioner"
-#define TR_QM_TRAINER                   "Træner"
-#define TR_QM_HARDWARE                  "Hardware"
-#define TR_QM_ABOUT                     "Om\nEdgeTX"
-#define TR_QM_THEMES                    "Temaer"
-#define TR_QM_TOP_BAR                   "Top bjælke"
-#define TR_QM_SCREEN_1                  "Skærm 1"
-#define TR_QM_SCREEN_2                  "Skærm 2"
-#define TR_QM_SCREEN_3                  "Skærm 3"
-#define TR_QM_SCREEN_4                  "Skærm 4"
-#define TR_QM_SCREEN_5                  "Skærm 5"
-#define TR_QM_SCREEN_6                  "Skærm 6"
-#define TR_QM_SCREEN_7                  "Skærm 7"
-#define TR_QM_SCREEN_8                  "Skærm 8"
-#define TR_QM_SCREEN_9                  "Skærm 9"
-#define TR_QM_SCREEN_10                 "Skærm 10"
-#define TR_QM_ADD_SCREEN                "Ny\nskærm"
-#define TR_QM_APPS                      "Apps"
-#define TR_QM_STORAGE                   "Lager"
-#define TR_QM_RESET                     TR_SFC_AIR("Drive\nReset", "Flight\nReset")
-#define TR_QM_CHAN_MON                  "Channel\nMonitor"
-#define TR_QM_LS_MON                    "LS\nMonitor"
-#define TR_QM_STATS                     "Statistikker"
-#define TR_QM_DEBUG                     "Debug"
-#define TR_MAIN_MODEL_SETTINGS          "Model indstilinger"
-#define TR_MAIN_RADIO_SETTINGS          "Radio indstilinger"
+#define TR_QM_MANAGE_MODELS            "Administrer\nmodeller"
+#define TR_QM_MODEL_SETUP              "Model\nsetup"
+#define TR_QM_RADIO_SETUP              "Radio\nsetup"
+#define TR_QM_UI_SETUP                 "UI\nsetup"
+#define TR_QM_TOOLS                    "Værktøj"
+#define TR_QM_MODEL_SETTINGS           "Model\nindstillinger"
+#define TR_QM_RADIO_SETTINGS           "Radio\nindstillinger"
+#define TR_QM_FLIGHT_MODES             TR_SFC_AIR("Køre\ntilstande", "Flyve\ntilstande")
+#define TR_QM_INPUTS                   "Input"
+#define TR_QM_MIXES                    "Mix"
+#define TR_QM_OUTPUTS                  "Udgange"
+#define TR_QM_CURVES                   "Kurver"
+#define TR_QM_GLOBAL_VARS              "Globale\nvariable"
+#define TR_QM_LOGICAL_SW               "Logiske\nkontakter"
+#define TR_QM_SPEC_FUNC                "Special\nfunktioner"
+#define TR_QM_CUSTOM_LUA               "Brugerstyret\nLua skript"
+#define TR_QM_TELEM                    "Telemetri"
+#define TR_QM_GLOB_FUNC                "Global\nfunktioner"
+#define TR_QM_TRAINER                  "Træner"
+#define TR_QM_HARDWARE                 "Hardware"
+#define TR_QM_ABOUT                    "Om\nEdgeTX"
+#define TR_QM_THEMES                   "Temaer"
+#define TR_QM_TOP_BAR                  "Top bjælke"
+#define TR_QM_SCREEN_1                 "Skærm 1"
+#define TR_QM_SCREEN_2                 "Skærm 2"
+#define TR_QM_SCREEN_3                 "Skærm 3"
+#define TR_QM_SCREEN_4                 "Skærm 4"
+#define TR_QM_SCREEN_5                 "Skærm 5"
+#define TR_QM_SCREEN_6                 "Skærm 6"
+#define TR_QM_SCREEN_7                 "Skærm 7"
+#define TR_QM_SCREEN_8                 "Skærm 8"
+#define TR_QM_SCREEN_9                 "Skærm 9"
+#define TR_QM_SCREEN_10                "Skærm 10"
+#define TR_QM_ADD_SCREEN               "Ny\nskærm"
+#define TR_QM_APPS                     "Apps"
+#define TR_QM_STORAGE                  "Lager"
+#define TR_QM_RESET                    TR_SFC_AIR("Drive\nReset", "Flight\nReset")
+#define TR_QM_CHAN_MON                 "Channel\nMonitor"
+#define TR_QM_LS_MON                   "LS\nMonitor"
+#define TR_QM_STATS                    "Statistikker"
+#define TR_QM_DEBUG                    "Debug"
+#define TR_MAIN_MODEL_SETTINGS         "Model indstilinger"
+#define TR_MAIN_RADIO_SETTINGS         "Radio indstilinger"
 #define TR_MAIN_MENU_MANAGE_MODELS     "Vælg Model"
 #define TR_MAIN_MENU_MODEL_NOTES       "Model Noter"
 #define TR_MAIN_MENU_CHANNEL_MONITOR   "Kanal Monitor"
 #define TR_MONITOR_SWITCHES            "LOGISK FUNKTION MONITOR"
 #define TR_MAIN_MENU_MODEL_SETTINGS    "Model Indstilling"
 #define TR_MAIN_MENU_RADIO_SETTINGS    "Radio Indstilling"
-#define TR_MAIN_MENU_SCREEN_SETTINGS    "UI Setup"
+#define TR_MAIN_MENU_SCREEN_SETTINGS   "UI Setup"
 #define TR_MAIN_MENU_STATISTICS        "Statistik"
 #define TR_MAIN_MENU_ABOUT_EDGETX      "Om EdgeTX"
-#define TR_MAIN_VIEW_X                  "Screen "
-#define TR_MAIN_MENU_THEMES                "TEMAER"
-#define TR_MAIN_MENU_APPS               "Apps"
+#define TR_MAIN_VIEW_X                 "Screen "
+#define TR_MAIN_MENU_THEMES            "TEMAER"
+#define TR_MAIN_MENU_APPS              "Apps"
 #define TR_MENUHELISETUP               "HELI SETUP"
 #define TR_MENUFLIGHTMODES             TR_SFC_AIR("FLYVE TILSTANDE", "FLYVE TILSTANDE")
 #define TR_MENUFLIGHTMODE              TR_SFC_AIR("FLYVE TILSTAND", "FLYVE TILSTAND")
@@ -101,11 +101,11 @@
 #define TR_MENUSPECIALFUNCS            "GLOBALE FUNKTIONER"
 #define TR_MENUTRAINER                 "TRÆNER"
 #define TR_HARDWARE                    "HARDWARE"
-#define TR_USER_INTERFACE               "Top Bar"
+#define TR_USER_INTERFACE              "Top Bar"
 #define TR_SD_CARD                     "SD KORT"
 #define TR_DEBUG                       "Fejlsøg"
 #define TR_MENU_RADIO_SWITCHES         TR("KONTAKTER", "KONTAKTER TEST")
-#define TR_MENUCALIBRATION              "KALIBRIERING"
+#define TR_MENUCALIBRATION             "KALIBRIERING"
 #define TR_FUNCTION_SWITCHES           "Kontakter der kan tilpasses"
 // End Main menu
 
@@ -145,11 +145,11 @@
 #define TR_AUX_SERIAL_MODES_10         "SpaceMouse"
 #define TR_AUX_SERIAL_MODES_11         "Eksternt modul"
 
-#define TR_SWTYPES_1                 "Ingen"
-#define TR_SWTYPES_2                 "2 pos skift"
-#define TR_SWTYPES_3                 "2 position"
-#define TR_SWTYPES_4                 "3 position"
-#define TR_SWTYPES_5                 "Global"
+#define TR_SWTYPES_1                   "Ingen"
+#define TR_SWTYPES_2                   "2 pos skift"
+#define TR_SWTYPES_3                   "2 position"
+#define TR_SWTYPES_4                   "3 position"
+#define TR_SWTYPES_5                   "Global"
 
 #define TR_POTTYPES_1                  "Ingen"
 #define TR_POTTYPES_2                  TR("Drejek.", "Drejekontakt")
@@ -358,18 +358,18 @@
                                        "   Op  = PREV/INC\n"\
                                        "   Ned = NEXT/DEC"
 
-#define TR_ROTARY_ENC_OPT_1          "Normal"
-#define TR_ROTARY_ENC_OPT_2          "Invers"
-#define TR_ROTARY_ENC_OPT_3          "V-I H-N"
-#define TR_ROTARY_ENC_OPT_4          "V-I H-A"
-#define TR_ROTARY_ENC_OPT_5          "V-N E-I"
+#define TR_ROTARY_ENC_OPT_1            "Normal"
+#define TR_ROTARY_ENC_OPT_2            "Invers"
+#define TR_ROTARY_ENC_OPT_3            "V-I H-N"
+#define TR_ROTARY_ENC_OPT_4            "V-I H-A"
+#define TR_ROTARY_ENC_OPT_5            "V-N E-I"
 
-#define TR_IMU_VSRCRAW_1             "TitX"
-#define TR_IMU_VSRCRAW_2             "TitY"
+#define TR_IMU_VSRCRAW_1               "TitX"
+#define TR_IMU_VSRCRAW_2               "TitY"
 
-#define TR_CYC_VSRCRAW_1             "CYC1"
-#define TR_CYC_VSRCRAW_2             "CYC2"
-#define TR_CYC_VSRCRAW_3             "CYC3"
+#define TR_CYC_VSRCRAW_1               "CYC1"
+#define TR_CYC_VSRCRAW_2               "CYC2"
+#define TR_CYC_VSRCRAW_3               "CYC3"
 
 #define TR_SRC_BATT                    "Bat."
 #define TR_SRC_TIME                    "Time"
@@ -428,13 +428,14 @@
 #define TR_TIMER_DIR_1                 TR("Rest", "Vis rest")
 #define TR_TIMER_DIR_2                 TR("Gået tid", "Vis gået tid")
 
-#define TR_FONT_SIZES_1            "STD"
-#define TR_FONT_SIZES_2            "FED"
-#define TR_FONT_SIZES_3            "XXS"
-#define TR_FONT_SIZES_4            "XS"
-#define TR_FONT_SIZES_5            "L"
-#define TR_FONT_SIZES_6            "XL"
-#define TR_FONT_SIZES_7            "XXL"
+#define TR_FONT_SIZES_1                "STD"
+#define TR_FONT_SIZES_2                "FED"
+#define TR_FONT_SIZES_3                "XXS"
+#define TR_FONT_SIZES_4                "XS"
+#define TR_FONT_SIZES_5                "L"
+#define TR_FONT_SIZES_6                "XL"
+#define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -471,7 +472,7 @@
 #define TR_PROTOCOL                    TR("Proto", "Protokol")
 #define TR_PPMFRAME                    "PPM frame"
 #define TR_REFRESHRATE                 TR("Genfrisk", "Genfrisk rate")
-#define TR_WARN_BATTVOLTAGE           TR("Udgang er VBAT: ", "Advarsel: udgang niveau er VBAT: ")
+#define TR_WARN_BATTVOLTAGE            TR("Udgang er VBAT: ", "Advarsel: udgang niveau er VBAT: ")
 #define TR_WARN_5VOLTS                 "Advarsel: udgang niveau er 5 volts"
 #define TR_MS                          "ms"
 #define TR_SWITCH                      "Kontakt"
@@ -573,6 +574,11 @@
 #define TR_BLOFFBRIGHTNESS             "FRA klarhed"
 #define TR_KEYS_BACKLIGHT              "Taster klarhed"
 #define TR_BLCOLOR                     "Farve"
+#define TR_ONE_LOG_PER_DAY             "One log per day"
+#define TR_KEY_LOCK_FMT                "Key lock (%s+%s hold)"
+#define TR_KEYS_LOCKED                 "Keys locked"
+#define TR_KEYS_LOCKED_FMT             "Keys locked (%s+%s)"
+#define TR_KEYS_UNLOCKED               "Keys unlocked"
 #define TR_SPLASHSCREEN                "Start skærm"
 #define TR_PLAY_HELLO                  "Startop lyd"
 #define TR_PWR_ON_DELAY                "Forsinkelse ved tænd"
@@ -650,11 +656,11 @@
 #define TR_EEPROMOVERFLOW              "EEPROM overflow"
 #define TR_RADIO_SETUP                 "RADIO SETUP"
 #define TR_MENUVERSION                 "VERSION"
-#define TR_MENU_RADIO_ANALOGS          TR("ANALOGS", "ANALOGS TEST")
-#define TR_MENU_RADIO_ANALOGS_CALIB    "KALIBRERET ANALOGE"
-#define TR_MENU_RADIO_ANALOGS_RAWLOWFPS "RÅ ANALOGE (5 Hz)"
-#define TR_MENU_FSWITCH                 "KONTAKTER DER KAN TILPASSES"
-#define   TR_TRIMS2OFFSETS              TR_BW_COL("\006Trim => Subtrim", "Trim => Subtrim")
+#define TR_MENU_RADIO_ANALOGS          TR("ANALOG", "ANALOG TEST")
+#define TR_MENU_RADIO_ANALOGS_CALIB    "KALIBRERET ANALOG"
+#define TR_MENU_RADIO_ANALOGS_RAWLOWFPS "RÅ ANALOG (5 Hz)"
+#define TR_MENU_FSWITCH                "KONTAKTER DER KAN TILPASSES"
+#define   TR_TRIMS2OFFSETS             TR_BW_COL("\006Trim => Subtrim", "Trim => Subtrim")
 #define TR_CHANNELS2FAILSAFE           "Kanaler=>Fejlsikring"
 #define TR_CHANNEL2FAILSAFE            "Kanal=>Fejlsikring"
 #define TR_MENUMODELSEL                TR("MODELLER", "MODEL VALG")
@@ -700,7 +706,7 @@
 #define TR_BINDING_CH1_8_TELEM_OFF     "KA1-8 Telem FRA"
 #define TR_BINDING_CH9_16_TELEM_ON     "KA9-16 Telem TIL"
 #define TR_BINDING_CH9_16_TELEM_OFF    "KA9-16 Telem FRA"
-#define TR_PROTOCOL_INVALID            TR("Prot. ugyldig", "Protocol ugyldig")
+#define TR_PROTOCOL_INVALID            TR("Prot. ugyldig", "Protokol ugyldig")
 #define TR_MODULE_STATUS               TR("Status", "Modul status")
 #define TR_MODULE_SYNC                 TR("Synk", "Proto Synk status")
 #define TR_MULTI_SERVOFREQ             TR("Servo hast", "Servo opdaterings hastighed")
@@ -844,7 +850,7 @@
 #define TR_REMOVED                     " slettet"
 #define TR_SD_INFO                     "Information"
 #define TR_NA                          "N/A"
-#define TR_FORMATTING                  "Formattering..."
+#define TR_FORMATTING                  "Formattere..."
 #define TR_TEMP_CALIB                  "Temp. kalib"
 #define TR_TIME                        "Tid"
 #define TR_MAXBAUDRATE                 "Max bauds"
@@ -861,16 +867,16 @@
 #define TR_NO_THEME_IMAGE              "Ingen billede for tema"
 #define TR_BACKLIGHT_TIMER             TR("Inaktivitet", "Ved inaktivitet dæmp efter")
 
-#define TR_MODEL_QUICK_SELECT        "Hurtigvalg af model"
-#define TR_LABELS_SELECT             "Label valg"
-#define TR_LABELS_MATCH              "Label match"
-#define TR_FAV_MATCH                 "Favorites matching"
-#define TR_LABELS_SELECT_MODE_1      "Multi valg"
-#define TR_LABELS_SELECT_MODE_2      "Enkelt valg"
-#define TR_LABELS_MATCH_MODE_1       "Match alle"
-#define TR_LABELS_MATCH_MODE_2       "Match enhver"
-#define TR_FAV_MATCH_MODE_1          "Skal have match"
-#define TR_FAV_MATCH_MODE_2          "Kan have match"
+#define TR_MODEL_QUICK_SELECT          "Hurtigvalg af model"
+#define TR_LABELS_SELECT               "Label valg"
+#define TR_LABELS_MATCH                "Label match"
+#define TR_FAV_MATCH                   "Favorites matching"
+#define TR_LABELS_SELECT_MODE_1        "Multi valg"
+#define TR_LABELS_SELECT_MODE_2        "Enkelt valg"
+#define TR_LABELS_MATCH_MODE_1         "Match alle"
+#define TR_LABELS_MATCH_MODE_2         "Match enhver"
+#define TR_FAV_MATCH_MODE_1            "Skal have match"
+#define TR_FAV_MATCH_MODE_2            "Kan have match"
 
 #define TR_SELECT_TEMPLATE_FOLDER      "VÆLG EN SKABELON MAPPE:"
 #define TR_SELECT_TEMPLATE             "VÆLG EN SKABELON til MODEL:"
@@ -890,10 +896,10 @@
 #define TR_BLUETOOTH_NODEVICES         "Ingen enheder fundet"
 #define TR_BLUETOOTH_SCANNING          "Søger..."
 #define TR_BLUETOOTH_BAUDRATE          "BT Baudrate"
-#define TR_BLUETOOTH_MODES_1         "---"
-#define TR_BLUETOOTH_MODES_2         "Telemetri"
-#define TR_BLUETOOTH_MODES_3         "Træner"
-#define TR_BLUETOOTH_MODES_4         "Aktiveret"
+#define TR_BLUETOOTH_MODES_1           "---"
+#define TR_BLUETOOTH_MODES_2           "Telemetri"
+#define TR_BLUETOOTH_MODES_3           "Træner"
+#define TR_BLUETOOTH_MODES_4           "Aktiveret"
 
 #define TR_SD_INFO_TITLE               "SD INFO"
 #define TR_SD_SPEED                    "Hastighed:"
@@ -970,6 +976,16 @@
 #define TR_POWERMETER_ATTN             "Attn"
 #define TR_POWERMETER_FREQ             "Freq."
 #define TR_MENUTOOLS                   "VÆRKTØJ"
+#define TR_MIC_RECORDER                "Mikrofon optager"
+#define TR_PUSH_TO_RECORD              "Tryk for at optage"
+#define TR_RECORD                      "Optag"
+#define TR_STOP                        "Stop"
+#define TR_REC                         "REC"
+#define TR_STARTING_IN                 "Starter om"
+#define TR_GET_READY                   "Gør dig klar..."
+#define TR_SAVED                       "Gemt:"
+#define TR_SAVE_AS                     "Gem som"
+#define TR_OPEN_ERROR                  "Åbn fejl"
 #define TR_TURN_OFF_RECEIVER           "Sluk modtager"
 #define TR_STOPPING                    "Standser..."
 #define TR_MENU_SPECTRUM_ANALYSER      "SPECTRUM ANALYSE"
@@ -1001,7 +1017,7 @@
 #define TR_ABOUT_US                    "Om"
 #define TR_USB_JOYSTICK                "USB joystick (HID)"
 #define TR_USB_MASS_STORAGE            "USB lager (SD)"
-#define TR_USB_SERIAL                  "USB data (VCP)"
+#define TR_USB_SERIAL                  "USB seriel (VCP)"
 #define TR_SETUP_SCREENS               "Setup skærm"
 #define TR_MONITOR_SCREENS             "Monitor"
 #define TR_AND_SWITCH                  "OG kontakt"
@@ -1059,11 +1075,11 @@
 #define TR_TELEMETRY_NEWSENSOR         "Tilføj ny"
 #define TR_CHANNELRANGE                TR("Kan. rækkev", "Kanal rækkevidde")
 #define TR_ANTENNACONFIRM1             TR("EXT. ANTENNE", "EKSTERN ANTENNE")
-#define TR_ANTENNA_MODES_1           "Intern"
-#define TR_ANTENNA_MODES_2           "Spørg"
-#define TR_ANTENNA_MODES_3           "Per model"
-#define TR_ANTENNA_MODES_4           "Intern + Ekstern"
-#define TR_ANTENNA_MODES_5           "Ekstern"
+#define TR_ANTENNA_MODES_1             "Intern"
+#define TR_ANTENNA_MODES_2             "Spørg"
+#define TR_ANTENNA_MODES_3             "Per model"
+#define TR_ANTENNA_MODES_4             "Intern + Ekstern"
+#define TR_ANTENNA_MODES_5             "Ekstern"
 #define TR_USE_INTERNAL_ANTENNA        TR("Brug int. antenne", "Brug intern antenne")
 #define TR_USE_EXTERNAL_ANTENNA        TR("Brug ext. antenne", "Brug ekstern antenne")
 #define TR_ANTENNACONFIRM2             TR("Check antenne", "Kontroller at antenne er installeret!")
@@ -1101,7 +1117,7 @@
 #define TR_PREFLIGHT_POTSLIDER_CHECK_3 "Auto"
 #define TR_PREFLIGHT                   "Fly checkliste"
 #define TR_CHECKLIST                   TR("Checkliste", "Vis checkliste")
-#define TR_CHECKLIST_INTERACTIVE       TR3("C-Interact", "Interact. checklist", "Interactive checklist")
+#define TR_CHECKLIST_INTERACTIVE       TR3("C-Interakt", "Interakt. checklist", "Interaktiv checklist")
 #define TR_AUX_SERIAL_MODE             "Seriel port"
 #define TR_AUX2_SERIAL_MODE            "Seriel port 2"
 #define TR_AUX_SERIAL_PORT_POWER       "Port strøm"
@@ -1162,8 +1178,8 @@
 #define TR_COLOR                     "Farve"
 #define TR_PANEL1_BACKGROUND         "Panel1 baggrund"
 #define TR_PANEL2_BACKGROUND         "Panel2 baggrund"
-#define TR_PANEL_BACKGROUND          "Background"
-#define TR_PANEL_COLOR               "  Color"
+#define TR_PANEL_BACKGROUND          "Baggrund"
+#define TR_PANEL_COLOR               "  Farve"
 #define TR_WIDGET_GAUGE              "Måling"
 #define TR_WIDGET_MODELBMP           "Modeller"
 #define TR_WIDGET_OUTPUTS            "Udgange"
@@ -1207,6 +1223,7 @@
 #define TR_ALTSENSOR                   "Højde sensor"
 #define TR_CELLSENSOR                  "Cell sensor"
 #define TR_GPSSENSOR                   "GPS sensor"
+#define TR_GYRO                        "Gyro"
 #define TR_CURRENTSENSOR               "Sensor"
 #define TR_AUTOOFFSET                  "Auto offset"
 #define TR_ONLYPOSITIVE                "Positive"
@@ -1253,11 +1270,6 @@
 #define TR_RTC_CHECK                   TR("Check RTC", "Check RTC spænding")
 #define TR_AUTH_FAILURE                "Godkendelse fejlet"
 #define TR_RACING_MODE                 "Ræs tilstand"
-
-#undef  STR_SENSOR_THROTTLE
-#define STR_SENSOR_THROTTLE            "Gas"
-#undef  STR_SENSOR_SPEED
-#define STR_SENSOR_SPEED               "Fart"
 
 #define TR_USE_THEME_COLOR             "Brug tema farve"
 

@@ -2897,6 +2897,7 @@ static int luaGetTrainerStatus(lua_State * L)
 
 // To simplify code below
 #if !defined(BLING_LED_STRIP_LENGTH)
+  #define BLING_LED_STRIP_START 0
   #define BLING_LED_STRIP_LENGTH 0
 #endif
 #if !defined(CFS_LED_STRIP_LENGTH)
@@ -3065,7 +3066,7 @@ static int luaSetIMU_X(lua_State* const L)
     return 1;
   }
 
-  gyro.setIMU_X(offset, range);
+  gyroSetIMU_X(offset, range);
 #endif
   lua_pushboolean(L, true);
   return 1;
@@ -3096,7 +3097,7 @@ static int luaSetIMU_Y(lua_State* const L)
     return 1;
   }
 
-  gyro.setIMU_Y(offset, range);
+  gyroSetIMU_Y(offset, range);
 #endif
   lua_pushboolean(L, true);
   return 1;

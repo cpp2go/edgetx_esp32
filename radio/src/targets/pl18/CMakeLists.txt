@@ -1,4 +1,4 @@
-option(DISK_CACHE "Enable SD card disk cache" ON)
+option(DISK_CACHE "Enable SD card disk cache" OFF)
 option(UNEXPECTED_SHUTDOWN "Enable the Unexpected Shutdown screen" ON)
 option(STICK_DEAD_ZONE "Enable sticks dead zone" YES)
 option(PXX1 "PXX1 protocol support" ON)
@@ -203,7 +203,6 @@ add_dependencies(board_bl ${BITMAPS_TARGET})
 
 if(PCBREV STREQUAL NB4P)
   target_sources(board_bl PUBLIC
-    ${CMAKE_CURRENT_BINARY_DIR}/stm32_adc_inputs.inc
     boards/generic_stm32/analog_inputs.cpp
   )
 endif()
@@ -234,6 +233,7 @@ if(PCBREV STREQUAL NB4P)
 endif()
 
 if(USE_VS1053B)
+  add_definitions(-DUSE_VS1053B)
   target_sources(board PRIVATE targets/common/arm/stm32/vs1053b.cpp)
 else()
   target_sources(board PRIVATE targets/common/arm/stm32/audio_dac_driver.cpp)
@@ -242,7 +242,7 @@ endif()
 
 if(LED_STRIP)
   target_sources(board PRIVATE ${TARGET_SRC_DIR}/led_driver.cpp)
-  target_sources(board PRIVATE targets/common/arm/stm32/stm32_ws2812.cpp)
+  target_sources(board PRIVATE targets/common/arm/stm32/stm32_rgbleds.cpp)
 endif()
 
 

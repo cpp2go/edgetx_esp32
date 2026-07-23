@@ -25,7 +25,7 @@
 
 Functions cfn_sorted[] = {
 #if defined(TRANSLATIONS_CN)
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* 背光 */ FUNC_BACKLIGHT,
 #endif
   /* 播放背景音乐 */ FUNC_BACKGND_MUSIC,
@@ -45,7 +45,7 @@ Functions cfn_sorted[] = {
   /* 禁用触摸 */ FUNC_DISABLE_TOUCH,
 #endif
   /* 竞速模式 */ FUNC_RACING_MODE,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* 亮度 */ FUNC_BACKLIGHT,
 #endif
   /* 模块对频 */ FUNC_BIND,
@@ -77,7 +77,7 @@ Functions cfn_sorted[] = {
   /* Hudba */ FUNC_BACKGND_MUSIC,
   /* Hudba pauza */ FUNC_BACKGND_MUSIC_PAUSE,
   /* Insta-Trim */ FUNC_INSTANT_TRIM,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Jas */ FUNC_BACKLIGHT,
 #endif
   /* Kontrola dosahu */ FUNC_RANGECHECK,
@@ -89,7 +89,7 @@ Functions cfn_sorted[] = {
   /* ModuleBind */ FUNC_BIND,
   /* Nastav */ FUNC_ADJUST_GVAR,
   /* Nastavit Failsafe */ FUNC_SET_FAILSAFE,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Podsvětlení */ FUNC_BACKLIGHT,
 #endif
   /* Přehrát wav */ FUNC_PLAY_TRACK,
@@ -112,11 +112,12 @@ Functions cfn_sorted[] = {
   /* Změna */ FUNC_SET_TIMER,
 #elif defined(TRANSLATIONS_DA)
   /* Afstand kontrol */ FUNC_RANGECHECK,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Baggrund lys */ FUNC_BACKLIGHT,
 #endif
   /* Baggrund musik */ FUNC_BACKGND_MUSIC,
   /* Baggrund musik || */ FUNC_BACKGND_MUSIC_PAUSE,
+  /* Højdemåler */ FUNC_VARIO,
 #if defined(COLORLCD)
   /* Ikke berøringsaktiv */ FUNC_DISABLE_TOUCH,
 #endif
@@ -125,7 +126,7 @@ Functions cfn_sorted[] = {
 #if defined(VIDEO_SWITCH)
   /* LCD til Video */ FUNC_LCD_TO_VIDEO,
 #endif
-  /* Lua Script */ FUNC_PLAY_SCRIPT,
+  /* Lua skript */ FUNC_PLAY_SCRIPT,
   /* Lydstyrke */ FUNC_VOLUME,
   /* Modul tilslut */ FUNC_BIND,
   /* Nulstil */ FUNC_RESET,
@@ -133,7 +134,7 @@ Functions cfn_sorted[] = {
   /* RGB lys */ FUNC_RGB_LED,
   /* Ræs tilstand */ FUNC_RACING_MODE,
   /* SD Log */ FUNC_LOGS,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Skarphed */ FUNC_BACKLIGHT,
 #endif
   /* Skærm klip */ FUNC_SCREENSHOT,
@@ -150,14 +151,15 @@ Functions cfn_sorted[] = {
   /* Tryk bruger kontakt */ FUNC_PUSH_CUST_SWITCH,
 #endif
   /* Træner */ FUNC_TRAINER,
-  /* Vario */ FUNC_VARIO,
   /* Vibration */ FUNC_HAPTIC,
   /* Vælg hoved skærm */ FUNC_SET_SCREEN,
 #elif defined(TRANSLATIONS_DE)
   /* Ändere */ FUNC_ADJUST_GVAR,
   /* Audio Verst. Aus */ FUNC_DISABLE_AUDIO_AMP,
+  /* Datei abspielen */ FUNC_PLAY_TRACK,
   /* Haptik */ FUNC_HAPTIC,
-#if defined(OLED_SCREEN)
+  /* Hauptseite anzeigen */ FUNC_SET_SCREEN,
+#if OLED_SCREEN
   /* Helligkeit */ FUNC_BACKLIGHT,
 #endif
   /* Inst. Trim */ FUNC_INSTANT_TRIM,
@@ -165,44 +167,42 @@ Functions cfn_sorted[] = {
   /* Kein Touch */ FUNC_DISABLE_TOUCH,
 #endif
   /* Lautstr. */ FUNC_VOLUME,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* LCD Licht */ FUNC_BACKLIGHT,
 #endif
 #if defined(VIDEO_SWITCH)
-  /* LCD to Video */ FUNC_LCD_TO_VIDEO,
+  /* LCD zu Video */ FUNC_LCD_TO_VIDEO,
 #endif
   /* Lehrer */ FUNC_TRAINER,
-  /* Lua Skript */ FUNC_PLAY_SCRIPT,
-  /* ModuleBind */ FUNC_BIND,
 #if defined(FUNCTION_SWITCHES)
-  /* Push CS */ FUNC_PUSH_CUST_SWITCH,
+  /* LS setzen */ FUNC_PUSH_CUST_SWITCH,
 #endif
+  /* Lua-Skript */ FUNC_PLAY_SCRIPT,
+  /* ModuleBind */ FUNC_BIND,
   /* RacingMode */ FUNC_RACING_MODE,
   /* RangeCheck */ FUNC_RANGECHECK,
   /* RGB LED */ FUNC_RGB_LED,
   /* Rücksetz. */ FUNC_RESET,
-  /* Sag Text */ FUNC_PLAY_TRACK,
-  /* Sag Wert */ FUNC_PLAY_VALUE,
   /* Screenshot */ FUNC_SCREENSHOT,
   /* SD-Aufz. */ FUNC_LOGS,
   /* SetFailsafe */ FUNC_SET_FAILSAFE,
-  /* Set Main Screen */ FUNC_SET_SCREEN,
   /* Setze */ FUNC_SET_TIMER,
   /* Spiel Töne */ FUNC_PLAY_SOUND,
   /* StartMusik */ FUNC_BACKGND_MUSIC,
-  /* Stop Musik */ FUNC_BACKGND_MUSIC_PAUSE,
+  /* StopMusik */ FUNC_BACKGND_MUSIC_PAUSE,
 #if defined(DEBUG)
   /* Test */ FUNC_TEST,
 #endif
   /* Überschreibe */ FUNC_OVERRIDE_CHANNEL,
   /* Vario */ FUNC_VARIO,
+  /* Wert ansagen */ FUNC_PLAY_VALUE,
 #elif defined(TRANSLATIONS_ES)
   /* Ajuste */ FUNC_SET_TIMER,
   /* Ajuste */ FUNC_ADJUST_GVAR,
   /* Audio Amp Off */ FUNC_DISABLE_AUDIO_AMP,
   /* BgMúsica */ FUNC_BACKGND_MUSIC,
   /* BgMúsica|| */ FUNC_BACKGND_MUSIC_PAUSE,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Brillo */ FUNC_BACKLIGHT,
 #endif
   /* Captura */ FUNC_SCREENSHOT,
@@ -216,7 +216,7 @@ Functions cfn_sorted[] = {
   /* LCD to Video */ FUNC_LCD_TO_VIDEO,
 #endif
   /* Lua Script */ FUNC_PLAY_SCRIPT,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Luz Fondo */ FUNC_BACKLIGHT,
 #endif
 #if defined(COLORLCD)
@@ -242,14 +242,14 @@ Functions cfn_sorted[] = {
 #elif defined(TRANSLATIONS_FI)
   /* Adjust */ FUNC_ADJUST_GVAR,
   /* Audio Amp Off */ FUNC_DISABLE_AUDIO_AMP,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Backlight */ FUNC_BACKLIGHT,
 #endif
   /* BgMusic */ FUNC_BACKGND_MUSIC,
   /* BgMusic || */ FUNC_BACKGND_MUSIC_PAUSE,
   /* Haptic */ FUNC_HAPTIC,
   /* Inst. Trim */ FUNC_INSTANT_TRIM,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Kirkkaus */ FUNC_BACKLIGHT,
 #endif
 #if defined(VIDEO_SWITCH)
@@ -297,7 +297,7 @@ Functions cfn_sorted[] = {
 #endif
   /* Lire valeur */ FUNC_PLAY_VALUE,
   /* Logs SD */ FUNC_LOGS,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Luminosité */ FUNC_BACKLIGHT,
 #endif
   /* Musique */ FUNC_BACKGND_MUSIC,
@@ -310,10 +310,10 @@ Functions cfn_sorted[] = {
   /* Push CS */ FUNC_PUSH_CUST_SWITCH,
 #endif
   /* Racing Mode */ FUNC_RACING_MODE,
-  /* Régle Failsafe */ FUNC_SET_FAILSAFE,
+  /* Règle Failsafe */ FUNC_SET_FAILSAFE,
   /* Remise à 0 */ FUNC_RESET,
   /* Remplace */ FUNC_OVERRIDE_CHANNEL,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Rétroécl. */ FUNC_BACKLIGHT,
 #endif
   /* RGB leds */ FUNC_RGB_LED,
@@ -348,14 +348,14 @@ Functions cfn_sorted[] = {
   /* Set */ FUNC_SET_TIMER,
   /* SetFailsafe */ FUNC_SET_FAILSAFE,
   /* Vario */ FUNC_VARIO,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* אור אחורי */ FUNC_BACKLIGHT,
 #endif
   /* איפוס */ FUNC_RESET,
 #if defined(DEBUG)
   /* בדיקה */ FUNC_TEST,
 #endif
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* בהירות */ FUNC_BACKLIGHT,
 #endif
   /* הגדרת מסך ראשי */ FUNC_SET_SCREEN,
@@ -372,30 +372,30 @@ Functions cfn_sorted[] = {
   /* Amp Audio Off */ FUNC_DISABLE_AUDIO_AMP,
   /* Azzera */ FUNC_RESET,
   /* BindModulo */ FUNC_BIND,
+#if defined(COLORLCD)
+  /* Disab. touch */ FUNC_DISABLE_TOUCH,
+#endif
   /* Ignora */ FUNC_OVERRIDE_CHANNEL,
   /* Inst. Trim */ FUNC_INSTANT_TRIM,
 #if defined(VIDEO_SWITCH)
-  /* LCD to Video */ FUNC_LCD_TO_VIDEO,
+  /* LCD su video */ FUNC_LCD_TO_VIDEO,
 #endif
   /* Leds RGB */ FUNC_RGB_LED,
   /* Leggi Valore */ FUNC_PLAY_VALUE,
-  /* Logs SDCard */ FUNC_LOGS,
-#if defined(OLED_SCREEN)
+  /* Log scheda SD */ FUNC_LOGS,
+#if OLED_SCREEN
   /* Luminosità */ FUNC_BACKLIGHT,
 #endif
   /* Maestro */ FUNC_TRAINER,
   /* Modo Racing */ FUNC_RACING_MODE,
   /* Musica Sf */ FUNC_BACKGND_MUSIC,
   /* Musica Sf || */ FUNC_BACKGND_MUSIC_PAUSE,
-#if defined(COLORLCD)
-  /* No Touch */ FUNC_DISABLE_TOUCH,
-#endif
 #if defined(FUNCTION_SWITCHES)
-  /* Push CS */ FUNC_PUSH_CUST_SWITCH,
+  /* Premi CS */ FUNC_PUSH_CUST_SWITCH,
 #endif
   /* RangeCheck */ FUNC_RANGECHECK,
   /* Regola */ FUNC_ADJUST_GVAR,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Retroillum. */ FUNC_BACKLIGHT,
 #endif
   /* Screenshot */ FUNC_SCREENSHOT,
@@ -434,7 +434,7 @@ Functions cfn_sorted[] = {
 #endif
   /* トレーナー */ FUNC_TRAINER,
   /* バイブレート */ FUNC_HAPTIC,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* バックライト */ FUNC_BACKLIGHT,
 #endif
   /* バリオ */ FUNC_VARIO,
@@ -445,7 +445,7 @@ Functions cfn_sorted[] = {
   /* レンジチェック */ FUNC_RANGECHECK,
   /* 音源再生 */ FUNC_PLAY_TRACK,
   /* 画面キャプチャ */ FUNC_SCREENSHOT,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* 輝度 */ FUNC_BACKLIGHT,
 #endif
   /* 再生値 */ FUNC_PLAY_VALUE,
@@ -467,12 +467,12 @@ Functions cfn_sorted[] = {
   /* 메인 화면 설정 */ FUNC_SET_SCREEN,
   /* 모듈 바인딩 */ FUNC_BIND,
   /* 바리오 */ FUNC_VARIO,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* 밝기 */ FUNC_BACKLIGHT,
 #endif
   /* 배경 음악 */ FUNC_BACKGND_MUSIC,
   /* 배경 음악 일시정지 */ FUNC_BACKGND_MUSIC_PAUSE,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* 백라이트 */ FUNC_BACKLIGHT,
 #endif
   /* 볼륨 */ FUNC_VOLUME,
@@ -499,14 +499,14 @@ Functions cfn_sorted[] = {
   /* 페일세이프 설정 */ FUNC_SET_FAILSAFE,
 #elif defined(TRANSLATIONS_NL)
   /* Audio Amp Off */ FUNC_DISABLE_AUDIO_AMP,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Backlight */ FUNC_BACKLIGHT,
 #endif
   /* BgMusic */ FUNC_BACKGND_MUSIC,
   /* BgMusic || */ FUNC_BACKGND_MUSIC_PAUSE,
   /* Geluid */ FUNC_PLAY_SOUND,
   /* Haptic */ FUNC_HAPTIC,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Helderheid */ FUNC_BACKLIGHT,
 #endif
   /* Inst. Trim */ FUNC_INSTANT_TRIM,
@@ -547,7 +547,7 @@ Functions cfn_sorted[] = {
   /* GrajŚcieżk */ FUNC_PLAY_TRACK,
   /* GrajWartoś */ FUNC_PLAY_VALUE,
   /* Inst-Trim */ FUNC_INSTANT_TRIM,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Jasność */ FUNC_BACKLIGHT,
 #endif
 #if defined(VIDEO_SWITCH)
@@ -560,7 +560,7 @@ Functions cfn_sorted[] = {
 #if defined(COLORLCD)
   /* No Touch */ FUNC_DISABLE_TOUCH,
 #endif
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Podświetl */ FUNC_BACKLIGHT,
 #endif
 #if defined(FUNCTION_SWITCHES)
@@ -589,7 +589,7 @@ Functions cfn_sorted[] = {
   /* BgMusica */ FUNC_BACKGND_MUSIC,
   /* BgMusica || */ FUNC_BACKGND_MUSIC_PAUSE,
   /* BindMódulo */ FUNC_BIND,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Brilho */ FUNC_BACKLIGHT,
 #endif
   /* Capt. Tela */ FUNC_SCREENSHOT,
@@ -601,7 +601,7 @@ Functions cfn_sorted[] = {
 #endif
   /* Leds RGB */ FUNC_RGB_LED,
   /* Logs SD */ FUNC_LOGS,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* LuzFundo */ FUNC_BACKLIGHT,
 #endif
   /* ModCorrida */ FUNC_RACING_MODE,
@@ -651,10 +651,10 @@ Functions cfn_sorted[] = {
 #endif
   /* Настройка */ FUNC_ADJUST_GVAR,
   /* Оменить */ FUNC_OVERRIDE_CHANNEL,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Подсветка */ FUNC_BACKLIGHT,
 #endif
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Подсветка */ FUNC_BACKLIGHT,
 #endif
   /* Пров диапаз */ FUNC_RANGECHECK,
@@ -671,7 +671,7 @@ Functions cfn_sorted[] = {
   /* Установ */ FUNC_SET_TIMER,
 #elif defined(TRANSLATIONS_SE)
   /* Audioförstärkare av */ FUNC_DISABLE_AUDIO_AMP,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Belysning */ FUNC_BACKLIGHT,
 #endif
 #if defined(COLORLCD)
@@ -682,7 +682,7 @@ Functions cfn_sorted[] = {
 #if defined(VIDEO_SWITCH)
   /* LCD till Video */ FUNC_LCD_TO_VIDEO,
 #endif
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Ljusstyrka */ FUNC_BACKLIGHT,
 #endif
   /* Logga data */ FUNC_LOGS,
@@ -698,7 +698,7 @@ Functions cfn_sorted[] = {
   /* Spara trimmar */ FUNC_INSTANT_TRIM,
   /* Spela ljud */ FUNC_PLAY_SOUND,
   /* Spela upp */ FUNC_PLAY_TRACK,
-  /* Säg värdet */ FUNC_PLAY_VALUE,
+  /* Säg värde */ FUNC_PLAY_VALUE,
   /* Sätt */ FUNC_SET_TIMER,
   /* Sätt failsafe */ FUNC_SET_FAILSAFE,
   /* Sätt huvudskärm */ FUNC_SET_SCREEN,
@@ -719,7 +719,7 @@ Functions cfn_sorted[] = {
 #endif
   /* RGB LED 燈 */ FUNC_RGB_LED,
   /* Vario傳感器 */ FUNC_VARIO,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* 亮度 */ FUNC_BACKLIGHT,
 #endif
   /* 修改全局變量GV值 */ FUNC_ADJUST_GVAR,
@@ -744,7 +744,7 @@ Functions cfn_sorted[] = {
   /* 禁用觸摸 */ FUNC_DISABLE_TOUCH,
 #endif
   /* 競速模式 */ FUNC_RACING_MODE,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* 背光 */ FUNC_BACKLIGHT,
 #endif
   /* 記錄日誌LOG */ FUNC_LOGS,
@@ -770,7 +770,7 @@ Functions cfn_sorted[] = {
   /* Налашт. */ FUNC_ADJUST_GVAR,
   /* Перевизнач. */ FUNC_OVERRIDE_CHANNEL,
   /* ПеревірДіап. */ FUNC_RANGECHECK,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Підсвіт. */ FUNC_BACKLIGHT,
 #endif
   /* Підсил. вимк. */ FUNC_DISABLE_AUDIO_AMP,
@@ -786,7 +786,7 @@ Functions cfn_sorted[] = {
   /* Тренер */ FUNC_TRAINER,
   /* Фон.Муз. */ FUNC_BACKGND_MUSIC,
   /* Фон.Муз. || */ FUNC_BACKGND_MUSIC_PAUSE,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Яскравість */ FUNC_BACKLIGHT,
 #endif
 #if defined(VIDEO_SWITCH)
@@ -801,12 +801,12 @@ Functions cfn_sorted[] = {
 #else
   /* Adjust */ FUNC_ADJUST_GVAR,
   /* Audio Amp Off */ FUNC_DISABLE_AUDIO_AMP,
-#if !defined(OLED_SCREEN)
+#if !OLED_SCREEN
   /* Backlight */ FUNC_BACKLIGHT,
 #endif
   /* BgMusic */ FUNC_BACKGND_MUSIC,
   /* BgMusic || */ FUNC_BACKGND_MUSIC_PAUSE,
-#if defined(OLED_SCREEN)
+#if OLED_SCREEN
   /* Brightness */ FUNC_BACKLIGHT,
 #endif
   /* Haptic */ FUNC_HAPTIC,

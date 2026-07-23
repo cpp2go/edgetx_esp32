@@ -236,12 +236,6 @@ void ViewMain::doKeyShortcut(event_t event)
     QuickMenu::openPage(pg);
   }
 }
-void ViewMain::onPressSYS() { doKeyShortcut(EVT_KEY_BREAK(KEY_SYS)); }
-void ViewMain::onLongPressSYS() { doKeyShortcut(EVT_KEY_LONG(KEY_SYS)); }
-void ViewMain::onPressMDL() { doKeyShortcut(EVT_KEY_BREAK(KEY_MODEL)); }
-void ViewMain::onLongPressMDL() { doKeyShortcut(EVT_KEY_LONG(KEY_MODEL)); }
-void ViewMain::onPressTELE() { doKeyShortcut(EVT_KEY_BREAK(KEY_TELE)); }
-void ViewMain::onLongPressTELE() { doKeyShortcut(EVT_KEY_LONG(KEY_TELE)); }
 void ViewMain::onPressPGUP()
 {
   if (!widget_select) {
@@ -324,8 +318,8 @@ bool ViewMain::onLongPress()
 {
   if (isAppMode()) {
     int view = getCurrentMainView();
-    customScreens[view]->getWidget(0)->setFullscreen(true);
-    killEvents(KEY_ENTER);
+    if (customScreens[view]->getWidget(0))
+      customScreens[view]->getWidget(0)->setFullscreen(true);
   } else {
     enableWidgetSelect(true);
   }

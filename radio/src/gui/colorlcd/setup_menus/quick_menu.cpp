@@ -169,7 +169,7 @@ class QuickSubMenu
     if (mainDef->subMenuItems[n].pageAction == PAGE_CREATE) {
       quickMenu->getTopMenu()->clearFocus();
       int pgIdx = getPageNumber(n);
-      if (quickMenu->getPageGroup() && quickMenu->getPageGroup()->hasSubMenu(mainDef->subMenuItems[n].qmPage)) {
+      if (quickMenu->getPageGroup() && quickMenu->isInMenu(quickMenu->getPageGroup()->getIcon()) && quickMenu->getPageGroup()->hasSubMenu(mainDef->subMenuItems[n].qmPage)) {
         quickMenu->onSelect(false);
         quickMenu->getPageGroup()->setCurrentTab(pgIdx);
       } else {
@@ -228,6 +228,8 @@ class QuickSubMenu
 //-----------------------------------------------------------------------------
 
 QuickMenu* QuickMenu::instance = nullptr;
+QMPage QuickMenu::curPage = QM_NONE;
+EdgeTxIcon QuickMenu::curIcon = EDGETX_ICONS_COUNT;
 
 void QuickMenu::openQuickMenu()
 {
@@ -287,7 +289,7 @@ QuickMenu::QuickMenu() :
   for (int i = 0; qmTopItems[i].icon != EDGETX_ICONS_COUNT; i += 1) {
     if (qmTopItems[i].pageAction == QM_ACTION) {
       mainMenu->addButton(qmTopItems[i].icon, STR_VAL(qmTopItems[i].qmTitle),
-                  [=]() { onSelect(true); qmTopItems[i].action(); }, qmTopItems[i].enabled);
+                  [=]() { topMenuAction(i); }, qmTopItems[i].enabled);
 #if VERSION_MAJOR > 2
     } else {
       auto sub = new QuickSubMenu(box, this, &qmTopItems[i]);
@@ -318,6 +320,22 @@ void QuickMenu::openQM(PageGroupBase* newPageGroup, QMPage newCurPage)
 #if VERSION_MAJOR > 2
   for (size_t i = 0; i < subMenus.size(); i += 1)
     subMenus[i]->doLayout();
+
+  // If opening from Favorites check that page is still in Favorites list
+  // Handle case where Favorites was edited and Radio Settings was removed
+  // from Favorites list
+  if (newPageGroup && (newPageGroup->getIcon() == ICON_QM_FAVORITES)) {
+    bool hasPage = false;
+    for (int i = 0; favoritesMenuItems[i].icon != EDGETX_ICONS_COUNT; i += 1)
+      if (favoritesMenuItems[i].qmPage == curPage) {
+        hasPage = true;
+        break;
+      }
+    if (!hasPage) {
+      newPageGroup = nullptr;
+      curPage = QM_NONE;
+    }
+  }
 #endif
 
   show();
@@ -337,8 +355,12 @@ void QuickMenu::openQM(PageGroupBase* newPageGroup, QMPage newCurPage)
       setFocus(curPage);
     } else {
 #if VERSION_MAJOR > 2
-      if (curPage == QM_MANAGE_MODELS)
-        mainMenu->setCurrent(favoritesMenuItems[0].icon == EDGETX_ICONS_COUNT ? 0 : 1);
+      for (int i = 0; qmTopItems[i].icon != EDGETX_ICONS_COUNT; i += 1) {
+        if (qmTopItems[i].qmPage == curPage && qmTopItems[i].pageAction == QM_ACTION) {
+          mainMenu->setCurrent(i);
+          break;
+        }
+      }
 #endif
       focusMainMenu();
     }
@@ -351,26 +373,30 @@ void QuickMenu::selected()
     instance->onSelect(true);
 }
 
+void QuickMenu::topMenuAction(int n)
+{
+  selected();
+  setCurrentPage(qmTopItems[n].qmPage, qmTopItems[n].icon);
+  qmTopItems[n].action();
+}
+
 void QuickMenu::openPage(QMPage page)
 {
   for (int i = FIRST_SEARCH_IDX; qmTopItems[i].icon != EDGETX_ICONS_COUNT; i += 1) {
     if (qmTopItems[i].pageAction == QM_ACTION) {
       if (qmTopItems[i].qmPage == page) {
-        QuickMenu::selected();
-        setCurrentPage(page, qmTopItems[i].icon);
-        qmTopItems[i].action();
+        topMenuAction(i);
         return;
-        }
+      }
     } else {
       const PageDef* sub = qmTopItems[i].subMenuItems;
       for (int j = 0, k = 0; sub[j].icon != EDGETX_ICONS_COUNT; j += 1) {
         if (sub[j].qmPage == page) {
+          selected();
+          setCurrentPage(page, qmTopItems[i].icon);
           if (sub[j].pageAction == PAGE_ACTION) {
-            QuickMenu::selected();
-            setCurrentPage(page, qmTopItems[i].icon);
             sub[j].action();
           } else {
-            QuickMenu::selected();
             auto pg = new PageGroup(qmTopItems[i].icon, STR_VAL(qmTopItems[i].title), sub);
             pg->setCurrentTab(k);
             return;
@@ -555,10 +581,8 @@ bool QuickMenu::setupFavorite(int favIdx, int favBtn)
 
 void QuickMenu::setCurrentPage(QMPage newPage, EdgeTxIcon newIcon)
 {
-  if (instance) {
-    instance->curPage = newPage;
-    instance->curIcon = newIcon;
-  }
+  curPage = newPage;
+  curIcon = newIcon;
 }
 
 void QuickMenu::focusMainMenu()
@@ -626,12 +650,7 @@ void QuickMenu::doKeyShortcut(event_t event)
     QuickMenu::openPage(pg);
   }
 }
-void QuickMenu::onPressSYS() { doKeyShortcut(EVT_KEY_BREAK(KEY_SYS)); }
-void QuickMenu::onLongPressSYS() { doKeyShortcut(EVT_KEY_LONG(KEY_SYS)); }
-void QuickMenu::onPressMDL() { doKeyShortcut(EVT_KEY_BREAK(KEY_MODEL)); }
-void QuickMenu::onLongPressMDL() { doKeyShortcut(EVT_KEY_LONG(KEY_MODEL)); }
-void QuickMenu::onPressTELE() { doKeyShortcut(EVT_KEY_BREAK(KEY_TELE)); }
-void QuickMenu::onLongPressTELE() { doKeyShortcut(EVT_KEY_LONG(KEY_TELE)); }
+
 void QuickMenu::onLongPressRTN() { closeQM(); }
 
 void QuickMenu::afterPG()

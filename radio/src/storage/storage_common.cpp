@@ -26,6 +26,10 @@
 #include "mixes.h"
 #include "switches.h"
 
+#if defined(FUNCTION_SWITCHES_RGB_LEDS)
+#include "hal/rgbleds.h"
+#endif
+
 #if defined(COLORLCD)
 #include "view_main.h"
 #endif
@@ -73,6 +77,10 @@ void preModelLoad()
   }
 
   stopTrainer();
+
+#if defined(FUNCTION_SWITCHES_RGB_LEDS)
+  turnOffRGBLeds();
+#endif
 
   if (needDelay) {
     sleep_ms(200);
@@ -309,6 +317,14 @@ if(g_model.rssiSource) {
   LUA_LOAD_MODEL_SCRIPTS();
 
   SEND_FAILSAFE_1S();
+
+  // Reset debug stats for the newly loaded model (after checkAll() warnings)
+  maxMixerDuration = 0;
+#if defined(LUA)
+  maxLuaInterval = 0;
+  maxLuaDuration = 0;
+  lastLuaTime = 0;  // avoids counting the load time as one huge interval spike
+#endif
 }
 
 void storageFlushCurrentModel()

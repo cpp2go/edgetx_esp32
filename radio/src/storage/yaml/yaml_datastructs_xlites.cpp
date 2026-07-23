@@ -372,6 +372,7 @@ static const struct YamlNode struct_RadioData[] = {
   YAML_PADDING( 3 ),
   YAML_SIGNED( "imuMax", 8 ),
   YAML_SIGNED( "imuOffset", 8 ),
+  YAML_UNSIGNED( "imuInvert", 8 ),
   YAML_SIGNED_CUST( "backlightSrc", 10, r_mixSrcRawEx, w_mixSrcRawEx ),
   YAML_SIGNED( "radioGFDisabled", 1 ),
   YAML_SIGNED( "radioTrainerDisabled", 1 ),
@@ -387,8 +388,10 @@ static const struct YamlNode struct_RadioData[] = {
   YAML_SIGNED( "disableTrainerPoweroffAlarm", 1 ),
   YAML_SIGNED( "disablePwrOnOffHaptic", 1 ),
   YAML_UNSIGNED( "modelQuickSelect", 1 ),
+  YAML_UNSIGNED( "oneLogPerDay", 1 ),
+  YAML_UNSIGNED( "keyLockEnabled", 1 ),
   YAML_UNSIGNED( "invertLCD", 1 ),
-  YAML_PADDING( 6 ),
+  YAML_PADDING( 4 ),
   YAML_UNSIGNED( "pwrOffIfInactive", 8 ),
   YAML_END
 };
