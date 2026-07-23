@@ -150,8 +150,12 @@ AddHWGenTarget(${HW_DESC_JSON} simu_switches simu_switches.inc)
 
 AddHWGenTarget(${HW_DESC_JSON} hal_keys_lock hal_keys_lock.h)
 
-add_dependencies(board hal_settings hal_keys hal_keys_lock hal_adc_inputs stm32_keys stm32_switches stm32_adc_inputs stm32_pwm_inputs yaml_inputs lua_inputs lua_mixsrc lua_keys)
-add_dependencies(board_bl hal_settings hal_keys stm32_keys)
+if(TARGET board)
+  add_dependencies(board hal_settings hal_keys hal_keys_lock hal_adc_inputs stm32_keys stm32_switches stm32_adc_inputs stm32_pwm_inputs yaml_inputs lua_inputs lua_mixsrc lua_keys)
+endif()
+if(TARGET board_bl)
+  add_dependencies(board_bl hal_settings hal_keys stm32_keys)
+endif()
 
 
 include(hal/CMakeLists.txt)

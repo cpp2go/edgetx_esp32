@@ -91,6 +91,8 @@ static inline void check_struct()
   CHKSIZE(RadioData, 951);
 #elif defined(RADIO_ST16) || defined(PCBPA01) || defined(RADIO_TX15) || defined(RADIO_T15PRO) || defined(RADIO_TX16SMK3) || defined(RADIO_T22)
   CHKSIZE(RadioData, 1183);
+#elif defined(PCB_OPENX1)
+  CHKSIZE(RadioData, 1146);
 #elif defined(COLORLCD)
   #if defined(IMU)
     CHKSIZE(RadioData, 1063);

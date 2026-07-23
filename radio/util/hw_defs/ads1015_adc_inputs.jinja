@@ -12,7 +12,7 @@ static i2c_master_dev_handle_t ads[NUM_OF_ADS] = {0};
 
 static const i2c_device_config_t i2c_dev_conf[NUM_OF_ADS] = {
   {% for ads in ads_adcs %}
-  {% for i in range(ads.adc) %}
+  {% for i in range(ads.adc | int) %}
   {
     .device_address = ADS1X15_ADDRESS + {{ loop.index0 }},
     .scl_speed_hz = 400000,
@@ -47,7 +47,7 @@ static const ads1015_channel_t ads_channels[] = {
 {% set rtc_bat_inputs = adc_inputs.inputs | selectattr('type', '==', 'RTC_BAT') | list %}
 {% set n_rtc_bat = rtc_bat_inputs | count %}
   {% for input in rtc_bat_inputs %}
-    { {{ input.channel }}, {{ input.pin if input.pin != None else '0xFFFF' }}, {{ rtc_bat_offset + loop.index0 }} },
+    { {{ input.channel }}, {{ input.pin | default('0xFFFF') }}, {{ rtc_bat_offset + loop.index0 }} },
   {% endfor %}
 };
 

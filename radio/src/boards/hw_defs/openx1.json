@@ -5,13 +5,13 @@
         "name": "MAIN",
         "adc": "HAL_GIMBAL",
         "dma": null,
-        "sample_time": 1
+        "sample_time": "1"
       },
       {
         "name": "EXT",
-        "adc": 2,
+        "adc": "2",
         "dma": null,
-        "sample_time": 30
+        "sample_time": "30"
       }
     ],
     "inputs": [
@@ -83,7 +83,7 @@
         "adc": "EXT",
         "gpio": null,
         "pin": null,
-        "channel": 1
+        "channel": "1"
       }
     ]
   },
@@ -95,8 +95,8 @@
       "inverted": false,
       "default": "2POS",
       "display": null,
-      "gpio": 3,
-      "pin": 0,
+      "gpio": "3",
+      "pin": "0",
       "is_cfs": false
     },
     {
@@ -106,8 +106,8 @@
       "inverted": false,
       "default": "2POS",
       "display": null,
-      "gpio": 3,
-      "pin": 1,
+      "gpio": "3",
+      "pin": "1",
       "is_cfs": false
     },
     {
@@ -117,10 +117,10 @@
       "inverted": false,
       "default": "3POS",
       "display": null,
-      "gpio_high": 3,
-      "pin_high": 3,
-      "gpio_low": 3,
-      "pin_low": 2,
+      "gpio_high": "3",
+      "pin_high": "3",
+      "gpio_low": "3",
+      "pin_low": "2",
       "is_cfs": false
     },
     {
@@ -130,10 +130,10 @@
       "inverted": false,
       "default": "2POS",
       "display": null,
-      "gpio_high": 3,
-      "pin_high": 5,
-      "gpio_low": 3,
-      "pin_low": 4,
+      "gpio_high": "3",
+      "pin_high": "5",
+      "gpio_low": "3",
+      "pin_low": "4",
       "is_cfs": false
     },
     {
@@ -143,8 +143,8 @@
       "inverted": false,
       "default": "NONE",
       "display": null,
-      "gpio": 3,
-      "pin": 6,
+      "gpio": "3",
+      "pin": "6",
       "is_cfs": false
     },
     {
@@ -154,55 +154,55 @@
       "inverted": false,
       "default": "NONE",
       "display": null,
-      "gpio": 3,
-      "pin": 7,
+      "gpio": "3",
+      "pin": "7",
       "is_cfs": false
     }
   ],
   "keys": [
     {
-      "gpio": 1,
-      "pin": 4,
+      "gpio": "1",
+      "pin": "4",
       "active_low": true,
       "key": "KEY_EXIT",
       "name": "EXIT",
       "label": "EXIT"
     },
     {
-      "gpio": 1,
-      "pin": 5,
+      "gpio": "1",
+      "pin": "5",
       "active_low": true,
       "key": "KEY_ENTER",
       "name": "ENTER",
       "label": "Enter"
     },
     {
-      "gpio": 1,
-      "pin": 3,
+      "gpio": "1",
+      "pin": "3",
       "active_low": true,
       "key": "KEY_PAGEDN",
       "name": "PAGEDN",
       "label": "PAGE>"
     },
     {
-      "gpio": 1,
-      "pin": 0,
+      "gpio": "1",
+      "pin": "0",
       "active_low": true,
       "key": "KEY_MODEL",
       "name": "MDL",
       "label": "MDL"
     },
     {
-      "gpio": 1,
-      "pin": 2,
+      "gpio": "1",
+      "pin": "2",
       "active_low": true,
       "key": "KEY_TELE",
       "name": "TELE",
       "label": "TELE"
     },
     {
-      "gpio": 1,
-      "pin": 1,
+      "gpio": "1",
+      "pin": "1",
       "active_low": true,
       "key": "KEY_SYS",
       "name": "SYS",
@@ -213,13 +213,13 @@
     {
       "name": "T1",
       "dec": {
-        "gpio": 2,
-        "pin": 5,
+        "gpio": "2",
+        "pin": "5",
         "active_low": true
       },
       "inc": {
-        "gpio": 2,
-        "pin": 4,
+        "gpio": "2",
+        "pin": "4",
         "active_low": true
       },
       "active_low": true
@@ -227,13 +227,13 @@
     {
       "name": "T2",
       "dec": {
-        "gpio": 2,
-        "pin": 6,
+        "gpio": "2",
+        "pin": "6",
         "active_low": true
       },
       "inc": {
-        "gpio": 2,
-        "pin": 7,
+        "gpio": "2",
+        "pin": "7",
         "active_low": true
       },
       "active_low": true
@@ -241,13 +241,13 @@
     {
       "name": "T3",
       "dec": {
-        "gpio": 2,
-        "pin": 2,
+        "gpio": "2",
+        "pin": "2",
         "active_low": true
       },
       "inc": {
-        "gpio": 2,
-        "pin": 3,
+        "gpio": "2",
+        "pin": "3",
         "active_low": true
       },
       "active_low": true
@@ -255,27 +255,24 @@
     {
       "name": "T4",
       "dec": {
-        "gpio": 2,
-        "pin": 1,
+        "gpio": "2",
+        "pin": "1",
         "active_low": true
       },
       "inc": {
-        "gpio": 2,
-        "pin": 0,
+        "gpio": "2",
+        "pin": "0",
         "active_low": true
       },
       "active_low": true
     }
   ],
   "display": {
-    "w": 480,
-    "h": 320,
-    "phys_w": 480,
-    "phys_h": 320,
-    "depth": 16,
-    "color": 1,
-    "oled": 0,
-    "backlight_color": 0
+    "lcd_w": 480,
+    "lcd_h": 320,
+    "lcd_phys_w": 480,
+    "lcd_phys_h": 320,
+    "lcd_depth": 16
   },
   "custom_switches": {
     "rgb_led": 0,
@@ -288,5 +285,19 @@
     "has_int_module_support": 1,
     "sport_max_baudrate": 400000,
     "surface": 0
+  },
+  "timers": {
+    "cpu_freq": 240000000,
+    "peri1_frequency": 80000000,
+    "peri2_frequency": 80000000,
+    "timer_mult_apb1": 2,
+    "timer_mult_apb2": 2,
+    "ms_timer": "N/A",
+    "ms_timer_irqn": "N/A",
+    "ms_timer_irqhandler": "N/A",
+    "mixer_scheduler_timer": "N/A",
+    "mixer_scheduler_timer_freq": "N/A",
+    "mixer_scheduler_timer_irqn": "N/A",
+    "mixer_scheduler_timer_irqhandler": "N/A"
   }
 }

@@ -93,16 +93,22 @@ endif()
 set(HW_DESC_JSON ${FLAVOUR}.json)
 AddHWGenTarget(${HW_DESC_JSON} mcp23017_keys mcp23017_keys.inc)
 AddHWGenTarget(${HW_DESC_JSON} mcp23017_switches mcp23017_switches.inc)
-AddHWGenTarget(${HW_DESC_JSON} hal_adc_inputs hal_adc_inputs.inc)
 AddHWGenTarget(${HW_DESC_JSON} ads1015_adc_inputs ads1015_adc_inputs.inc)
 
 # Ensure generated hardware files are produced before board_lib is built
 add_custom_target(openx1_hw_defs ALL
   DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/hal_settings.h
+    ${CMAKE_CURRENT_BINARY_DIR}/hal_keys.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/hal_keys_lock.h
+    ${CMAKE_CURRENT_BINARY_DIR}/hal_adc_inputs.inc
     ${CMAKE_CURRENT_BINARY_DIR}/mcp23017_keys.inc
     ${CMAKE_CURRENT_BINARY_DIR}/mcp23017_switches.inc
-    ${CMAKE_CURRENT_BINARY_DIR}/hal_adc_inputs.inc
     ${CMAKE_CURRENT_BINARY_DIR}/ads1015_adc_inputs.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/yaml_inputs.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/lua_inputs.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/lua_mixsrc.inc
+    ${CMAKE_CURRENT_BINARY_DIR}/lua_keys.inc
 )
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
