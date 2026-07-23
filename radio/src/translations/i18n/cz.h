@@ -434,6 +434,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -1068,6 +1069,7 @@
 #define TR_ANTENNA_MODES_3           "Dle modelu"
 #define TR_ANTENNA_MODES_4           "Interní + Externí"
 #define TR_ANTENNA_MODES_5           "Externí"
+#define TR_ANTENNA_SELECT             "Interní","Externí"
 #define TR_USE_INTERNAL_ANTENNA        TR("Použít int. ant.", "Použít interní anténu")
 #define TR_USE_EXTERNAL_ANTENNA        TR("Použít ext. ant.", "Použít externí anténu")
 #define TR_ANTENNACONFIRM2             TR("Zkont. anténu", "Ujistěte se, že je anténa připojena!")

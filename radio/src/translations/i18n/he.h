@@ -436,6 +436,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -1068,6 +1069,7 @@
 #define TR_ANTENNA_MODES_3           "Per model"
 #define TR_ANTENNA_MODES_4           "פנימי וחיצוני"
 #define TR_ANTENNA_MODES_5           "חיצוני"
+#define TR_ANTENNA_SELECT             "פנימי","חיצוני"
 #define TR_USE_INTERNAL_ANTENNA        TR("Use int. antenna", "Use internal antenna")
 #define TR_USE_EXTERNAL_ANTENNA        TR("Use ext. antenna", "Use external antenna")
 #define TR_ANTENNACONFIRM2             TR("Check antenna", "Make sure antenna is installed!")

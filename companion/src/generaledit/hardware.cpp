@@ -107,6 +107,25 @@ HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings
     addParams();
   }
 
+  if (Boards::getCapability(board, Board::HasIMU)) {
+    addSection(tr("IMU"));
+    addLabel("");
+    addLabel(tr("Invert"));
+    addParams();
+
+    addLabel(tr("X"));
+    AutoCheckBox *imuInvertX = new AutoCheckBox(this);
+    imuInvertX->setField(generalSettings.imuInvertX, this);
+    params->append(imuInvertX);
+    addParams();
+
+    addLabel(tr("Y"));
+    AutoCheckBox *imuInvertY = new AutoCheckBox(this);
+    imuInvertY->setField(generalSettings.imuInvertY, this);
+    params->append(imuInvertY);
+    addParams();
+  }
+
   count = Boards::getCapability(board, Board::Inputs);
 
   if (count > 0) {
@@ -262,7 +281,7 @@ HardwarePanel::HardwarePanel(QWidget * parent, GeneralSettings & generalSettings
     antennaMode->setField(generalSettings.antennaMode, this);
     params->append(antennaMode);
 
-    if (!(m_internalModule == MODULE_TYPE_XJT_PXX1 && HAS_EXTERNAL_ANTENNA(board))) {
+    if (!((m_internalModule == MODULE_TYPE_XJT_PXX1 || Boards::getCapability(board, Board::HasHardwareAntennaSwitch)) && Boards::getCapability(board, Board::HasExternalAntenna))) {
       antennaLabel->setVisible(false);
       antennaMode->setVisible(false);
     }
@@ -407,11 +426,10 @@ void HardwarePanel::on_internalModuleChanged()
       internalModuleBaudRate->setVisible(false);
     }
 
-    if (m_internalModule == MODULE_TYPE_XJT_PXX1 && HAS_EXTERNAL_ANTENNA(board)) {
-        antennaLabel->setVisible(true);
-        antennaMode->setVisible(true);
-    }
-    else {
+    if ((m_internalModule == MODULE_TYPE_XJT_PXX1 || Boards::getCapability(board, Board::HasHardwareAntennaSwitch)) && Boards::getCapability(board, Board::HasExternalAntenna)) {
+      antennaLabel->setVisible(true);
+      antennaMode->setVisible(true);
+    } else {
       antennaLabel->setVisible(false);
       antennaMode->setVisible(false);
     }

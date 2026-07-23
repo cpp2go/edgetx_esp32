@@ -103,6 +103,14 @@ SWITCH_CONFIG = {
         "SO": {"default": "2POS"},
         "SP": {"default": "2POS"},
     },
+    "c14": {
+        "SA": { "default": "3POS"   },
+        "SB": { "default": "3POS"   },
+        "SC": { "default": "3POS"   },
+        "SD": { "default": "3POS"   },
+        "SE": { "default": "2POS"   },
+        "SF": { "default": "2POS"   },
+    },
     "pa01": {
         "SA": { "default": "2POS" },
         "SB": { "default": "3POS" },
@@ -135,16 +143,29 @@ SWITCH_CONFIG = {
         "SH": {"default": "TOGGLE"}
     },
     "v12": {
+        "SA": {"default": "2POS"},
+        "SB": {"default": "3POS"},
+        "SC": {"default": "3POS"},
+        "SD": {"default": "TOGGLE"},
+         # custom switches
+        "SE": {"default": "2POS"},
+        "SF": {"default": "2POS"},
+        "SG": {"default": "2POS"},
+        "SH": {"default": "2POS"},
+        "SI": {"default": "2POS"},
+        "SJ": {"default": "2POS"},
+    },
+    "v14": {
         # left side
-        "SA": {"default": "3POS",   "display": [0, 0]},
+        "SA": {"default": "TOGGLE", "display": [0, 0]},
         "SB": {"default": "3POS",   "display": [0, 1]},
         "SE": {"default": "2POS",   "display": [0, 2]},
         # right side
         "SC": {"default": "3POS",   "display": [1, 0]},
-        "SD": {"default": "3POS",   "display": [1, 1]},
+        "SD": {"default": "TOGGLE", "display": [1, 1]},
         "SF": {"default": "TOGGLE", "display": [1, 2]},
     },
-    "v14": {
+    "v14lcd": {
         # left side
         "SA": {"default": "TOGGLE", "display": [0, 0]},
         "SB": {"default": "3POS",   "display": [0, 1]},

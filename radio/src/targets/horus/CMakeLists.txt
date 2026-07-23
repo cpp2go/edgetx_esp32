@@ -54,6 +54,7 @@ if (PCB STREQUAL X10)
     set(DEFAULT_INTERNAL_MODULE ISRM_PXX2 CACHE STRING "Default internal module")
     set(BLUETOOTH ON)
     set(AUX_SERIAL OFF)
+    set(EXTERNAL_ANTENNA ON)
     add_definitions(-DHARDWARE_POWER_MANAGEMENT_UNIT)
     add_definitions(-DRADIO_X10E)
     add_definitions(-DMANUFACTURER_FRSKY)
@@ -140,6 +141,7 @@ if (PCB STREQUAL X10)
     set(FLAVOUR x10)
     set(DEFAULT_INTERNAL_MODULE XJT_PXX1 CACHE STRING "Default internal module")
     set(BLUETOOTH ON)
+    set(EXTERNAL_ANTENNA ON)
     add_definitions(-DRADIO_X10)
     add_definitions(-DMANUFACTURER_FRSKY)
   endif()
@@ -147,6 +149,7 @@ elseif (PCB STREQUAL X12S)
   set(DEFAULT_INTERNAL_MODULE XJT_PXX1 CACHE STRING "Default internal module")
   set(FLAVOUR x12s)
   set(BLUETOOTH ON)
+  set(EXTERNAL_ANTENNA ON)
   set(PCBREV "13" CACHE STRING "PCB Revision")
   set(AUX2_SERIAL ON) # wire to GPS
   set(USE_VS1053B ON)
@@ -155,7 +158,12 @@ elseif (PCB STREQUAL X12S)
   add_definitions(-DMANUFACTURER_FRSKY)
 endif()
 
-# enable GPS support if there is AUX port available unless otherwise disabled 
+# Handset supports external antenna
+if(EXTERNAL_ANTENNA)
+  add_definitions(-DEXTERNAL_ANTENNA)
+endif()
+
+# enable GPS support if there is AUX port available unless otherwise disabled
 if(AUX_SERIAL)
   option(INTERNAL_GPS "Support for internal GPS" ON)
   set(INTERNAL_GPS_BAUDRATE "9600" CACHE STRING "Baud rate for internal GPS")
@@ -292,6 +300,7 @@ add_library(board OBJECT EXCLUDE_FROM_ALL
   targets/common/arm/stm32/delays_driver.cpp
   targets/common/arm/stm32/heartbeat_driver.cpp
   drivers/lsm6ds.cpp
+  drivers/icm42627.cpp
   targets/common/arm/stm32/mixer_scheduler_driver.cpp
   targets/common/arm/stm32/module_timer_driver.cpp
   targets/common/arm/stm32/sticks_pwm_driver.cpp

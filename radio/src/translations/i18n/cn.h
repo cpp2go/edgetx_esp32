@@ -433,6 +433,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -1065,6 +1066,7 @@
 #define TR_ANTENNA_MODES_3           "基于模型"
 #define TR_ANTENNA_MODES_4           "外置天线"
 #define TR_ANTENNA_MODES_5           "外置天线"
+#define TR_ANTENNA_SELECT             "内置天线","外置天线"
 #define TR_USE_INTERNAL_ANTENNA        TR("请使用内置天线", "请使用内置天线")
 #define TR_USE_EXTERNAL_ANTENNA        TR("请使用外置天线", "请使用外置天线")
 #define TR_ANTENNACONFIRM2             TR("检查天线", "请确认天线安装完好!")

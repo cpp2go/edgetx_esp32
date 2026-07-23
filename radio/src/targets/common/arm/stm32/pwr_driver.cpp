@@ -19,11 +19,11 @@
  * GNU General Public License for more details.
  */
 
-#include "hal/gpio.h"
-#include "stm32_gpio.h"
-
 #include "board.h"
 #include "hal/abnormal_reboot.h"
+#include "hal/gpio.h"
+#include "hal/usb_driver.h"
+#include "stm32_gpio.h"
 
 void pwrInit()
 {
@@ -45,6 +45,13 @@ void pwrInit()
 #if defined(HARDWARE_INTERNAL_MODULE) && defined(INTMODULE_PWR_GPIO)
   gpio_init(INTMODULE_PWR_GPIO, GPIO_OUT, GPIO_PIN_SPEED_LOW);
   INTERNAL_MODULE_OFF();
+#endif
+
+  // Internal module select
+#if defined(HARDWARE_INTERNAL_MODULE) && defined(INTMODULE_ANTSEL_GPIO)
+  gpio_init(INTMODULE_ANTSEL_GPIO, GPIO_OUT, GPIO_PIN_SPEED_LOW);
+  //gpio_set(INTMODULE_ANTSEL_GPIO);  //ANT SELECT 0=Int 1=Ext
+  gpio_clear(INTMODULE_ANTSEL_GPIO);
 #endif
 
   // External module power
@@ -114,6 +121,16 @@ bool pwrForcePressed()
 
 bool pwrPressed()
 {
+#if defined(RADIO_C14) && defined(DEBUG_SEGGER_RTT)
+  // Required to allow powering with USB the MCU for RTT flashing
+  // and not have the radio turn itself off on power on
+  if (usbPlugged()) {
+    return false;
+  }
+  else {
+    return !gpio_read(PWR_SWITCH_GPIO);
+  }
+#endif
 #if defined(PWR_EXTRA_SWITCH_GPIO)
   return !gpio_read(PWR_SWITCH_GPIO) || !gpio_read(PWR_EXTRA_SWITCH_GPIO);
 #elif defined(PWR_SWITCH_GPIO)

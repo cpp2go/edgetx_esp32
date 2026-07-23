@@ -432,6 +432,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -1064,6 +1065,7 @@
 #define TR_ANTENNA_MODES_3           "モデル毎"
 #define TR_ANTENNA_MODES_4           "内部＋外部"
 #define TR_ANTENNA_MODES_5           "外部"
+#define TR_ANTENNA_SELECT             "内部","外部"
 #define TR_USE_INTERNAL_ANTENNA        TR("Use int. antenna", "内部アンテナを使用")
 #define TR_USE_EXTERNAL_ANTENNA        TR("Use ext. antenna", "外部アンテナを使用")
 #define TR_ANTENNACONFIRM2             TR("Check antenna", "アンテナの装着を確認してください!!")

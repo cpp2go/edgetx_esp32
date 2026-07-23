@@ -420,6 +420,10 @@ void generalDefault()
   g_eeGeneral.pwrOffSpeed = 2;
 #endif
 
+#if defined(RADIO_C14)
+  g_eeGeneral.rotEncMode = ROTARY_ENCODER_MODE_INVERT_BOTH;
+#endif
+
 #if defined(MANUFACTURER_RADIOMASTER)
   g_eeGeneral.audioMuteEnable = 1;
 #if defined(RADIO_TX15)
@@ -762,7 +766,7 @@ void checkAll(bool isBootCheck)
   }
 #endif
 
-#if defined(EXTERNAL_ANTENNA) && defined(INTERNAL_MODULE_PXX1)
+#if defined(EXTERNAL_ANTENNA)
   checkExternalAntenna();
 #endif
 
@@ -1306,6 +1310,18 @@ uint32_t pwrDelayTime(int delay)
   static uint8_t vals[] = { 0, 5, 10, 20, 30 };
   return vals[pwrDelayFromYaml(delay)] * 10;
 }
+
+// On radios requiring a two-button chord (e.g. V12) as accidental-activation
+// protection, only the chord itself should start/continue the on/off delay
+// countdown; a single button held alone must not.
+inline bool pwrDelayHoldActive()
+{
+#if defined(PWR_BUTTON_DUAL)
+  return pwrForcePressed();
+#else
+  return pwrPressed();
+#endif
+}
 #endif
 
 #if defined(STARTUP_ANIMATION)
@@ -1323,7 +1339,7 @@ void runStartupAnimation()
   tmr10ms_t duration = 0;
   bool isPowerOn = false;
 
-  while (pwrPressed()) {
+  while (pwrDelayHoldActive()) {
     duration = get_tmr10ms() - start;
     if (duration < PWR_PRESS_DURATION_MIN()) {
       drawStartupAnimation(duration, PWR_PRESS_DURATION_MIN());
@@ -1691,11 +1707,20 @@ int pwrDelayToYaml(int delay)
 
 inline uint32_t PWR_PRESS_SHUTDOWN_DELAY()
 {
-  // Instant off when both power button are pressed
+#if defined(PWR_BUTTON_MANAGED)
+  return 0;
+#else
+#if !defined(PWR_BUTTON_DUAL)
+  // Instant off when both power buttons are pressed (panic/force chord).
+  // Not applicable on PWR_BUTTON_DUAL radios, where pressing both buttons
+  // is the normal way to start the shutdown delay, not a separate chord
+  // layered on top of a single-button press.
   if (pwrForcePressed())
     return 0;
+#endif
 
   return pwrDelayTime(g_eeGeneral.pwrOffSpeed);
+#endif
 }
 
 uint32_t pwr_press_time = 0;
@@ -1748,10 +1773,36 @@ uint32_t pwrCheck()
   if (pwr_check_state == PWR_CHECK_OFF) {
     return e_power_off;
   }
-  else if (pwrPressed() || inactivityShutdown) {
+
+#if defined(PWR_BUTTON_MANAGED)
+  if (pwrPressed()) {
+    bool needConfirm =
+        (TELEMETRY_STREAMING() && !g_eeGeneral.disableRssiPoweroffAlarm) ||
+        (usbPlugged() && getSelectedUsbMode() != USB_UNSELECTED_MODE) ||
+        (isTrainerConnected() && !g_eeGeneral.disableTrainerPoweroffAlarm);
+    if (!needConfirm) {
+#if defined(HAPTIC)
+      if (!g_eeGeneral.disablePwrOnOffHaptic &&
+          (g_eeGeneral.hapticMode != e_mode_quiet))
+        haptic.play(15, 3, PLAY_NOW);
+#endif
+      pwr_check_state = PWR_CHECK_OFF;
+      return e_power_off;
+    }
+  }
+#endif
+
+  if (pwrDelayHoldActive() || inactivityShutdown) {
     if (!inactivityShutdown)
       inactivityTimerReset(ActivitySource::Keys);
-
+  #if defined(RADIO_V12)
+    if (!inactivityShutdown) {
+      // SYS+MDL are also used as power combo on V12. Prevent their menu BREAK
+      // events from being emitted while shutdown key sequence is in progress.
+      killEvents(KEY_SYS);
+      killEvents(KEY_MODEL);
+    }
+  #endif
     if (TELEMETRY_STREAMING()) {
       message = STR_MODEL_STILL_POWERED;
     }

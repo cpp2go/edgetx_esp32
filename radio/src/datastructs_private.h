@@ -504,7 +504,12 @@ PACK(struct ModuleData {
   uint8_t channelsStart;
   int8_t  channelsCount CUST(r_channelsCount,w_channelsCount); // 0=8 channels
   uint8_t failsafeMode:4 ENUM(FailsafeModes);  // only 3 bits used
+  #if defined(EXTERNAL_ANTENNA)
+  uint8_t subType:2 SKIP;
+  int8_t  antennaMode:2 ENUM(AntennaModes);
+  #else
   uint8_t subType:4 SKIP;
+  #endif
 
   union {
     uint8_t raw[PXX2_MAX_RECEIVERS_PER_MODULE * PXX2_LEN_RX_NAME + 1];
@@ -525,8 +530,8 @@ PACK(struct ModuleData {
       uint8_t spare1:2 SKIP;
       uint8_t receiverTelemetryOff:1;     // false = receiver telem enabled
       uint8_t receiverHigherChannels:1;  // false = pwm out 1-8, true 9-16
-      int8_t antennaMode:2;
-      uint8_t spare2 SKIP;
+      uint8_t spare2:2 SKIP;
+      uint8_t spare3 SKIP;
     } pxx);
     NOBACKUP(struct {
       uint8_t spare1:6 SKIP;
@@ -635,7 +640,7 @@ static_assert(sizeof(potwarnen_t) * 8 >= MAX_POTS,
   #define TOPBAR_DATA
 #endif
 
-#if defined(PCBHORUS) || defined(PCBTARANIS) || defined(PCBPL18) || defined(PCBST16) || defined(PCB_OPENX1)
+#if defined(PCBHORUS) || defined(PCBTARANIS) || defined(PCBPL18) || defined(PCBST16) || defined(PCBC14) || defined(PCB_OPENX1)
   #define SCRIPT_DATA \
     NOBACKUP(ScriptData scriptsData[MAX_SCRIPTS]);
 #else
@@ -1135,6 +1140,7 @@ PACK(struct RadioData {
 #if defined(IMU)
   NOBACKUP(int8_t imuMax);
   NOBACKUP(int8_t imuOffset);
+  NOBACKUP(uint8_t imuInvert);  // user inversion, default off; XORed with hal.h IMU_INVERT_X/Y at apply time (bit0=X, bit1=Y)
 #endif
 
 #if defined(COLORLCD)

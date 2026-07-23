@@ -435,6 +435,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[МЕНЮ]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -1067,6 +1068,7 @@
 #define TR_ANTENNA_MODES_3           "На модель"
 #define TR_ANTENNA_MODES_4           "Внутр + Внеш"
 #define TR_ANTENNA_MODES_5           "Внеш"
+#define TR_ANTENNA_SELECT             "Внутр","Внеш"
 #define TR_USE_INTERNAL_ANTENNA        TR("Исп внут антенну", "Испол внутр антенну")
 #define TR_USE_EXTERNAL_ANTENNA        TR("Исп внеш антенну", "Испол внеш антенну")
 #define TR_ANTENNACONFIRM2             TR("Проверьте антенну", "Проверьте антенну!")

@@ -631,8 +631,22 @@ void registerOpenTxFirmwares()
   registerOpenTxFirmware(firmware);
   addOpenTxRfOptions(firmware, EU + FLEX);
 
+  /* HelloRadioSky V12 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("v12"), Firmware::tr("HelloRadioSky V12"), BOARD_HELLORADIOSKY_V12);
+  addOpenTxCommonOptions(firmware);
+  addOpenTxFontOptions(firmware);
+  registerOpenTxFirmware(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+
   /* HelloRadioSky V14 board */
   firmware = new OpenTxFirmware(FIRMWAREID("v14"), Firmware::tr("HelloRadioSky V14"), BOARD_HELLORADIOSKY_V14);
+  addOpenTxCommonOptions(firmware);
+  addOpenTxFontOptions(firmware);
+  registerOpenTxFirmware(firmware);
+  addOpenTxRfOptions(firmware, FLEX);
+
+  /* HelloRadioSky V14LCD board */
+  firmware = new OpenTxFirmware(FIRMWAREID("v14lcd"), Firmware::tr("HelloRadioSky V14LCD"), BOARD_HELLORADIOSKY_V14LCD);
   addOpenTxCommonOptions(firmware);
   addOpenTxFontOptions(firmware);
   registerOpenTxFirmware(firmware);
@@ -646,7 +660,7 @@ void registerOpenTxFirmwares()
   registerOpenTxFirmware(firmware);
 
   /* iFlight Commando8 board */
-  firmware = new OpenTxFirmware(FIRMWAREID("commando8"), QCoreApplication::translate("Firmware", "iFlight Commando8"), BOARD_IFLIGHT_COMMANDO8);
+  firmware = new OpenTxFirmware(FIRMWAREID("commando8"), QCoreApplication::translate("Firmware", "iFlight Commando 8"), BOARD_IFLIGHT_COMMANDO8);
   addOpenTxCommonOptions(firmware);
   firmware->addOption("noheli", Firmware::tr("Disable HELI menu and cyclic mix support"));
   firmware->addOption("nogvars", Firmware::tr("Disable Global variables"));
@@ -654,6 +668,13 @@ void registerOpenTxFirmwares()
   addOpenTxFontOptions(firmware);
   registerOpenTxFirmware(firmware);
   addOpenTxRfOptions(firmware, NONE);
+
+  /* iFlight C14 board */
+  firmware = new OpenTxFirmware(FIRMWAREID("c14"), Firmware::tr("iFlight Commando 14"), BOARD_IFLIGHT_COMMANDO14);
+  addOpenTxFrskyOptions(firmware);
+  firmware->addOption(opt_bt);
+  addOpenTxRfOptions(firmware, FLEX + AFHDS3);
+  registerOpenTxFirmware(firmware);
 
   /* Jumper T-Lite board */
   firmware = new OpenTxFirmware(FIRMWAREID("tlite"), QCoreApplication::translate("Firmware", "Jumper T-Lite"), BOARD_JUMPER_TLITE);

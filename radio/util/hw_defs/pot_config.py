@@ -52,9 +52,13 @@ POT_CONFIG = {
     "v12": {
         "P1": {"default": "POT_CENTER"},
         "P2": {"default": "POT_CENTER"},
-        "P3": {"default": "MULTIPOS"},
     },
     "v14": {
+        "P1": {"default": "POT_CENTER"},
+        "P2": {"default": "POT_CENTER"},
+        "P3": {"default": "MULTIPOS"},
+    },
+    "v14lcd": {
         "P1": {"default": "POT_CENTER"},
         "P2": {"default": "POT_CENTER"},
         "P3": {"default": "MULTIPOS"},
@@ -263,6 +267,12 @@ POT_CONFIG = {
         "P1": {"default": "POT"}
     },
     "st16": {
+        "P1": {"default": "POT"},
+        "P2": {"default": "POT"},
+        "SL1": {"default": "SLIDER"},
+        "SL2": {"default": "SLIDER"},
+    },
+    "c14": {
         "P1": {"default": "POT"},
         "P2": {"default": "POT"},
         "SL1": {"default": "SLIDER"},

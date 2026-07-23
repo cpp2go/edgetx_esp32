@@ -435,6 +435,7 @@
 #define TR_FONT_SIZES_5                "L"
 #define TR_FONT_SIZES_6                "XL"
 #define TR_FONT_SIZES_7                "XXL"
+#define TR_FONT_SIZES_8                "LXL"
 
 #define TR_ENTER                       "[ENTER]"
 #define TR_OK                          TR_BW_COL(TR("\010\010\010[OK]", "\010\010\010\010\010[OK]"), "Ok")
@@ -1070,6 +1071,7 @@
 #define TR_ANTENNA_MODES_3             "Per model"
 #define TR_ANTENNA_MODES_4             "Intern + Ekstern"
 #define TR_ANTENNA_MODES_5             "Ekstern"
+#define TR_ANTENNA_SELECT              "Intern","Ekstern"
 #define TR_USE_INTERNAL_ANTENNA        TR("Brug int. antenne", "Brug intern antenne")
 #define TR_USE_EXTERNAL_ANTENNA        TR("Brug ext. antenne", "Brug ekstern antenne")
 #define TR_ANTENNACONFIRM2             TR("Check antenne", "Kontroller at antenne er installeret!")
