@@ -904,6 +904,9 @@ bool isInternalModuleSupported(int moduleType)
 #if defined(INTERNAL_MODULE_ESPNOW)
   case MODULE_TYPE_ESPNOW: return true;
 #endif
+#if defined(INTERNAL_MODULE_BT_POWERUP)
+  case MODULE_TYPE_BT_POWERUP: return true;
+#endif
   }
   return false;
 }
@@ -1053,6 +1056,16 @@ bool isExternalModuleAvailable(int moduleType)
   
 #if !defined(AFHDS3)
   if (moduleType == MODULE_TYPE_FLYSKY_AFHDS3)
+    return false;
+#endif
+
+#if !defined(EXTERNAL_MODULE_ESPNOW)
+  if (moduleType == MODULE_TYPE_ESPNOW)
+    return false;
+#endif
+
+#if !defined(EXTERNAL_MODULE_BT_POWERUP)
+  if (moduleType == MODULE_TYPE_BT_POWERUP)
     return false;
 #endif
 
