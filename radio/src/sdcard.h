@@ -150,6 +150,10 @@ const char * sdCopyFile(const char * src, const char * dest);
 const char * sdCopyFile(const char * srcFilename, const char * srcDir, const char * destFilename, const char * destDir);
 const char * sdMoveFile(const char * src, const char * dest);
 const char * sdMoveFile(const char * srcFilename, const char * srcDir, const char * destFilename, const char * destDir);
+// Atomic directory-entry move within the same volume (no data copy via f_rename).
+// Preferred over sdMoveFile on flash-backed FATFS to avoid long blocking writes.
+const char * sdRenameFile(const char * src, const char * dest);
+const char * sdRenameFile(const char * srcFilename, const char * srcDir, const char * destFilename, const char * destDir);
 
 #define LIST_NONE_SD_FILE   1
 #define LIST_SD_FILE_EXT    2

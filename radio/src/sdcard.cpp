@@ -430,6 +430,43 @@ const char * sdMoveFile(const char * srcFilename, const char * srcDir, const cha
   return nullptr;
 }
 
+// Atomic directory-entry move within the same volume (no data copy via f_rename).
+// Preferred over sdMoveFile on flash-backed FATFS (e.g. ESP32 OpenX1 wear-leveled
+// FATFS) to avoid the long blocking NOR-flash write of an entire file copy + unlink,
+// which stalled the menus task and triggered reboots on model deletion.
+// Will overwrite if destination exists (mirrors sdMoveFile semantics).
+const char * sdRenameFile(const char * srcPath, const char * destPath)
+{
+  FRESULT result = f_stat(destPath, nullptr);
+  if (result == FR_OK) {
+    // destination already exists: mirror copy-based overwrite behavior
+    result = f_unlink(destPath);
+    if (result != FR_OK) return SDCARD_ERROR(result);
+  } else if (result != FR_NO_FILE) {
+    return SDCARD_ERROR(result);
+  }
+
+  result = f_rename(srcPath, destPath);
+  if (result != FR_OK) return SDCARD_ERROR(result);
+  return nullptr;
+}
+
+// Will overwrite if destination exists
+const char * sdRenameFile(const char * srcFilename, const char * srcDir, const char * destFilename, const char * destDir)
+{
+  char srcPath[2*CLIPBOARD_PATH_LEN+1];
+  char * tmp = strAppend(srcPath, srcDir, CLIPBOARD_PATH_LEN);
+  *tmp++ = '/';
+  strAppend(tmp, srcFilename, CLIPBOARD_PATH_LEN);
+
+  char destPath[2*CLIPBOARD_PATH_LEN+1];
+  tmp = strAppend(destPath, destDir, CLIPBOARD_PATH_LEN);
+  *tmp++ = '/';
+  strAppend(tmp, destFilename, CLIPBOARD_PATH_LEN);
+
+  return sdRenameFile(srcPath, destPath);
+}
+
 #if !defined(SIMU) || defined(SIMU_DISKIO)
 uint32_t sdGetNoSectors()
 {

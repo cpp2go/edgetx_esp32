@@ -36,6 +36,14 @@ using std::list;
 #include "yaml/yaml_parser.h"
 #include "os/sleep.h"
 
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+static const char* MODELSLIST_TAG = "models";
+#define MODELSLIST_LOGI(...) ESP_EARLY_LOGI(MODELSLIST_TAG, __VA_ARGS__)
+#else
+#define MODELSLIST_LOGI(...)
+#endif
+
 #if defined(USBJ_EX)
 #include "usb_joystick.h"
 #endif
@@ -1399,13 +1407,26 @@ bool ModelsList::removeModel(ModelCell *model)
   // Move model into deleted folder. If not moved will be re-added on next
   // reboot
   TRACE_LABELS("Deleting Model %s", model->modelFilename);
-  const char *warning = sdMoveFile(model->modelFilename, MODELS_PATH, model->modelFilename, DELETED_MODELS_PATH);
+  MODELSLIST_LOGI("removeModel %s -> %s (rename)", model->modelFilename, DELETED_MODELS_PATH);
+  // Prefer an atomic f_rename over copy+unlink: avoids a long blocking NOR-flash
+  // write of the whole model file on flash-backed FATFS (ESP32 OpenX1), which
+  // stalled the menus task and caused reboots on model delete.
+  const char *warning = sdRenameFile(model->modelFilename, MODELS_PATH, model->modelFilename, DELETED_MODELS_PATH);
+  if (warning) {
+    MODELSLIST_LOGI("removeModel rename failed (%s), falling back to copy+unlink",
+                    warning ? warning : "(null)");
+    // Fallback to copy-based move if atomic rename fails (e.g. cross-volume).
+    warning = sdMoveFile(model->modelFilename, MODELS_PATH, model->modelFilename, DELETED_MODELS_PATH);
+  }
   if (warning) {
     TRACE("Labels: Unable to move file");
+    MODELSLIST_LOGI("removeModel move failed (%s)",
+                    warning ? warning : "(null)");
     return true;
   }
 
   // Free memory
+  MODELSLIST_LOGI("removeModel %s done", model->modelFilename);
   delete(model);
 
   return false;
