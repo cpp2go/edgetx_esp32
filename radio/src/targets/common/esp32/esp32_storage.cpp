@@ -163,3 +163,130 @@ extern "C" FRESULT f_chdir(const TCHAR* path)
   }
   return FR_OK;
 }
+
+// ─── Relative path support for FatFS (FF_FS_RPATH = 0) ──────────────────────
+//
+// ESP-IDF hard-codes FF_FS_RPATH = 0, so FatFS f_open()/f_stat()/... cannot
+// resolve relative paths against a working directory. Lua scripts call
+// chdir() (our f_chdir stub, which only tracks s_cwd) and then use relative
+// file/image paths — those would fail on ESP32.  To make them work the same
+// way as on RPATH-enabled radios, the linker wraps the FatFS entry points
+// used by the Lua file/image APIs (see esp32_build/CMakeLists.txt --wrap)
+// so that relative paths are resolved against s_cwd before reaching FatFS.
+
+#define ESP32_RESOLVE_BUF   (sizeof(s_cwd) + FF_MAX_LFN + 2)
+
+// Normalize an absolute path in place: collapse duplicate slashes and
+// resolve "." / ".." segments.  FatFS has FF_FS_RPATH=0 and cannot do
+// this itself, so "./test.png" or "a/../b" must be cleaned up here.
+static void esp32_normalize_path(char* path)
+{
+  char tmp[ESP32_RESOLVE_BUF];
+  tmp[0] = '/';
+  tmp[1] = '\0';
+  size_t len = 1;
+
+  const char* p = path;
+  while (*p) {
+    while (*p == '/') p++;   // skip slashes
+    if (!*p) break;
+    const char* seg = p;
+    while (*p && *p != '/') p++;
+    size_t seglen = (size_t)(p - seg);
+
+    if (seglen == 2 && seg[0] == '.' && seg[1] == '.') {
+      // go up one level
+      char* slash = strrchr(tmp, '/');
+      if (slash && slash != tmp) {
+        *slash = '\0';
+        len = (size_t)(slash - tmp);
+      } else {
+        tmp[0] = '/'; tmp[1] = '\0'; len = 1;
+      }
+    } else if (seglen == 1 && seg[0] == '.') {
+      // stay — skip
+    } else if (seglen > 0 && len + 1 + seglen < sizeof(tmp)) {
+      if (len > 1) tmp[len++] = '/';
+      memcpy(tmp + len, seg, seglen);
+      len += seglen;
+      tmp[len] = '\0';
+    }
+  }
+  strcpy(path, tmp);
+}
+
+// Resolve a possibly-relative path against s_cwd. Absolute paths
+// ("/..." or "x:/...") are returned unchanged (after normalization).
+// Returns the original pointer when the path needs no resolution,
+// otherwise fills `buf`.
+static const TCHAR* esp32_resolve_path(const TCHAR* path, char* buf,
+                                       size_t bufsize)
+{
+  if (!path || !path[0] || strchr(path, ':') || bufsize < 2)
+    return path;
+
+  if (path[0] == '/') {
+    // already absolute — normalize "." / ".." segments
+    strncpy(buf, path, bufsize - 1);
+    buf[bufsize - 1] = '\0';
+    esp32_normalize_path(buf);
+    return buf;
+  }
+
+  // relative: prepend CWD
+  if (f_getcwd(buf, bufsize - 1) != FR_OK || !buf[0])
+    return path;
+
+  size_t len = strlen(buf);
+  if (len > 1 && buf[len - 1] != '/')
+    buf[len++] = '/';
+  if (len + 1 >= bufsize)
+    return path;
+  strncat(buf, path, bufsize - len - 1);
+  esp32_normalize_path(buf);
+  return buf;
+}
+
+extern "C" FRESULT __real_f_open(FIL* fp, const TCHAR* path, BYTE mode);
+extern "C" FRESULT __wrap_f_open(FIL* fp, const TCHAR* path, BYTE mode)
+{
+  char buf[ESP32_RESOLVE_BUF];
+  return __real_f_open(fp, esp32_resolve_path(path, buf, sizeof(buf)), mode);
+}
+
+extern "C" FRESULT __real_f_stat(const TCHAR* path, FILINFO* fno);
+extern "C" FRESULT __wrap_f_stat(const TCHAR* path, FILINFO* fno)
+{
+  char buf[ESP32_RESOLVE_BUF];
+  return __real_f_stat(esp32_resolve_path(path, buf, sizeof(buf)), fno);
+}
+
+extern "C" FRESULT __real_f_opendir(FF_DIR* dp, const TCHAR* path);
+extern "C" FRESULT __wrap_f_opendir(FF_DIR* dp, const TCHAR* path)
+{
+  char buf[ESP32_RESOLVE_BUF];
+  return __real_f_opendir(dp, esp32_resolve_path(path, buf, sizeof(buf)));
+}
+
+extern "C" FRESULT __real_f_unlink(const TCHAR* path);
+extern "C" FRESULT __wrap_f_unlink(const TCHAR* path)
+{
+  char buf[ESP32_RESOLVE_BUF];
+  return __real_f_unlink(esp32_resolve_path(path, buf, sizeof(buf)));
+}
+
+extern "C" FRESULT __real_f_mkdir(const TCHAR* path);
+extern "C" FRESULT __wrap_f_mkdir(const TCHAR* path)
+{
+  char buf[ESP32_RESOLVE_BUF];
+  return __real_f_mkdir(esp32_resolve_path(path, buf, sizeof(buf)));
+}
+
+extern "C" FRESULT __real_f_rename(const TCHAR* path_old, const TCHAR* path_new);
+extern "C" FRESULT __wrap_f_rename(const TCHAR* path_old, const TCHAR* path_new)
+{
+  char oldBuf[ESP32_RESOLVE_BUF];
+  char newBuf[ESP32_RESOLVE_BUF];
+  return __real_f_rename(esp32_resolve_path(path_old, oldBuf, sizeof(oldBuf)),
+                         esp32_resolve_path(path_new, newBuf, sizeof(newBuf)));
+}

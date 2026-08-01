@@ -21,3 +21,15 @@ option(BOOTLOADER "Include Bootloader" OFF)
 project(edgetx)
 
 target_link_libraries(${project_elf} PRIVATE radiolib_esp32 board_lib)
+
+# ESP-IDF FatFS hard-codes FF_FS_RPATH = 0 (no relative paths). Wrap the
+# FatFS entry points used by Lua file/image APIs so relative paths are
+# resolved against the chdir() CWD (see esp32_storage.cpp __wrap_*).
+target_link_options(${project_elf} PRIVATE
+  "-Wl,--wrap=f_open"
+  "-Wl,--wrap=f_stat"
+  "-Wl,--wrap=f_opendir"
+  "-Wl,--wrap=f_unlink"
+  "-Wl,--wrap=f_mkdir"
+  "-Wl,--wrap=f_rename"
+)
