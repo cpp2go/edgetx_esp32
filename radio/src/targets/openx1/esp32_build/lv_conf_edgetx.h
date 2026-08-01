@@ -27,6 +27,17 @@
 
 #include "lv_conf.h"
 
+// The shared colorlcd lv_conf.h sizes the static LVGL memory pool from the
+// SDRAM_* macros: openx1 (8MB PSRAM, no SDRAM_16M/32M) gets LV_MEM=2, i.e. a
+// 2MB static pool in PSRAM. That leaves only ~2.2MB of PSRAM as heap, which
+// is too little for Lua Bitmap.open() of larger images (peak ~6xWxH during
+// decode). Shrink the pool to 1MB to free PSRAM for the heap. Tune this up
+// if the UI ever runs low on LVGL memory.
+#if !defined(SIMU)
+#  undef LV_MEM_SIZE
+#  define LV_MEM_SIZE (1 * 1024U * 1024U)
+#endif
+
 #endif /*LV_CONF_EDGETX_H*/
 
 #endif /*End of "Content enable"*/
