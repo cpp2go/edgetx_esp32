@@ -3,6 +3,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 add_definitions(-DLV_CONF_KCONFIG_EXTERNAL_INCLUDE="lv_conf_edgetx.h")
+add_definitions(-DESP32S3_SINGLE_FRAMEBUFFER)
 
 set(EDGETX_ROOTDIR "${CMAKE_SOURCE_DIR}/../../../../..")
 set(EDGETX_SRCDIR "${EDGETX_ROOTDIR}/radio/src")

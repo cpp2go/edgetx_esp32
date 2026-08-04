@@ -30,12 +30,27 @@
 // The shared colorlcd lv_conf.h sizes the static LVGL memory pool from the
 // SDRAM_* macros: openx1 (8MB PSRAM, no SDRAM_16M/32M) gets LV_MEM=2, i.e. a
 // 2MB static pool in PSRAM. That leaves only ~2.2MB of PSRAM as heap, which
-// is too little for Lua Bitmap.open() of larger images (peak ~6xWxH during
-// decode). Shrink the pool to 1MB to free PSRAM for the heap. Tune this up
+// is too little for Lua Bitmap.open() of larger images (peak decode is high).
+// Shrink the pool to 768KB to free more PSRAM for the heap. Tune this up
 // if the UI ever runs low on LVGL memory.
 #if !defined(SIMU)
 #  undef LV_MEM_SIZE
-#  define LV_MEM_SIZE (1 * 1024U * 1024U)
+#  define LV_MEM_SIZE (768U * 1024U)
+
+// openx1 prioritizes large image loading over UI caching/perf.
+// Keep LVGL's temporary buffers small and disable decoded image cache so
+// memory is released promptly instead of being retained across draws.
+#  undef LV_MEM_BUF_MAX_NUM
+#  define LV_MEM_BUF_MAX_NUM 8
+
+#  undef LV_LAYER_SIMPLE_BUF_SIZE
+#  define LV_LAYER_SIMPLE_BUF_SIZE (8U * 1024U)
+
+#  undef LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE
+#  define LV_LAYER_SIMPLE_FALLBACK_BUF_SIZE (1024U)
+
+#  undef LV_IMG_CACHE_DEF_SIZE
+#  define LV_IMG_CACHE_DEF_SIZE 0
 #endif
 
 #endif /*LV_CONF_EDGETX_H*/

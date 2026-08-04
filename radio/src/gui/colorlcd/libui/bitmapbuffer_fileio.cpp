@@ -22,6 +22,10 @@
 #include "lib_file.h"
 #include "edgetx_helpers.h"
 
+#if defined(ESP_PLATFORM)
+#include "esp_heap_caps.h"
+#endif
+
 FIL imgFile __DMA;
 
 // #define TRACE_STB_MALLOC
@@ -94,10 +98,54 @@ int stbc_eof(void *user)
 // callbacks for stb-image
 const stbi_io_callbacks stbCallbacks = {stbc_read, stbc_skip, stbc_eof};
 
+#if defined(ESP_PLATFORM)
+static void trace_heap_caps(const char *tag)
+{
+  size_t free_spiram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  size_t largest_spiram = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+  size_t free_8bit = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+  size_t largest_8bit = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+
+  TRACE("%s heap: PSRAM free=%u largest=%u | 8BIT free=%u largest=%u", tag,
+        (unsigned)free_spiram, (unsigned)largest_spiram, (unsigned)free_8bit,
+        (unsigned)largest_8bit);
+}
+#else
+static inline void trace_heap_caps(const char *) {}
+#endif
+
+static inline void unpack_pixel(const uint8_t *p, int n, uint8_t &r,
+                                uint8_t &g, uint8_t &b, uint8_t &a)
+{
+  switch (n) {
+    case 1:  // Gray
+      r = g = b = p[0];
+      a = 0xFF;
+      break;
+    case 2:  // Gray + Alpha
+      r = g = b = p[0];
+      a = p[1];
+      break;
+    case 3:  // RGB
+      r = p[0];
+      g = p[1];
+      b = p[2];
+      a = 0xFF;
+      break;
+    default: // RGBA
+      r = p[0];
+      g = p[1];
+      b = p[2];
+      a = p[3];
+      break;
+  }
+}
+
 BitmapBuffer *BitmapBuffer::loadBitmap(const char *filename, BitmapFormats fmt)
 {
   FRESULT result = f_open(&imgFile, filename, FA_OPEN_EXISTING | FA_READ);
   if (result != FR_OK) {
+    trace_heap_caps("loadBitmap open failed");
     return nullptr;
   }
 
@@ -105,20 +153,21 @@ BitmapBuffer *BitmapBuffer::loadBitmap(const char *filename, BitmapFormats fmt)
   stbi_info_from_callbacks(&stbCallbacks, &imgFile, &x, &y, &nn);
   f_lseek(&imgFile, 0);
 
-  int w, h, n;
-  unsigned char *img =
-      stbi_load_from_callbacks(&stbCallbacks, &imgFile, &w, &h, &n, 4);
+    int w, h, n;
+    unsigned char *img =
+      stbi_load_from_callbacks(&stbCallbacks, &imgFile, &w, &h, &n, 0);
   f_close(&imgFile);
 
   if (!img) {
     TRACE_ERROR("loadBitmap(%s) failed: %s\n", filename, stbi_failure_reason());
+    trace_heap_caps("loadBitmap decode failed");
     return nullptr;
   }
 
   // convert to RGB565 or ARGB4444 format
   BitmapFormats dst_fmt = fmt;
   if (dst_fmt == BMP_INVALID) {
-    dst_fmt = (n == 4 ? BMP_ARGB4444 : BMP_RGB565);
+    dst_fmt = (n == 2 || n == 4 ? BMP_ARGB4444 : BMP_RGB565);
   }
 
   BitmapBuffer *bmp = new BitmapBuffer(dst_fmt, w, h);
@@ -126,25 +175,31 @@ BitmapBuffer *BitmapBuffer::loadBitmap(const char *filename, BitmapFormats fmt)
     if (bmp) delete bmp;
     stbi_image_free(img);
     TRACE_ERROR("loadBitmap: malloc failed\n");
+    trace_heap_caps("loadBitmap dest alloc failed");
     return nullptr;
   }
 
   pixel_t *dest = bmp->getPixelPtrAbs(0, 0);
   const uint8_t *p = img;
+  int step = (n >= 1 && n <= 4) ? n : 4;
   if (dst_fmt == BMP_ARGB4444) {
     for (int row = 0; row < h; ++row) {
       for (int col = 0; col < w; ++col) {
-        *dest = ARGB(p[3], p[0], p[1], p[2]);
+        uint8_t r, g, b, a;
+        unpack_pixel(p, n, r, g, b, a);
+        *dest = ARGB(a, r, g, b);
         MOVE_TO_NEXT_RIGHT_PIXEL(dest);
-        p += 4;
+        p += step;
       }
     }
-  } else {  // assume 3 bytes, packed in groups of 4
+  } else {
     for (int row = 0; row < h; ++row) {
       for (int col = 0; col < w; ++col) {
-        *dest = RGB(p[0], p[1], p[2]);
+        uint8_t r, g, b, a;
+        unpack_pixel(p, n, r, g, b, a);
+        *dest = RGB(r, g, b);
         MOVE_TO_NEXT_RIGHT_PIXEL(dest);
-        p += 4;
+        p += step;
       }
     }
   }
@@ -199,31 +254,38 @@ static lv_res_t decoder_info(struct _lv_img_decoder_t *decoder, const void *src,
 
 static uint8_t *convert_bitmap(uint8_t *img, int w, int h, int n)
 {
-  uint8_t *bmp = (uint8_t *)lv_mem_alloc(((n == 4) ? 3 : 2) * w * h);
+  bool has_alpha = (n == 2 || n == 4);
+  uint8_t *bmp = (uint8_t *)lv_mem_alloc((has_alpha ? 3 : 2) * w * h);
   if (bmp == nullptr) {
     TRACE_ERROR("convert_bitmap: lv_mem_alloc failed\n");
+    trace_heap_caps("convert_bitmap lv_mem_alloc failed");
     return nullptr;
   }
 
   const uint8_t *p = img;
-  if (n == 4) {
+  int step = (n >= 1 && n <= 4) ? n : 4;
+  if (has_alpha) {
     uint8_t *dest = bmp;
     for (int row = 0; row < h; ++row) {
       for (int col = 0; col < w; ++col) {
-        uint16_t c = RGB(p[0], p[1], p[2]);
+        uint8_t r, g, b, a;
+        unpack_pixel(p, n, r, g, b, a);
+        uint16_t c = RGB(r, g, b);
         *dest++ = c & 0xFF;
         *dest++ = c >> 8;
-        *dest++ = p[3];
-        p += 4;
+        *dest++ = a;
+        p += step;
       }
     }
   } else {
     pixel_t *dest = (pixel_t *)bmp;
     for (int row = 0; row < h; ++row) {
       for (int col = 0; col < w; ++col) {
-        *dest = RGB(p[0], p[1], p[2]);
+        uint8_t r, g, b, a;
+        unpack_pixel(p, n, r, g, b, a);
+        *dest = RGB(r, g, b);
         MOVE_TO_NEXT_RIGHT_PIXEL(dest);
-        p += 4;
+        p += step;
       }
     }
   }
@@ -245,16 +307,21 @@ static lv_res_t decoder_open(lv_img_decoder_t *decoder,
     if (result == FR_OK) {
       int w, h, n;
       unsigned char *img =
-          stbi_load_from_callbacks(&stbCallbacks, &imgFile, &w, &h, &n, 4);
+          stbi_load_from_callbacks(&stbCallbacks, &imgFile, &w, &h, &n, 0);
       f_close(&imgFile);
 
       if (!img) {
         TRACE_ERROR("decoder_open(%s) failed: %s\n", fn, stbi_failure_reason());
+        trace_heap_caps("decoder_open decode failed");
         return LV_RES_INV;
       }
 
       dsc->img_data = convert_bitmap(img, w, h, n);
       stbi_image_free(img);
+
+      if (!dsc->img_data) {
+        trace_heap_caps("decoder_open convert failed");
+      }
 
       return dsc->img_data ? LV_RES_OK : LV_RES_INV;
     } else {

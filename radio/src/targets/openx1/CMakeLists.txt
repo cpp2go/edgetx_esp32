@@ -36,6 +36,7 @@ set(SDCARD YES)
 set(EEPROM EEPROM_RAW)
 set(TARGET_DIR openx1)
 option(PPM_LIMITS_SYMETRICAL "PPM limits symetrical" ON)
+option(LUA_COMPILER "Pre-compile and save Lua scripts" ON)
 
 add_definitions(-DREQUIRED_SDCARD_VERSION="${SDCARD_VERSION}")
 add_definitions(-DLUA_INPUTS -DTIMERS -DSOFTWARE_VOLUME)
