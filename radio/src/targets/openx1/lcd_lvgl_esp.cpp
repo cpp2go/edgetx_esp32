@@ -116,6 +116,12 @@ void DMACopyBitmap(uint16_t *dest, uint16_t destw, uint16_t desth, uint16_t x,
 
 // 'src' has ARGB4444
 // 'dest' has RGB565
+// Source/dest both live in PSRAM (the LCD frame buffer is __SDRAM-backed, see
+// lcd.cpp). The original loop re-read *p three times per pixel (once per RGB
+// channel) straight from PSRAM, which is the real cost here. Compact to one
+// read of *p into a register, one write of *p out, and reuse the loaded bg
+// value for all three channels. Output is bit-for-bit identical to the prior
+// implementation; only the number of PSRAM accesses per pixel dropped 3:1.
 void DMACopyAlphaBitmap(uint16_t *dest, uint16_t destw, uint16_t desth,
                         uint16_t x, uint16_t y, const uint16_t *src,
                         uint16_t srcw, uint16_t srch, uint16_t srcx,
@@ -125,12 +131,19 @@ void DMACopyAlphaBitmap(uint16_t *dest, uint16_t destw, uint16_t desth,
         uint16_t *p = dest + (y + line) * destw + x;
         const uint16_t *q = src + (srcy + line) * srcw + srcx;
         for (coord_t col = 0; col < w; col++) {
-            uint8_t alpha = *q >> 12;
-            uint8_t red = ((((*q >> 8) & 0x0f) << 1) * alpha + (*p >> 11) * (0x0f - alpha)) / 0x0f;
-            uint8_t green = ((((*q >> 4) & 0x0f) << 2) * alpha +
-                    ((*p >> 5) & 0x3f) * (0x0f - alpha)) / 0x0f;
-            uint8_t blue = ((((*q >> 0) & 0x0f) << 1) * alpha +
-                    ((*p >> 0) & 0x1f) * (0x0f - alpha)) / 0x0f;
+            uint16_t sp = *q;            // ARGB4444 source pixel
+            uint8_t alpha = sp >> 12;    // 4-bit alpha (0..15)
+            uint8_t ialpha = 0x0f - alpha;
+            uint16_t dp = *p;            // RGB565 dest pixel (read once)
+            uint8_t sr = ((sp >> 8) & 0x0f) << 1;   // src red  -> 5-bit scale
+            uint8_t sg = ((sp >> 4) & 0x0f) << 2;   // src green -> 6-bit scale
+            uint8_t sb = (sp & 0x0f) << 1;          // src blue  -> 5-bit scale
+            uint8_t dr = dp >> 11;                   // dest red   (5-bit)
+            uint8_t dg = (dp >> 5) & 0x3f;           // dest green (6-bit)
+            uint8_t db = dp & 0x1f;                  // dest blue  (5-bit)
+            uint8_t red   = (sr * alpha + dr * ialpha) / 0x0f;
+            uint8_t green = (sg * alpha + dg * ialpha) / 0x0f;
+            uint8_t blue  = (sb * alpha + db * ialpha) / 0x0f;
             *p = (red << 11) + (green << 5) + (blue << 0);
             p++;
             q++;
@@ -140,6 +153,9 @@ void DMACopyAlphaBitmap(uint16_t *dest, uint16_t destw, uint16_t desth,
 
 // 'src' has A8/L8?
 // 'dest' has RGB565
+// Dest frame buffer lives in PSRAM; read *p once into a register and reuse for
+// all three channels instead of re-reading PSRAM per channel. Output identical
+// to the prior implementation.
 void DMACopyAlphaMask(uint16_t *dest, uint16_t destw, uint16_t desth,
                       uint16_t x, uint16_t y, const uint8_t *src, uint16_t srcw,
                       uint16_t srch, uint16_t srcx, uint16_t srcy, uint16_t w,
@@ -153,7 +169,8 @@ void DMACopyAlphaMask(uint16_t *dest, uint16_t destw, uint16_t desth,
         for (coord_t col = 0; col < w; col++) {
             uint16_t opacity = *q >> 4;  // convert to 4 bits (stored in 8bit for DMA)
             uint8_t bgWeight = OPACITY_MAX - opacity;
-            RGB_SPLIT(*p, bgRed, bgGreen, bgBlue);
+            uint16_t dp = *p;            // RGB565 dest pixel (read once from PSRAM)
+            RGB_SPLIT(dp, bgRed, bgGreen, bgBlue);
             uint16_t r = (bgRed * bgWeight + red * opacity) / OPACITY_MAX;
             uint16_t g = (bgGreen * bgWeight + green * opacity) / OPACITY_MAX;
             uint16_t b = (bgBlue * bgWeight + blue * opacity) / OPACITY_MAX;

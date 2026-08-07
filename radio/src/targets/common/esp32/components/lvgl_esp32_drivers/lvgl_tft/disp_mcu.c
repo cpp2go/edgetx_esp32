@@ -21,7 +21,13 @@ static const char *TAG = "lcd-mcu";
 #include "lvgl_helpers.h"
 #include "disp_mcu.h"
 
-#define MCU_LCD_PIXEL_CLOCK_HZ (20 * 1000 * 1000)
+// I80 parallel pixel clock. Source clock ~20 MHz is the ILI9488 conservative
+// recommended value; bumped to 26 MHz to widen the push-bandwidth (faster full
+// screen refresh). If the panel shows garbled pixels / column shift, this is
+// the first thing to dial back down (try 24, then 20). ESP32-S3 I80 peripheral
+// itself supports up to ~40 MHz; the ILI9488 write-cycle + board trace is the
+// real ceiling.
+#define MCU_LCD_PIXEL_CLOCK_HZ (26 * 1000 * 1000)
 
 static esp_lcd_i80_bus_handle_t i80_bus = NULL;
 static esp_lcd_i80_bus_config_t bus_config = {
