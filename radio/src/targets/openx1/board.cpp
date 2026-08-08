@@ -211,7 +211,7 @@ uint16_t getBatteryVoltage()
     // Result in 0.01V units: val * 4mV * 13/3 / 10 = val * 52 / 30.
     uint16_t val = anaIn(adcGetInputOffset(ADC_INPUT_VBAT));
     int32_t result = (int32_t)val * 52 / 30 + g_eeGeneral.txVoltageCalibration;
-    return result > 0 ? (uint16_t)result*2 : 0;
+    return result > 0 ? (uint16_t)result : 0;
 }
 
 uint16_t getRTCBatteryVoltage()
