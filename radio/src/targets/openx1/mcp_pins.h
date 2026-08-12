@@ -13,9 +13,9 @@
 
 // output pins
 #define MCP_INTERNAL_PROTO_LED   (8 * 3 + 0)  // G1B0
-//#define MCP_INTMOD_BOOT   (8 * 3 + 1)  // G1B1
+#define MCP_INTMOD_BOOT   (8 * 3 + 3)  // G1B3
 #define MCP_INTMOD_5V_EN  (8 * 3 + 2)  // G1B2
-//#define MCP_EXTMOD_BOOT   (8 * 3 + 3)  // G1B3
+//#define MCP_EXTMOD_BOOT   (8 * 3 + 1)  // G1B1
 #define MCP_EXTMOD_5V_EN  (8 * 3 + 4)  // G1B4
 #define MCP_PWR_EN (8 * 3 + 6)  // G1B6
 

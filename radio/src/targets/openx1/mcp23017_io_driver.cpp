@@ -107,6 +107,10 @@ void keysInit()
     // Pre-set PWR_EN bit so the GPIO write doesn't briefly kill power during init
     ShadowOutput |= (1U << MCP_PWR_EN);
 
+    // Default the internal-module BOOT strap high (normal run); the firmware
+    // update flow drives it low via INTERNAL_MODULE_BOOTCMD() when needed.
+    ShadowOutput |= (1U << MCP_INTMOD_BOOT);
+
     esp_err_t ret  = ESP_OK;
     uint32_t pullup = MCP23017_PULLUP;
     uint32_t dir = MCP23017_DIR_REG;
@@ -135,12 +139,21 @@ void keysInit()
 }
 
 void INTERNAL_MODULE_ON(void) {
-    //mcp_set_gpio(MCP_INTMOD_BOOT, 1);
     mcp_set_gpio(MCP_INTMOD_5V_EN, 1);
 }
 void INTERNAL_MODULE_OFF(void) {
     mcp_set_gpio(MCP_INTMOD_5V_EN, 0);
-    //mcp_set_gpio(MCP_INTMOD_BOOT, 0);
+}
+
+// Internal-module boot strap (G1B3), driven independently of power so the
+// firmware-update flow can assert it before set_pwr() powers the module up
+// (see frsky_firmware_update.cpp: set_bootcmd(true); set_pwr(true); ...).
+//   enable=1 -> hold module in serial bootloader/download mode (BOOT low)
+//   enable=0 -> normal run (BOOT high)
+// NOTE: polarity assumes the ESP GPIO0 convention (low at reset = download).
+// If the internal module inverts this, flip the ternary below.
+void INTERNAL_MODULE_BOOTCMD(uint8_t enable) {
+    mcp_set_gpio(MCP_INTMOD_BOOT, enable ? 0 : 1);
 }
 
 void EXTERNAL_MODULE_ON(void) {

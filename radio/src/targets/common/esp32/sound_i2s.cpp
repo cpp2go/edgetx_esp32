@@ -52,8 +52,13 @@ void audioInit()
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+#if defined(AUDIO_STEREO)
+            .slot_mode = I2S_SLOT_MODE_STEREO,
+            .slot_mask = I2S_STD_SLOT_BOTH,
+#else
             .slot_mode = I2S_SLOT_MODE_MONO,
             .slot_mask = I2S_STD_SLOT_LEFT,
+#endif
             .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
             .ws_pol = false,
             .bit_shift = true,
@@ -94,7 +99,11 @@ void audioSetCurrentBuffer(const AudioBuffer *buffer)
 {
   if (buffer) {
     currentBuffer = (uint8_t *)buffer->data;
-    currentSize = buffer->size * 2;
+#if defined(AUDIO_STEREO)
+    currentSize = buffer->size * 4;  // frames * 2 channels * 2 bytes
+#else
+    currentSize = buffer->size * 2;  // frames * 2 bytes
+#endif
   } else {
     currentBuffer = nullptr;
     currentSize = 0;

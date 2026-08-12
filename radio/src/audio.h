@@ -115,9 +115,25 @@ constexpr uint8_t AUDIO_FILENAME_MAXLEN = (AUDIO_LUA_FILENAME_MAXLEN > AUDIO_MOD
 #endif
 
 struct AudioBuffer {
+#if defined(AUDIO_STEREO)
+  // interleaved L/R frames: 2 samples per frame
+  audio_data_t data[AUDIO_BUFFER_SIZE * 2];
+#else
   audio_data_t data[AUDIO_BUFFER_SIZE];
-  uint16_t size;
+#endif
+  uint16_t size;   // number of frames (mono-equivalent samples)
 };
+
+#if defined(AUDIO_STEREO)
+// Stereo panning (balance law). 0 = center (full on both channels),
+// negative = attenuate right (pan left), positive = attenuate left (pan right).
+// Range is [-128, 127]; magnitude 128 fully mutes the opposite channel.
+#endif
+// Pan constants are always defined so mix call sites stay single-path; on mono
+// builds the pan argument is accepted and ignored.
+#define AUDIO_PAN_CENTER  (0)
+#define AUDIO_PAN_LEFT    (-128)
+#define AUDIO_PAN_RIGHT   (127)
 
 extern AudioBuffer audioBuffers[AUDIO_BUFFER_COUNT];
 
@@ -197,7 +213,7 @@ class ToneContext {
       return fragment.type == FRAGMENT_EMPTY;
     }
 
-    int mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade);
+    int mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade, int8_t pan = AUDIO_PAN_CENTER);
 
     void setFragment(uint16_t freq, uint16_t duration, uint16_t pause, uint8_t repeat, int8_t freqIncr, bool reset, int8_t fragmentVolume, bool pure = false, uint8_t id = 0)
     {
@@ -223,7 +239,7 @@ class WavContext {
 
     inline void clear() { fragment.clear(); };
 
-    int mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade);
+    int mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade, int8_t pan = AUDIO_PAN_CENTER);
     bool hasPromptId(uint8_t id) const { return fragment.id == id; };
 
     void setFragment(const char * filename, uint8_t repeat, int8_t fragmentVolume, uint8_t id)
@@ -279,12 +295,12 @@ class MixedContext {
     bool isFile() const { return fragment.type == FRAGMENT_FILE; };
     bool hasPromptId(uint8_t id) const { return fragment.id == id; };
 
-    int mixBuffer(AudioBuffer *buffer, int toneVolume, int wavVolume, unsigned int fade)
+    int mixBuffer(AudioBuffer *buffer, int toneVolume, int wavVolume, unsigned int fade, int8_t pan = AUDIO_PAN_CENTER)
     {
       if (isTone())
-        return tone.mixBuffer(buffer, toneVolume, fade);
+        return tone.mixBuffer(buffer, toneVolume, fade, pan);
       else if (isFile())
-        return wav.mixBuffer(buffer, wavVolume, fade);
+        return wav.mixBuffer(buffer, wavVolume, fade, pan);
       return 0;
     }
 

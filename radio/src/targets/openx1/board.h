@@ -120,6 +120,9 @@ SD_CS   7
 #define I2S_BCLK  GPIO_NUM_17
 #define I2S_LRCLK GPIO_NUM_18
 #define AUDIO_SAMPLE_FMT AUDIO_SAMPLE_FMT_S16
+// True stereo audio output (interleaved L/R). Enables the AUDIO_STEREO code
+// paths in the shared audio pipeline and the stereo I2S slot config.
+#define AUDIO_STEREO
 
 #define SOFT_PWR_CTRL
 uint32_t pwrCheck();
@@ -131,6 +134,7 @@ bool pwrOffPressed();
 
 void INTERNAL_MODULE_ON(void);
 void INTERNAL_MODULE_OFF(void);
+void INTERNAL_MODULE_BOOTCMD(uint8_t enable);
 void EXTERNAL_MODULE_ON(void);
 void EXTERNAL_MODULE_OFF(void);
 void internal_protocol_led_on(bool on);
