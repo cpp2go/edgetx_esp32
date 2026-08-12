@@ -79,13 +79,59 @@ SD_MOSI 6
 SD_CS   7
 */
 
-#define TOUCH_IRQ GPIO_NUM_38
+// ---------------------------------------------------------------------------
+// Physical GPIO pin assignments (chip-specific)
+//
+// The openx1 board can be populated with either an ESP32-S3 or an ESP32-S31.
+// The two SoCs have different packages/pinouts, so the raw GPIO numbers are
+// selected per IDF target below. Peripheral instance numbers (I2C/SPI/UART
+// ports) are identical on both and are defined once, further down.
+//
+// NOTE: the ESP32-S31 pin numbers below are seeded from the S3 layout as a
+// starting point. VERIFY AND CORRECT EACH ONE against the ESP32-S31 board
+// schematic before flashing S31 hardware.
+// ---------------------------------------------------------------------------
+#if CONFIG_IDF_TARGET_ESP32S31
+// TODO(openx1-s31): confirm every GPIO below against the ESP32-S31 schematic.
+#define TOUCH_IRQ           GPIO_NUM_38
+#define I2C_0_SCL           GPIO_NUM_40
+#define I2C_0_SDA           GPIO_NUM_39
+#define BACKLITE_PIN        GPIO_NUM_45
+#define FLYSKY_UART_RX_PIN  GPIO_NUM_41  // GIMBLE_RX
+#define FLYSKY_UART_TX_PIN  GPIO_NUM_42  // GIMBLE_TX
+#define INTMOD_ESP_UART_TX  GPIO_NUM_2   // INTMOD_TX
+#define INTMOD_ESP_UART_RX  GPIO_NUM_1   // INTMOD_RX
+#define EXTMOD_UART_TX      GPIO_NUM_15  // EXTMOD_TX
+#define EXTMOD_UART_RX      GPIO_NUM_8   // EXTMOD_RX
+#define SDSPI_CLK           GPIO_NUM_5
+#define SDSPI_MOSI          GPIO_NUM_6
+#define SDSPI_MISO          GPIO_NUM_4
+#define SDCARD_CS_GPIO      GPIO_NUM_7
+#define I2S_DOUT            GPIO_NUM_16
+#define I2S_BCLK            GPIO_NUM_17
+#define I2S_LRCLK           GPIO_NUM_18
+#else  // ESP32-S3 (default openx1 layout)
+#define TOUCH_IRQ           GPIO_NUM_38
+#define I2C_0_SCL           GPIO_NUM_40
+#define I2C_0_SDA           GPIO_NUM_39
+#define BACKLITE_PIN        GPIO_NUM_45
+#define FLYSKY_UART_RX_PIN  GPIO_NUM_41  // GIMBLE_RX
+#define FLYSKY_UART_TX_PIN  GPIO_NUM_42  // GIMBLE_TX
+#define INTMOD_ESP_UART_TX  GPIO_NUM_2   // INTMOD_TX
+#define INTMOD_ESP_UART_RX  GPIO_NUM_1   // INTMOD_RX
+#define EXTMOD_UART_TX      GPIO_NUM_15  // EXTMOD_TX
+#define EXTMOD_UART_RX      GPIO_NUM_8   // EXTMOD_RX
+#define SDSPI_CLK           GPIO_NUM_5
+#define SDSPI_MOSI          GPIO_NUM_6
+#define SDSPI_MISO          GPIO_NUM_4
+#define SDCARD_CS_GPIO      GPIO_NUM_7
+#define I2S_DOUT            GPIO_NUM_16
+#define I2S_BCLK            GPIO_NUM_17
+#define I2S_LRCLK           GPIO_NUM_18
+#endif
 
+// Peripheral instance numbers (identical on ESP32-S3 and ESP32-S31)
 #define I2C_MASTER_NUM I2C_NUM_0
-#define I2C_0_SCL GPIO_NUM_40
-#define I2C_0_SDA GPIO_NUM_39
-
-#define BACKLITE_PIN GPIO_NUM_45
 
 #define USE_RMT -1
 #if CONFIG_ESP_CONSOLE_UART_NUM == 0
@@ -98,27 +144,11 @@ SD_CS   7
 #define INTMOD_UART_PORT UART_NUM_2
 #endif
 
-#define FLYSKY_UART_RX_PIN GPIO_NUM_41  // GIMBLE_RX
-#define FLYSKY_UART_TX_PIN GPIO_NUM_42  // GIMBLE_TX
-
-#define INTMOD_ESP_UART_TX GPIO_NUM_2 // INTMOD_TX
-#define INTMOD_ESP_UART_RX GPIO_NUM_1 // INTMOD_RX
-
-#define EXTMOD_UART_TX GPIO_NUM_15  // EXTMOD_TX
-#define EXTMOD_UART_RX GPIO_NUM_8   // EXTMOD_RX
-
 #define SD_DEDICATED_SPI
 #ifdef SD_DEDICATED_SPI
 #define SD_SPI_HOST SPI2_HOST
-#define SDSPI_CLK  GPIO_NUM_5
-#define SDSPI_MOSI GPIO_NUM_6
-#define SDSPI_MISO GPIO_NUM_4
 #endif
-#define SDCARD_CS_GPIO GPIO_NUM_7
 
-#define I2S_DOUT  GPIO_NUM_16
-#define I2S_BCLK  GPIO_NUM_17
-#define I2S_LRCLK GPIO_NUM_18
 #define AUDIO_SAMPLE_FMT AUDIO_SAMPLE_FMT_S16
 // True stereo audio output (interleaved L/R). Enables the AUDIO_STEREO code
 // paths in the shared audio pipeline and the stereo I2S slot config.

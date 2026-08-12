@@ -41,7 +41,7 @@ char* get_lvgl_mem(int nbytes)
 #endif
 
 pixel_t LCD_FIRST_FRAME_BUFFER[DISPLAY_BUFFER_SIZE] __SDRAM;
-#if defined(ESP32S3_SINGLE_FRAMEBUFFER)
+#if defined(ESP32_SINGLE_FRAMEBUFFER)
 pixel_t* LCD_SECOND_FRAME_BUFFER = LCD_FIRST_FRAME_BUFFER;
 #else
 pixel_t LCD_SECOND_FRAME_BUFFER[DISPLAY_BUFFER_SIZE] __SDRAM;
@@ -113,7 +113,7 @@ static void flushLcd(lv_disp_drv_t* disp_drv, const lv_area_t* area,
 static void clear_frame_buffers()
 {
   memset(LCD_FIRST_FRAME_BUFFER, 0, sizeof(LCD_FIRST_FRAME_BUFFER));
-#if !defined(ESP32S3_SINGLE_FRAMEBUFFER)
+#if !defined(ESP32_SINGLE_FRAMEBUFFER)
   memset(LCD_SECOND_FRAME_BUFFER, 0, sizeof(LCD_SECOND_FRAME_BUFFER));
 #endif
 }
@@ -121,7 +121,7 @@ static void clear_frame_buffers()
 static void init_lvgl_disp_drv()
 {
   lv_disp_draw_buf_init(&disp_buf, lcdFront->getData(),
-#if defined(ESP32S3_SINGLE_FRAMEBUFFER)
+#if defined(ESP32_SINGLE_FRAMEBUFFER)
                         NULL,
 #else
                         lcd->getData(),

@@ -30,10 +30,15 @@
 #include "tinyusb.h"
 #include "tusb.h"
 #include "esp_rom_sys.h"
-// Disable the USB_SERIAL_JTAG hardware chip-reset signal before TinyUSB
-// switches the USB_WRAP PHY mux to OTG (which would otherwise cause rst:0x15).
+#if CONFIG_IDF_TARGET_ESP32S3
+// On the ESP32-S3 the USB-Serial-JTAG controller shares the USB_WRAP PHY with
+// the OTG controller. Disable the USB_SERIAL_JTAG hardware chip-reset signal
+// before TinyUSB switches the USB_WRAP PHY mux to OTG (which would otherwise
+// cause rst:0x15). The ESP32-S31 has a dedicated OTG-HS PHY with no shared mux,
+// so these registers do not exist / are not needed there.
 #include "hal/usb_serial_jtag_ll.h"
 #include "soc/rtc_cntl_reg.h"
+#endif
 
 static bool s_tusb_installed = false;
 static uint8_t s_hid_cfg_desc[64] = {};
@@ -53,6 +58,18 @@ static bool usbDriverStarted = false;
 static bool cdcActive = false;
 
 #if defined(ESP_PLATFORM)
+// Prevent the USB-Serial-JTAG controller from issuing a hardware chip reset
+// (rst:0x15) when the shared USB_WRAP PHY mux switches to OTG. Only the
+// ESP32-S3 shares the PHY this way; on the ESP32-S31 (dedicated OTG-HS PHY)
+// this is a no-op.
+static inline void usbDisableSerialJtagReset()
+{
+#if CONFIG_IDF_TARGET_ESP32S3
+    REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
+    usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+#endif
+}
+
 static void teardownTinyUsbStack()
 {
 #if defined(CONFIG_TINYUSB_CDC_ENABLED)
@@ -147,8 +164,7 @@ void usbStart()
             }
 
             if (!s_tusb_installed) {
-                REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
-                usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+                usbDisableSerialJtagReset();
 
                 if (!setupUSBJoystick()) {
                     TRACE("USB joystick setup failed");
@@ -231,8 +247,7 @@ void usbStart()
             if (!s_tusb_installed) {
                 // Prevent USB_SERIAL_JTAG from issuing a hardware chip reset
                 // (rst:0x15) when the USB_WRAP PHY mux switches to OTG below.
-                REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
-                usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+                usbDisableSerialJtagReset();
 
                 // Correct init order (same as component test app and reference examples):
                 // Step 1 — MSC class driver
@@ -302,8 +317,7 @@ void usbStart()
 #if defined(USB_SERIAL)
         case USB_SERIAL_MODE:
 #if defined(ESP_PLATFORM)
-            REG_SET_BIT(RTC_CNTL_USB_CONF_REG, RTC_CNTL_USB_RESET_DISABLE);
-            usb_serial_jtag_ll_disable_intr_mask(UINT32_MAX);
+            usbDisableSerialJtagReset();
 
             if (!s_tusb_installed) {
                 tinyusb_config_t tusb_cfg = {};
