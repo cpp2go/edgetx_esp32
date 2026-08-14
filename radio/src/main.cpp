@@ -203,12 +203,9 @@ void handleUsbConnection()
     }
   }
 
-  if (_pluggedUsb && !plugged) {
-    TRACE("USB unplugged");
-    closeUsbMenu();
-    _pluggedUsb = false;
-    _usbDisabled = false;
-  } else if (!_pluggedUsb && plugged) {
+  // Note: the unplug transition is fully handled by the (!plugged) block above
+  // (which returns), so only the plug transition needs handling here.
+  if (!_pluggedUsb && plugged) {
     TRACE("USB plugged");
     _pluggedUsb = true;
     _usbDisabled = false;
@@ -231,7 +228,8 @@ void handleUsbConnection()
     // Mode might have been selected in previous block
     // so re-evaluate the condition
     if (getSelectedUsbMode() != USB_UNSELECTED_MODE) {
-      if (getSelectedUsbMode() == USB_MASS_STORAGE_MODE) {
+      const bool isMsc = (getSelectedUsbMode() == USB_MASS_STORAGE_MODE);
+      if (isMsc) {
         edgeTxClose(false);
 #if defined(COLORLCD)
         if (!usbConnectedWindow) {
@@ -246,7 +244,31 @@ void handleUsbConnection()
 #endif
 
       usbStart();
-      TRACE("USB started");
+
+      if (usbStarted()) {
+        TRACE("USB started");
+      } else {
+        // Start failed (e.g. mass storage with no SD card). usbStart() has
+        // already reset the mode to UNSELECTED, so without this guard the next
+        // cycle would auto-select and retry every ~250ms forever (and, for
+        // mass storage, leave the GUI closed until unplug). Disable USB until
+        // the cable is re-plugged (_usbDisabled is cleared on the plug edge),
+        // and undo the mass-storage GUI teardown so the radio stays usable.
+        TRACE("USB start failed, disabling until re-plug");
+        _usbDisabled = true;
+        if (isMsc) {
+#if defined(COLORLCD)
+          if (usbConnectedWindow) {
+            usbConnectedWindow->deleteLater();
+            usbConnectedWindow = nullptr;
+          }
+#endif
+          edgeTxResume();
+#if !defined(COLORLCD)
+          pushEvent(EVT_ENTRY);
+#endif
+        }
+      }
     }
   }
 #endif  // (defined(STM32) || defined(ESP_PLATFORM)) && !defined(SIMU)
