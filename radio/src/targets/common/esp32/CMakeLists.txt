@@ -147,12 +147,11 @@ if(BLUETOOTH)
   add_definitions(-DBLUETOOTH)
   set(TARGET_SRC
     ${TARGET_SRC}
-    #../common/arm/stm32/bluetooth_driver.cpp
+    ${ESP_CMN_FOLDER}/bluetooth_driver.c
     )
-  set(SRC
-    ${SRC}
-    bluetooth.cpp
-    )
+  # NOTE: radio/src/CMakeLists.txt already adds bluetooth.cpp (the EdgeTX
+  # Bluetooth app code) when BLUETOOTH is enabled, so it is NOT added here
+  # (adding it twice would cause duplicate symbols).
 endif()
 
 set(SRC

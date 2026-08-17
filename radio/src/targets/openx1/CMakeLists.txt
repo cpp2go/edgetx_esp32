@@ -29,7 +29,9 @@ set(FLAVOUR openx1)
 set(NAVIGATION_TYPE 9x)  # TODO-OPENX1
 set(ROTARY_ENCODER NO)
 set(LUA_EXPORT lua_export_openx1)
-set(BLUETOOTH NO)  # TODO-OPENX1
+# Generic EdgeTX Bluetooth feature, backed by the ESP32-S3's native BLE
+# (see targets/common/esp32/bluetooth_driver.c). Build switch: -DBLUETOOTH=OFF
+option(BLUETOOTH "Support for Bluetooth module (ESP32-S3 native BLE)" ON)
 set(USB_CHARGER NO) # SW does not control the USB charger
 
 set(SDCARD YES)

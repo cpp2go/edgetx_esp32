@@ -125,5 +125,10 @@
 #define SWITCHES_GPIO_PIN_F          7
 
 
+// Keys held together to toggle the keyboard lock (optional feature).
+// Holding SYS + MDL together for ~1s toggles the lock while enabled in
+// Radio Setup. Override either define to map the combo to a different pair.
+#define KEYS_LOCK_KEY1                  KEY_SYS
+#define KEYS_LOCK_KEY2                  KEY_MODEL
 
 #endif // _HAL_H_

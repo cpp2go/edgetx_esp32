@@ -511,7 +511,7 @@ void Bluetooth::wakeup()
         ++reusableBuffer.moduleSetup.bt.devicesCount;
       }
     }
-#if defined(PCBHORUS)
+#if defined(PCBHORUS) || defined(PCB_OPENX1)
     else if (state == BLUETOOTH_STATE_DISCOVER_START &&
              (line != nullptr) && !strcmp(line, "OK+DISCE")) {
       state = BLUETOOTH_STATE_DISCOVER_END;
