@@ -50,6 +50,10 @@
 extern void ads1015_adc_init(void);
 extern uint32_t ShadowInput;
 
+#if defined(BLUETOOTH)
+extern "C" int g_nimble_port_init_ok; /* set from nimble_port_init() result */
+#endif
+
 i2c_master_bus_handle_t i2c_0_bus_handle;
 i2c_master_bus_handle_t lvgl_i2c_bus_handle;
 i2c_master_bus_handle_t rtc_i2c_bus_handle;
@@ -138,8 +142,16 @@ void boardInit()
     ESP_ERROR_CHECK(ret);
     ESP_EARLY_LOGI("BOARD", "nvs_flash_init done");
 
-    nimble_port_init();
-    ESP_EARLY_LOGI("BOARD", "nimble_port_init done");
+    esp_err_t nb_ret = nimble_port_init();
+    if (nb_ret != ESP_OK) {
+      ESP_EARLY_LOGE("BOARD", "nimble_port_init failed: %s",
+                     esp_err_to_name(nb_ret));
+    } else {
+      ESP_EARLY_LOGI("BOARD", "nimble_port_init done");
+    }
+#if defined(BLUETOOTH)
+    g_nimble_port_init_ok = (nb_ret == ESP_OK);
+#endif
 
     board_init_i2c();
     ESP_EARLY_LOGI("BOARD", "board_init_i2c done");

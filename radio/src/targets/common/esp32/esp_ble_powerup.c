@@ -23,6 +23,12 @@ struct ble_hs_cfg;
 union ble_store_value;
 union ble_store_key;
 
+#if defined(BLUETOOTH)
+/* Shared with targets/common/esp32/bluetooth_driver.c: only one module may
+ * run the NimBLE host event loop (nimble_port_run()) at a time. */
+extern int g_nimble_host_owned;
+#endif
+
 TaskHandle_t pwrup_task_handle = NULL;
 
 static SemaphoreHandle_t mutex_handle = NULL;
@@ -400,6 +406,15 @@ esp_start_ble_scan(void)
     g_pwrup = NULL;
     thr = NULL;
     rdr = NULL;
+
+#if defined(BLUETOOTH)
+    /* The Bluetooth trainer/telemetry feature may already own the host. */
+    if (g_nimble_host_owned) {
+        ESP_LOGW(tag, "NimBLE host already owned by another module - PowerUP disabled");
+        return;
+    }
+    g_nimble_host_owned = 1;
+#endif
 
     if (NULL == mutex_handle) {
         mutex_handle = xSemaphoreCreateBinaryStatic(&mutex_struct);
