@@ -311,7 +311,10 @@ blecent_gap_event(struct ble_gap_event *event, void *arg)
             ESP_LOGI(TAG, "Connection established ");
 
             rc = ble_gap_conn_find(event->connect.conn_handle, &desc);
-            assert(rc == 0);
+            if (rc != 0) {
+                ESP_LOGE(tag, "conn_find failed rc=%d", rc);
+                return 0;
+            }
             print_conn_desc(&desc);
             ESP_LOGI(TAG, "\n");
 
@@ -381,7 +384,10 @@ blecent_on_sync(void)
 
     /* Make sure we have proper identity address set (public preferred) */
     rc = ble_hs_util_ensure_addr(0);
-    assert(rc == 0);
+    if (rc != 0) {
+        ESP_LOGE(tag, "ensure_addr failed rc=%d - PowerUP disabled", rc);
+        return;
+    }
 
     /* Begin scanning for a peripheral to connect to. */
     blecent_scan();
@@ -397,7 +403,10 @@ void blecent_host_task(void *param)
 }
 
 static StaticTask_t task_struct;
-EXT_RAM_BSS_ATTR static StackType_t task_stack[NIMBLE_HS_STACK_SIZE];
+/* Keep the NimBLE host task stack in INTERNAL RAM: NimBLE may trigger flash
+ * writes (NVS) while running, which briefly disable the PSRAM cache; a stack
+ * in PSRAM then becomes inaccessible and causes a silent cache-error panic. */
+static StackType_t task_stack[NIMBLE_HS_STACK_SIZE];
 
 void
 esp_start_ble_scan(void)
@@ -428,11 +437,17 @@ esp_start_ble_scan(void)
 
     /* Initialize data structures to track connected peers. */
     rc = peer_init(MYNEWT_VAL(BLE_MAX_CONNECTIONS), 64, 64, 64);
-    assert(rc == 0);
+    if (rc != 0) {
+        ESP_LOGE(tag, "peer_init failed rc=%d - PowerUP disabled", rc);
+        return;
+    }
 
     /* Set the default device name. */
     rc = ble_svc_gap_device_name_set("blecent-powerup");
-    assert(rc == 0);
+    if (rc != 0) {
+        ESP_LOGE(tag, "device_name_set failed rc=%d - PowerUP disabled", rc);
+        return;
+    }
 
     /* XXX Need to have template for store */
     ble_store_config_init();

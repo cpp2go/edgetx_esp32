@@ -58,6 +58,7 @@
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_system.h"
+#include "nvs_flash.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -97,6 +98,8 @@ static uint16_t bt_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t bt_tx_val_handle = 0;
 static uint8_t bt_own_addr_type = BLE_OWN_ADDR_PUBLIC;
 static bool bt_host_started = false;
+static bool bt_host_start_ok = false;
+static bool bt_host_synced = false;
 
 /*
  * Shared ownership flag for the single NimBLE host event loop.  The
@@ -114,6 +117,37 @@ int g_nimble_host_owned = 0;
  * bt_host_start() checks this and backs off cleanly instead.
  */
 int g_nimble_port_init_ok = 0;
+
+/*
+ * Persistent crash latch (NVS): armed just before the NimBLE host task is
+ * created and cleared once the host has synced (bt_on_sync).  If the radio
+ * reboots before it is cleared, the previous boot died while starting the
+ * host.  Unlike esp_reset_reason(), this survives power-off/power-on cycles,
+ * so a BT host-start crash can never wedge the radio in a reboot loop.
+ */
+#define BT_NVS_NS    "edgetx_bt"
+#define BT_NVS_LATCH "bt_crash"
+
+static bool bt_nvs_get_crash_latch(void)
+{
+  nvs_handle_t h;
+  int32_t v = 0;
+  if (nvs_open(BT_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+    nvs_get_i32(h, BT_NVS_LATCH, &v);
+    nvs_close(h);
+  }
+  return v != 0;
+}
+
+static void bt_nvs_set_crash_latch(bool armed)
+{
+  nvs_handle_t h;
+  if (nvs_open(BT_NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    nvs_set_i32(h, BT_NVS_LATCH, armed ? 1 : 0);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+}
 
 /* Central (master) role */
 typedef enum {
@@ -654,6 +688,11 @@ static void bt_on_sync(void)
 {
   int rc;
 
+  /* Host + controller are up: clear the crash latch that was armed in
+   * bt_host_start().  The next boot may safely start the host again. */
+  bt_nvs_set_crash_latch(false);
+  bt_host_synced = true;
+
   /* Never hard-assert here: a failure on first host start used to
    * abort() and reboot the radio.  Log and bail out instead so the
    * problem is visible on the serial console. */
@@ -705,23 +744,42 @@ static void bt_host_task(void *param)
 }
 
 static StaticTask_t bt_host_task_tcb;
-EXT_RAM_BSS_ATTR static StackType_t
-    bt_host_task_stack[BT_HOST_TASK_STACK_SIZE];
+/* Keep the NimBLE host task stack in INTERNAL RAM: while this task runs,
+ * NimBLE may trigger flash writes (e.g. NVS), which briefly disable the
+ * PSRAM cache.  A stack in PSRAM then becomes inaccessible and causes a
+ * silent cache-error panic (reset reason ESP_RST_PANIC, no panic output). */
+static StackType_t bt_host_task_stack[BT_HOST_TASK_STACK_SIZE];
 
 static void bt_host_start(void)
 {
   if (bt_host_started) return;
   bt_host_started = true;
+  bt_host_start_ok = false;
 
-  /* Break boot loops: if the previous boot ended in a panic/watchdog
-   * reset (very likely while starting the NimBLE host), skip the host
-   * start this boot so the radio comes up and the user can go change
-   * the Bluetooth mode instead of being stuck in an auto-reboot loop. */
+  /* Break boot loops.  Two independent mechanisms:
+   *   1) esp_reset_reason(): a host-start crash ends as a software reset
+   *      (rst:0x0c -> ESP_RST_SW) via esp_restart(), or a panic/watchdog on
+   *      other paths.
+   *   2) A persistent NVS crash latch (armed below, cleared in bt_on_sync):
+   *      it survives power-off/power-on cycles, so the radio can never be
+   *      wedged in a reboot loop by a host-start crash even across power
+   *      cycles.
+   * In every such case skip the host start this boot so the radio comes up
+   * and the user can go change the Bluetooth mode. */
   esp_reset_reason_t bt_rst = esp_reset_reason();
-  if (bt_rst == ESP_RST_PANIC || bt_rst == ESP_RST_TASK_WDT ||
-      bt_rst == ESP_RST_WDT || bt_rst == ESP_RST_INT_WDT) {
+  bool prev_crash =
+      (bt_rst == ESP_RST_SW || bt_rst == ESP_RST_PANIC ||
+       bt_rst == ESP_RST_TASK_WDT || bt_rst == ESP_RST_WDT ||
+       bt_rst == ESP_RST_INT_WDT || bt_rst == ESP_RST_CPU_LOCKUP) ||
+      bt_nvs_get_crash_latch();
+
+  if (prev_crash) {
+    /* Keep the latch SET: the last host start crashed and we must not try
+     * again until the user explicitly turns Bluetooth off (which clears it)
+     * or a host start succeeds.  This guarantees the radio can never be
+     * wedged in a reboot loop, even across power-off/power-on cycles. */
     ESP_LOGE(BT_TAG,
-             "previous boot crashed (reset reason %d) - BT host start skipped this boot",
+             "previous boot crashed starting BT host (rst=%d, latch=1) - BT host start skipped this boot",
              (int)bt_rst);
     return;
   }
@@ -739,6 +797,14 @@ static void bt_host_start(void)
     return;
   }
   g_nimble_host_owned = 1;
+
+  ESP_LOGI(BT_TAG, "host start: reset reason=%d, nimble_ok=%d",
+           (int)bt_rst, g_nimble_port_init_ok);
+
+  /* Arm the crash latch BEFORE touching NimBLE: from here on, any reboot
+   * means the host start crashed and the next boot must skip it.  The latch
+   * is cleared in bt_on_sync() once the host is up. */
+  bt_nvs_set_crash_latch(true);
 
   /* nimble_port_init() is already called in board.cpp at startup. */
 
@@ -760,11 +826,14 @@ static void bt_host_start(void)
   xTaskCreateStaticPinnedToCore(bt_host_task, "bt_host", BT_HOST_TASK_STACK_SIZE,
                                 NULL, (configMAX_PRIORITIES - 4),
                                 bt_host_task_stack, &bt_host_task_tcb, 0);
+  bt_host_start_ok = true;
 }
 
 void bluetoothInit(uint32_t baudrate, bool enable)
 {
   (void)baudrate; /* meaningless for native BLE */
+
+  ESP_LOGI(BT_TAG, "bluetoothInit(enable=%d)", (int)enable);
 
   if (!enable) {
     if (bt_scan_active) {
@@ -772,11 +841,21 @@ void bluetoothInit(uint32_t baudrate, bool enable)
       bt_scan_active = false;
     }
     ble_gap_adv_stop();
+    /* User turned Bluetooth off: clear the crash latch so a later re-enable
+     * starts from a clean slate. */
+    bt_nvs_set_crash_latch(false);
+    bt_host_start_ok = false;
+    bt_host_synced = false;
     return;
   }
 
   bt_host_start();
-  if (bt_role == BT_ROLE_PERIPHERAL) {
+  /* Only touch NimBLE if the host actually started AND synced this boot.
+   * Calling ble_gap_adv_*() from the mixer task before the host has synced
+   * (or on a host that was skipped for crash recovery) is both wrong and
+   * unsafe - it can panic the radio.  bt_on_sync() starts advertising as
+   * soon as the host is up, so nothing is lost. */
+  if (bt_role == BT_ROLE_PERIPHERAL && bt_host_start_ok && bt_host_synced) {
     bt_start_advertising();
   }
 }
@@ -791,7 +870,10 @@ void bluetoothWrite(const void *buffer, uint32_t len)
     return;
   }
 
-  if (bt_conn_handle == BLE_HS_CONN_HANDLE_NONE) return;
+  if (bt_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
+    ESP_LOGI(BT_TAG, "write len=%u dropped (no connection)", (unsigned)len);
+    return;
+  }
 
   if (bt_role == BT_ROLE_CENTRAL) {
     /* master: write to the peer's NUS RX characteristic */
@@ -801,11 +883,13 @@ void bluetoothWrite(const void *buffer, uint32_t len)
     }
   } else {
     /* slave: notify our own NUS TX characteristic */
+    ESP_LOGI(BT_TAG, "write len=%u conn=%u tx_val=0x%04x",
+             (unsigned)len, bt_conn_handle, bt_tx_val_handle);
     if (bt_tx_val_handle != 0) {
       struct os_mbuf *om = ble_hs_mbuf_from_flat(data, (uint16_t)len);
       if (om) {
-        /* takes ownership of the mbuf regardless of the result */
-        ble_gatts_notify_custom(bt_conn_handle, bt_tx_val_handle, om);
+        int rc = ble_gatts_notify_custom(bt_conn_handle, bt_tx_val_handle, om);
+        ESP_LOGI(BT_TAG, "notify rc=%d", rc);
       }
     }
   }
@@ -832,4 +916,9 @@ void bluetoothDisable(void)
     ble_gap_terminate(bt_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
     bt_conn_handle = BLE_HS_CONN_HANDLE_NONE;
   }
+  /* Bluetooth disabled by the user (Hardware -> Bluetooth -> Off): clear the
+   * crash latch so a later re-enable starts from a clean slate. */
+  bt_nvs_set_crash_latch(false);
+  bt_host_start_ok = false;
+  bt_host_synced = false;
 }

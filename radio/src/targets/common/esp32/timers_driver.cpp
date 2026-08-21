@@ -20,14 +20,17 @@
 
 #include "edgetx.h"
 #include "driver/gptimer.h"
+#include "esp_log.h"
 
 static gptimer_handle_t MyTim2Mhz = NULL;
 static SemaphoreHandle_t sem5ms;
+static volatile bool g_timer_arm_error = false;
 
 static bool IRAM_ATTR alarm_5ms_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
 {
     BaseType_t high_task_awoken = pdFALSE;
     uint64_t count = 0;
+
     gptimer_get_raw_count(MyTim2Mhz, &count);
     gptimer_alarm_config_t alarm_config = {
         .alarm_count = count + 10000, // period = 5ms
@@ -36,7 +39,14 @@ static bool IRAM_ATTR alarm_5ms_cb(gptimer_handle_t timer, const gptimer_alarm_e
             .auto_reload_on_alarm = false,
         }
     };
-    ESP_ERROR_CHECK(gptimer_set_alarm_action(MyTim2Mhz, &alarm_config));
+    /* NEVER use ESP_ERROR_CHECK inside an ISR: on error it calls abort() /
+     * esp_restart() from interrupt context, rebooting the radio with no
+     * visible panic output.  On error, stop re-arming and flag it instead. */
+    esp_err_t err = gptimer_set_alarm_action(MyTim2Mhz, &alarm_config);
+    if (err != ESP_OK) {
+        g_timer_arm_error = true;
+        return pdFALSE;
+    }
 
     xSemaphoreGiveFromISR(sem5ms, &high_task_awoken);
     // return whether we need to yield at the end of ISR
@@ -48,6 +58,10 @@ static void task5ms(void * pdata) {
 
   while (true) {
     if (xSemaphoreTake(sem5ms, portMAX_DELAY)) {
+      if (g_timer_arm_error) {
+        g_timer_arm_error = false;
+        ESP_LOGE("BOARD", "5ms gptimer re-arm failed - timer stopped");
+      }
       ++pre_scale;
       per5ms();
 
