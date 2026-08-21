@@ -32,6 +32,15 @@
 
 #define SET_DIRTY() storageDirty(EE_MODEL)
 
+/* Map ESP-NOW RSSI (dBm, typically -30..-100) to a 0..100 link quality */
+static uint8_t espnow_rssi_to_pct(int8_t rssi_dbm)
+{
+  int32_t pct = 100 - (((int32_t)(-rssi_dbm) - 30) * 100) / 70;
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  return (uint8_t)pct;
+}
+
 static void onBind()
 {
   init_bind_espnow();
@@ -79,6 +88,11 @@ EspNowSettings::EspNowSettings(Window* parent, const FlexGridLayout& g,
   new StaticText(line, rect_t{}, "RSSI");
   rssiText = new StaticText(line, rect_t{}, "N/A");
 
+  // Link quality
+  line = newLine(grid);
+  new StaticText(line, rect_t{}, "Link");
+  linkText = new StaticText(line, rect_t{}, "0%");
+
   // Packets sent / acknowledged
   line = newLine(grid);
   new StaticText(line, rect_t{}, "Packets");
@@ -106,6 +120,10 @@ void EspNowSettings::update()
   char buf[16];
   snprintf(buf, sizeof(buf), "%d dBm", espnowRssi);
   rssiText->setText(buf);
+
+  // Update link quality
+  snprintf(buf, sizeof(buf), "%d%%", espnow_rssi_to_pct(espnowRssi));
+  linkText->setText(buf);
 
   // Update packet stats
   snprintf(buf, sizeof(buf), "%lu/%lu", packSent, packAckn);

@@ -34,6 +34,7 @@ class EspNowSettings : public Window, public ModuleOptions
   TextButton* bindBtn;
   StaticText* statusText;
   StaticText* rssiText;
+  StaticText* linkText;
   StaticText* pktText;
 
  public:

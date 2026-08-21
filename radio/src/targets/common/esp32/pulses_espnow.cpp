@@ -35,6 +35,12 @@
 
 #include "pulses_esp32.h"
 
+/* Telemetry sensor IDs exposed to the UI (PROTOCOL_TELEMETRY_ESPNOW) */
+#define ESPNOW_TELEM_RSSI_ID 0x01   /* RSSI in dBm (UNIT_DBM)      */
+#define ESPNOW_TELEM_LINK_ID 0x02   /* link quality 0..100 (UNIT_PERCENT) */
+#define ESPNOW_TELEM_PKT_ID  0x03   /* packets sent (UNIT_RAW)     */
+#define ESPNOW_TELEM_ACK_ID  0x04   /* packets acked (UNIT_RAW)    */
+
 static const char *TAG = "tx.cpp";
 static xQueueHandle evtQueue;
 static esp_now_peer_info_t rxPeer;
@@ -75,6 +81,32 @@ void bind_packet_prepare()
     packet.crc = crc16_le(0, (uint8_t const *) &packet, sizeof(packet));
 }
 
+/* Map ESP-NOW RSSI (dBm, typically -30..-100) to a 0..100 link quality */
+static uint8_t espnow_rssi_to_pct(int8_t rssi_dbm)
+{
+    int32_t pct = 100 - (((int32_t)(-rssi_dbm) - 30) * 100) / 70;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return (uint8_t)pct;
+}
+
+/* Feed the EdgeTX telemetry system so the main screen / telemetry pages
+ * show link status and signal for the ESP-NOW module. */
+static void espnow_feed_telemetry(void)
+{
+    telemetryStreaming = TELEMETRY_TIMEOUT10ms;
+    telemetryData.rssi.set(espnow_rssi_to_pct(espnowRssi));
+
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_RSSI_ID, 0, 0,
+                      espnowRssi, UNIT_DBM, 0);
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_LINK_ID, 0, 0,
+                      espnowLinkState ? 100 : 0, UNIT_PERCENT, 0);
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_PKT_ID, 0, 0,
+                      (int32_t)packSent, UNIT_RAW, 0);
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_ACK_ID, 0, 0,
+                      (int32_t)packAckn, UNIT_RAW, 0);
+}
+
 inline void process_data(Event_t &evt) {
     if (!memcmp(evt.mac_addr,rxPeer.peer_addr, sizeof(ESPNOW_ETH_ALEN))) {
         RXPacket_t *rp = (RXPacket_t *) evt.data;
@@ -84,6 +116,7 @@ inline void process_data(Event_t &evt) {
                 espnowLinkState = 1;
                 linkState = GOTACKN;
                 packAckn++;
+                espnow_feed_telemetry();
             } else {
                 ESP_LOGE(TAG, "Ack failed: idx: %d vs %d, crc: %d vs %d, ", rp->idx , packet.idx, rp->crc , packet.crc);
             }
