@@ -220,7 +220,10 @@ class RadioInfoWidget : public TopBarWidget
 
  protected:
   uint8_t lastVol = 0;
-  uint8_t lastBatt = 0;
+  // Sentinel so the fill is sized correctly on the very first checkEvents().
+  // batteryFill is created full-width, so if the real value is 0 (== lastBatt)
+  // the size would never be updated and the icon would stay full.
+  uint8_t lastBatt = 0xFF;
   uint8_t lastRSSI = 0;
   StaticIcon* logsIcon;
   StaticIcon* usbIcon;
