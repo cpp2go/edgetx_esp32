@@ -29,7 +29,8 @@
 #include "sdmmc_cmd.h"
 
 
-static bool card_present = false; // default to consider it as present until mount failed
+static bool card_present = false;
+static bool spi_bus_initialized = false;
 static sdmmc_host_t config = SDSPI_HOST_DEFAULT();
 static sdspi_dev_handle_t handle;
 static sdspi_device_config_t dev_config = SDSPI_DEVICE_CONFIG_DEFAULT();
@@ -40,18 +41,25 @@ static DSTATUS sdcard_spi_initialize(BYTE lun)
 {
     if (!card_present) {
 #ifdef SD_DEDICATED_SPI
-        spi_bus_config_t bus_config = {
-            .mosi_io_num = SDSPI_MOSI,
-            .miso_io_num = SDSPI_MISO,
-            .sclk_io_num = SDSPI_CLK,
-            .quadwp_io_num = -1,
-            .quadhd_io_num = -1,
-        };
-        config.slot = SD_SPI_HOST;
-        ESP_ERROR_CHECK(spi_bus_initialize((spi_host_device_t)config.slot, &bus_config, SPI_DMA_CH_AUTO));
+        if (!spi_bus_initialized) {
+            spi_bus_config_t bus_config = {
+                .mosi_io_num = SDSPI_MOSI,
+                .miso_io_num = SDSPI_MISO,
+                .sclk_io_num = SDSPI_CLK,
+                .quadwp_io_num = -1,
+                .quadhd_io_num = -1,
+            };
+            config.slot = SD_SPI_HOST;
+            if (spi_bus_initialize((spi_host_device_t)config.slot, &bus_config, SPI_DMA_CH_AUTO) != ESP_OK) {
+                return STA_NOINIT;
+            }
+            spi_bus_initialized = true;
+        } else {
+            // SPI bus already initialized; restore host slot id before reuse.
+            config.slot = SD_SPI_HOST;
+        }
 #endif
         dev_config.host_id = (spi_host_device_t)config.slot;
-
         dev_config.gpio_cs = SDCARD_CS_GPIO;
         sdspi_host_init();
         sdspi_host_init_device(&dev_config, &handle);
@@ -64,13 +72,15 @@ static DSTATUS sdcard_spi_initialize(BYTE lun)
             sdspi_host_deinit();
         }
     }
-    return 0;
+    // Return STA_NODISK|STA_NOINIT when no card so f_mount returns FR_NOT_READY cleanly.
+    return card_present ? 0 : (STA_NODISK | STA_NOINIT);
 }
 
 static DSTATUS sdcard_spi_status(BYTE lun)
 {
-    DSTATUS stat = 0;
-    return stat;
+    // STA_NOINIT (not STA_NODISK) so storageIsPresent() still returns true and
+    // mount attempts are not suppressed when the card is simply absent.
+    return card_present ? 0 : STA_NOINIT;
 }
 
 static DRESULT sdcard_spi_read(BYTE lun, BYTE * buff, DWORD sector, UINT count)
@@ -121,4 +131,9 @@ const diskio_driver_t sdcard_spi_driver = {
     .write = sdcard_spi_write,
     .ioctl = sdcard_spi_ioctl,
 };
+
+sdmmc_card_t* sdcard_spi_get_card(void)
+{
+    return card_present ? card : NULL;
+}
 

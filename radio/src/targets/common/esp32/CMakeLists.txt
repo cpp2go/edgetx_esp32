@@ -2,6 +2,10 @@
 add_definitions(-DAUDIO -DVOICE -DRTCLOCK)
 add_definitions(-DSBUS_TRAINER)
 
+if(USB_SERIAL)
+  add_definitions(-DUSB_SERIAL)
+endif()
+
 add_definitions(-DSTORAGE_USE_SDCARD_SPI)
 
 # TARGET_SRC relative dir TODO-OPENX1
@@ -180,6 +184,7 @@ endif()
 set(TARGET_SRC
   ${TARGET_SRC}
   ${ESP_CMN_FOLDER}/diskio_spi.cpp
+  ${ESP_CMN_FOLDER}/esp32_storage.cpp
   ${ESP_CMN_FOLDER}/sound_i2s.cpp
   ${ESP_CMN_FOLDER}/abnormal_reboot.cpp
   ${ESP_CMN_FOLDER}/watchdog_driver.cpp

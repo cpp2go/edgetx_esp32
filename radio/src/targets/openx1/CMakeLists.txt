@@ -30,7 +30,7 @@ set(SDCARD YES)
 set(EEPROM EEPROM_RAW)
 set(TARGET_DIR openx1)
 option(PPM_LIMITS_SYMETRICAL "PPM limits symetrical" ON)
-option(USB_SERIAL "Enable USB serial (CDC)" OFF)
+set(USB_SERIAL ON CACHE BOOL "Enable USB serial (CDC)")
 
 if(USB_SERIAL)
   add_definitions(-DUSB_SERIAL)

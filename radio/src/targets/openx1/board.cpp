@@ -152,6 +152,7 @@ void boardInit()
 
 void boardOff()
 {
+    lcdFadeOut();
     pwrOff();
 }
 
@@ -159,7 +160,17 @@ extern uint32_t ShadowInput;
 
 int usbPlugged() {
     // OpenX1 reports VBUS via MCP23017 G1B5 (see mcp_pins.h)
-    return (ShadowInput & (1u << USB_GPIO_PIN_VBUS)) != 0;
+    // Debounce the raw input so a glitchy VBUS doesn't toggle USB on/off
+    static uint8_t debouncedState = 0;
+    static uint8_t lastState = 0;
+
+    uint8_t state = (ShadowInput & (1U << USB_GPIO_PIN_VBUS)) ? 1u : 0u;
+    if (state == lastState)
+        debouncedState = state;
+    else
+        lastState = state;
+
+    return debouncedState;
 }
 
 void enableVBatBridge() {

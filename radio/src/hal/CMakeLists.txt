@@ -18,6 +18,8 @@ if (FLEXSW)
   add_definitions(-DMAX_FLEX_SWITCHES=${FLEXSW})
 endif()
 
+if(NOT CPU_FAMILY STREQUAL "ESP32")
+
 include_directories(${FATFS_DIR} ${FATFS_DIR}/option)
 
 if(EXFAT)
@@ -43,4 +45,6 @@ if ((NOT NATIVE_BUILD) OR SIMU_DISKIO)
     ${CMAKE_CURRENT_SOURCE_DIR}/${FATFS_DIR}/ff.c
     ${CMAKE_CURRENT_SOURCE_DIR}/${FATFS_DIR}/ffunicode.c
   )
+endif()
+
 endif()

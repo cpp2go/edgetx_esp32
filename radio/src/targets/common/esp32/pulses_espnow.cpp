@@ -35,8 +35,14 @@
 
 #include "pulses_esp32.h"
 
+/* Telemetry sensor IDs exposed to the UI (PROTOCOL_TELEMETRY_ESPNOW) */
+#define ESPNOW_TELEM_RSSI_ID 0x01   /* RSSI in dBm (UNIT_DBM)      */
+#define ESPNOW_TELEM_LINK_ID 0x02   /* link quality 0..100 (UNIT_PERCENT) */
+#define ESPNOW_TELEM_PKT_ID  0x03   /* packets sent (UNIT_RAW)     */
+#define ESPNOW_TELEM_ACK_ID  0x04   /* packets acked (UNIT_RAW)    */
+
 static const char *TAG = "tx.cpp";
-static QueueHandle_t evtQueue;
+static xQueueHandle evtQueue;
 static esp_now_peer_info_t rxPeer;
 static DRAM_ATTR int16_t locChannelOutputs[MAX_OUTPUT_CHANNELS] = {0};
 static QueueHandle_t xPulsesQueue;
@@ -45,6 +51,8 @@ static volatile LinkState_t linkState = IDLE;
 uint32_t volatile packSent = 0;
 uint32_t volatile packAckn = 0;
 uint32_t volatile sendPeriod = 0;
+int8_t volatile espnowRssi = 0;
+uint8_t volatile espnowLinkState = 0;
 static bool volatile pulsesON = false;
 static bool volatile paused = false;
 static TXState_t volatile txState = PAUSED;
@@ -73,14 +81,42 @@ void bind_packet_prepare()
     packet.crc = crc16_le(0, (uint8_t const *) &packet, sizeof(packet));
 }
 
+/* Map ESP-NOW RSSI (dBm, typically -30..-100) to a 0..100 link quality */
+static uint8_t espnow_rssi_to_pct(int8_t rssi_dbm)
+{
+    int32_t pct = 100 - (((int32_t)(-rssi_dbm) - 30) * 100) / 70;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    return (uint8_t)pct;
+}
+
+/* Feed the EdgeTX telemetry system so the main screen / telemetry pages
+ * show link status and signal for the ESP-NOW module. */
+static void espnow_feed_telemetry(void)
+{
+    telemetryStreaming = TELEMETRY_TIMEOUT10ms;
+    telemetryData.rssi.set(espnow_rssi_to_pct(espnowRssi));
+
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_RSSI_ID, 0, 0,
+                      espnowRssi, UNIT_DBM, 0);
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_LINK_ID, 0, 0,
+                      espnowLinkState ? 100 : 0, UNIT_PERCENT, 0);
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_PKT_ID, 0, 0,
+                      (int32_t)packSent, UNIT_RAW, 0);
+    setTelemetryValue(PROTOCOL_TELEMETRY_ESPNOW, ESPNOW_TELEM_ACK_ID, 0, 0,
+                      (int32_t)packAckn, UNIT_RAW, 0);
+}
+
 inline void process_data(Event_t &evt) {
     if (!memcmp(evt.mac_addr,rxPeer.peer_addr, sizeof(ESPNOW_ETH_ALEN))) {
         RXPacket_t *rp = (RXPacket_t *) evt.data;
         switch (rp->type){
         case ACK:
             if (rp->idx == packet.idx && rp->crc == packet.crc){
+                espnowLinkState = 1;
                 linkState = GOTACKN;
                 packAckn++;
+                espnow_feed_telemetry();
             } else {
                 ESP_LOGE(TAG, "Ack failed: idx: %d vs %d, crc: %d vs %d, ", rp->idx , packet.idx, rp->crc , packet.crc);
             }
@@ -109,7 +145,7 @@ inline void process_bind(Event_t &evt) {
             storageDirty(EE_MODEL);
 
             rxPeer.channel = g_model.moduleData[INTERNAL_MODULE].espnow.ch;
-            rxPeer.ifidx = WIFI_IF_STA;
+            rxPeer.ifidx = (wifi_interface_t)WIFI_IF_STA;
             rxPeer.encrypt = false;
             if (esp_now_is_peer_exist(rxPeer.peer_addr) == false) {
                 esp_now_add_peer(&rxPeer);
@@ -129,9 +165,9 @@ inline void process_bind(Event_t &evt) {
 static void tx_task(void *pvParameter)
 {
     Event_t evt;
-    //vTaskDelay(5000 / portTICK_PERIOD_MS);
+    //vTaskDelay(5000 / portTICK_RATE_MS);
     while (pulsesON) {
-        if(xQueueReceive(evtQueue, &evt, TX_PERIOD_MS/portTICK_PERIOD_MS) == pdTRUE) {
+        if(xQueueReceive(evtQueue, &evt, TX_PERIOD_MS/portTICK_RATE_MS) == pdTRUE) {
             switch (evt.id) {
             case TX:
                 ESP_LOGD(TAG, "TX: evt.status: %d", evt.status);
@@ -139,6 +175,7 @@ static void tx_task(void *pvParameter)
                     linkState = WAITACKN;
                     packSent++;
                 } else {
+                    espnowLinkState = 0;
                     linkState = SENDERR;
                 }
                 break;
@@ -204,10 +241,9 @@ static void tx_task(void *pvParameter)
     vTaskDelete(NULL);
 }
 
-static void send_cb(const esp_now_send_info_t *tx_info, esp_now_send_status_t status) {
+static void send_cb(const wifi_tx_info_t* mac_addr, esp_now_send_status_t status) {
     Event_t evt;
   
-    const uint8_t *mac_addr = tx_info->des_addr;
     if (mac_addr == NULL) {
         ESP_LOGE(TAG, "Send cb arg error");
         return;
@@ -227,6 +263,11 @@ static void recv_cb(const esp_now_recv_info_t * esp_now_info, const uint8_t *dat
     if (esp_now_info == NULL || data == NULL || len <= 0) {
         ESP_LOGE(TAG, "Receive cb arg error");
         return;
+    }
+
+    // Capture RSSI from received packets
+    if (esp_now_info->rx_ctrl != NULL) {
+        espnowRssi = esp_now_info->rx_ctrl->rssi;
     }
 
     evt.id = RX;
@@ -263,7 +304,7 @@ esp_err_t initTX(){
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_register_send_cb(send_cb));
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_register_recv_cb(recv_cb));
   
-    rxPeer.ifidx = WIFI_IF_STA;
+    rxPeer.ifidx = (wifi_interface_t)WIFI_IF_STA;
     rxPeer.encrypt = false;
     memcpy(rxPeer.peer_addr, broadcast_mac, ESPNOW_ETH_ALEN);
     rxPeer.channel = BIND_CH;
@@ -273,6 +314,8 @@ esp_err_t initTX(){
     ESP_ERROR_CHECK_WITHOUT_ABORT(esp_now_add_peer(&rxPeer));
 
     linkState = IDLE;
+    espnowLinkState = 0;
+    espnowRssi = 0;
     pulsesON = true;
     txState = PULSES;
     if (NULL == xTaskCreateStaticPinnedToCore(tx_task, "tx_task", ESPNOW_STACK_SIZE, NULL, ESP_TASK_PRIO_MAX-6, espnow_stack, &espnowTaskBuffer, PULSES_TASK_CORE)) {

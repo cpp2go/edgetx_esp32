@@ -8,6 +8,8 @@
 
 #include "lvgl_helpers.h"
 #include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define MIN_PWM_DUTY_CYCLE 100
 #define BLITE_OFF_DUTY_CYCLE 50
@@ -51,4 +53,14 @@ void backlightDisable() {
 }
 bool isBacklightEnabled() {
     return bkl_enabled;
+}
+
+void lcdFadeOut()
+{
+    for (int duty = (int)prev_duty_cycle; duty >= 0; duty--) {
+        disp_backlight_set(bklite_handle, duty);
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    prev_duty_cycle = 0;
+    bkl_enabled = false;
 }

@@ -23,6 +23,9 @@
 #include "definitions.h"
 #include "myeeprom.h"
 
+#define SWITCH_PHYSICAL 0
+#define SWITCH_FUNCTION 1
+
 #include <stdlib.h>
 #include <assert.h>
 
@@ -33,9 +36,6 @@ struct mcp_switch_t
     uint32_t      bit_low;
 
     SwitchHwType type;
-    bool          inverted;
-    SwitchConfig  defaultType;
-
     uint8_t      flags;
 };
 
@@ -45,8 +45,26 @@ extern uint32_t ShadowInput;  // from mcp23017
 
 void boardInitSwitches() {}
 
+static uint8_t get_switch_index(uint8_t cat, uint8_t idx)
+{
+    switch(cat) {
+    case SWITCH_PHYSICAL:
+        assert(idx < n_switches);
+        return idx;
+
+    case SWITCH_FUNCTION:
+        assert(idx < n_fct_switches);
+        return idx + n_switches;
+
+    default:
+        assert(0);
+        return 0;
+    }
+}
+
 SwitchHwPos boardSwitchGetPosition(uint8_t idx)
 {
+    assert(idx < n_switches);
     const mcp_switch_t *sw = &_switch_defs[idx];
     bool inv = sw->flags & SWITCH_HW_INVERTED;
     SwitchHwPos ret = SWITCH_HW_UP;
@@ -81,16 +99,21 @@ SwitchHwPos boardSwitchGetPosition(uint8_t idx)
 
 const char* boardSwitchGetName(uint8_t idx)
 {
+    assert(idx < n_switches);
     return _switch_defs[idx].name;
 }
 
 SwitchHwType boardSwitchGetType(uint8_t idx)
 {
+    assert(idx < n_switches);
     return _switch_defs[idx].type;
 }
 
 uint8_t boardGetMaxSwitches() { return n_switches; }
 uint8_t boardGetMaxFctSwitches() { return n_fct_switches; }
 
-SwitchConfig boardSwitchGetDefaultConfig(uint8_t idx) { return _switch_defs[idx].defaultType; }
+SwitchConfig boardSwitchGetDefaultConfig(uint8_t n)
+{
+    return (SwitchConfig)((_switch_default_config >> (SW_CFG_BITS * n)) & SW_CFG_MASK);
+}
 

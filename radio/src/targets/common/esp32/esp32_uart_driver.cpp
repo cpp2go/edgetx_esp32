@@ -25,15 +25,23 @@
 #include "esp_log.h"
 #define TAG "UART"
 
+// Local RX batch buffer: getByte() refills this in one uart_read_bytes() call
+// and then dispatches byte-by-byte, avoiding a driver ring-buffer critical
+// section per byte on the hot telemetry path.
+#define ESP_UART_RX_BATCH  64
+
 typedef struct {
     uart_port_t port;
     void (*on_idle_cb)(void *);
     void *on_idle_cb_param;
     QueueHandle_t uart_queue;
     TaskHandle_t rx_task;
+    uint8_t  rx_buf[ESP_UART_RX_BATCH];
+    uint16_t rx_head;   // index of next byte to dispatch
+    uint16_t rx_len;    // valid bytes currently in rx_buf
 } esp32_uart_ctx_t;
 
-static esp32_uart_ctx_t uarts[SOC_UART_HP_NUM]; // TODO-MUFFIN init
+static esp32_uart_ctx_t uarts[SOC_UART_HP_NUM]; // TODO-OPENX1 init
 
 static inline esp32_uart_ctx_t *ctx_to_port(void* ctx) {
     return (esp32_uart_ctx_t *)ctx;
@@ -133,6 +141,7 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
     etx_esp32_uart_hw_def_t *hw = (etx_esp32_uart_hw_def_t *)hw_def;
     esp32_uart_ctx_t *port = &uarts[(int)hw->uart_port];
     port->port = hw->uart_port;
+    port->rx_head = port->rx_len = 0;
 
     uart_config_t uart_config = {
         .baud_rate = (int)params->baudrate,
@@ -178,14 +187,24 @@ void espUartWaitForTxCompleted(void* ctx)
 static int espUartGetByte(void* ctx, uint8_t* data)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
-    int r = uart_read_bytes(port->port, data, 1, 0);
-    return r;
+    if (port->rx_head >= port->rx_len) {
+        int r = uart_read_bytes(port->port, port->rx_buf, ESP_UART_RX_BATCH, 0);
+        if (r <= 0) {
+            port->rx_head = port->rx_len = 0;
+            return 0;
+        }
+        port->rx_len = (uint16_t)r;
+        port->rx_head = 0;
+    }
+    *data = port->rx_buf[port->rx_head++];
+    return 1;
 }
 
 static void espUartClearRxBuffer(void* ctx)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     uart_flush(port->port);
+    port->rx_head = port->rx_len = 0;
 }
 
 static void espUartSerialStop(void* ctx)
@@ -201,7 +220,7 @@ int espUartGetBufferedBytes(void* ctx) {
     if (ESP_OK != uart_get_buffered_data_len(port->port, &size)) {
       size = 0U;
     }
-    return 0;
+    return (int)size + (int)(port->rx_len - port->rx_head);
 }
 
 int espUartCopyRxBuffer(void* ctx, uint8_t* buf, uint32_t len) {

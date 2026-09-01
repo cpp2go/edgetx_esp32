@@ -124,9 +124,11 @@ void pwrOn();
 void pwrOff();
 bool pwrPressed();
 bool pwrOffPressed();
+#define pwrForcePressed() false
 
 void INTERNAL_MODULE_ON(void);
 void INTERNAL_MODULE_OFF(void);
+void INTERNAL_MODULE_BOOTCMD(uint8_t enable);
 void EXTERNAL_MODULE_ON(void);
 void EXTERNAL_MODULE_OFF(void);
 void internal_protocol_led_on(bool on);
@@ -147,6 +149,7 @@ void backlightDisable();
 void backlightEnable(uint8_t level);
 #define BACKLIGHT_ENABLE()            backlightEnable(currentBacklightBright)
 bool isBacklightEnabled();
+void lcdFadeOut();
 
 // Audio driver
 void audioInit() ;

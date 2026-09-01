@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ESPRC_PACKET_H
+#define ESPRC_PACKET_H
 
 #define ESPNOW_CHANNEL 1
 #if !defined(MAX_OUTPUT_CHANNELS)
@@ -27,3 +28,4 @@ typedef struct {
     uint16_t crc;
 } __attribute__((packed)) RXPacket_t;
 
+#endif

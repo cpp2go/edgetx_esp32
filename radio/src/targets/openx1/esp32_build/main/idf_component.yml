@@ -7,3 +7,4 @@ dependencies:
     version: "~2"
     rules:
       - if: "target == esp32p4"
+  espressif/esp_tinyusb: "*"

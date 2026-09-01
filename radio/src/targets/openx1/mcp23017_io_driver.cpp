@@ -49,7 +49,10 @@ static void mcp_set_gpio(uint32_t pin, uint32_t level)
     }
     uint32_t port = MCP_PORT(pin);
 
-    ESP_ERROR_CHECK(i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), pShadowData[port]));
+    esp_err_t ret = i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), pShadowData[port]);
+    if (ret != ESP_OK) {
+        TRACE_ERROR("mcp_set_gpio pin=%d err=%d", (int)pin, (int)ret);
+    }
 }
 
 void pollKeys()
@@ -61,7 +64,11 @@ uint32_t readKeys()
     uint32_t result = 0;
 
     for (int i = 0; i < 4; i++) {
-        ESP_ERROR_CHECK(i2c_register_read(MCP_HANDLE(i), MCP_REG_ADDR(MCP23XXX_GPIO, i), &pShadowInput[i], 1));
+        esp_err_t ret = i2c_register_read(MCP_HANDLE(i), MCP_REG_ADDR(MCP23XXX_GPIO, i), &pShadowInput[i], 1);
+        if (ret != ESP_OK) {
+            TRACE_ERROR("readKeys I2C[%d] err=%d", i, (int)ret);
+            // Keep previous ShadowInput byte; recover on next poll
+        }
     }
 
     for (int i = 0; i < sizeof(key_mapping)/sizeof(key_mapping[0]); i++) {
@@ -101,6 +108,13 @@ void keysInit()
     };
     ESP_ERROR_CHECK(i2c_master_bus_add_device(gpioext_i2c_bus_handle, &i2c_dev1_conf, &mcp[1]));
 
+    // Pre-set PWR_EN bit so the GPIO write doesn't briefly kill power during init
+    ShadowOutput |= (1U << MCP_PWR_EN);
+
+    // Default the internal-module BOOT strap high (normal run); the firmware
+    // update flow drives it low via INTERNAL_MODULE_BOOTCMD() when needed.
+    ShadowOutput |= (1U << MCP_INTMOD_BOOT);
+
     esp_err_t ret  = ESP_OK;
     uint32_t pullup = MCP23017_PULLUP;
     uint32_t dir = MCP23017_DIR_REG;
@@ -129,12 +143,19 @@ void keysInit()
 }
 
 void INTERNAL_MODULE_ON(void) {
-    //mcp_set_gpio(MCP_INTMOD_BOOT, 1);
     mcp_set_gpio(MCP_INTMOD_5V_EN, 1);
 }
 void INTERNAL_MODULE_OFF(void) {
     mcp_set_gpio(MCP_INTMOD_5V_EN, 0);
-    //mcp_set_gpio(MCP_INTMOD_BOOT, 0);
+}
+
+// Internal-module boot strap (G1B3), driven independently of power so the
+// firmware-update flow can assert it before set_pwr() powers the module up
+// (see frsky_firmware_update.cpp: set_bootcmd(true); set_pwr(true); ...).
+//   enable=1 -> hold module in serial bootloader/download mode (BOOT low)
+//   enable=0 -> normal run (BOOT high)
+void INTERNAL_MODULE_BOOTCMD(uint8_t enable) {
+    mcp_set_gpio(MCP_INTMOD_BOOT, enable ? 0 : 1);
 }
 
 void EXTERNAL_MODULE_ON(void) {

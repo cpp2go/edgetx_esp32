@@ -41,6 +41,10 @@
 #include "cli.h"
 #endif
 
+#if defined(USB_SERIAL) && (!defined(ESP_PLATFORM) || defined(CONFIG_TINYUSB_CDC_ENABLED))
+#define USB_SERIAL_AVAILABLE
+#endif
+
 #if defined(LUA)
 #include "lua/lua_event.h"
 #endif
@@ -94,7 +98,7 @@ void openUsbMenu()
     TRACE("USB mass storage");
     setSelectedUsbMode(USB_MASS_STORAGE_MODE);
   });
-#if defined(USB_SERIAL)
+#if defined(USB_SERIAL_AVAILABLE)
   _usbMenu->addLine(STR_USB_SERIAL, [] {
     TRACE("USB serial");
     setSelectedUsbMode(USB_SERIAL_MODE);
@@ -111,7 +115,7 @@ void onUSBConnectMenu(const char *result)
   } else if (result == STR_USB_JOYSTICK) {
     setSelectedUsbMode(USB_JOYSTICK_MODE);
   }
-#if defined(USB_SERIAL)
+#if defined(USB_SERIAL_AVAILABLE)
   else if (result == STR_USB_SERIAL) {
     setSelectedUsbMode(USB_SERIAL_MODE);
   }
@@ -125,7 +129,7 @@ void openUsbMenu()
 {
   if (popupMenuHandler != onUSBConnectMenu) {
     POPUP_MENU_TITLE(STR_SELECT_MODE);
-#if defined(USB_SERIAL)
+#if defined(USB_SERIAL_AVAILABLE)
     POPUP_MENU_START(onUSBConnectMenu, 3, STR_USB_JOYSTICK, STR_USB_MASS_STORAGE, STR_USB_SERIAL);
 #else
     POPUP_MENU_START(onUSBConnectMenu, 2, STR_USB_JOYSTICK, STR_USB_MASS_STORAGE);
@@ -166,18 +170,71 @@ void handleUsbConnection()
 #if (defined(STM32) || defined(ESP_PLATFORM)) && !defined(SIMU)
 
   static bool _pluggedUsb = false;
+#if defined(ESP_PLATFORM)
+  static tmr10ms_t usbStoppedAt = 0;
+#endif
+  const bool plugged = usbPlugged();
+#if defined(ESP_PLATFORM)
+  const tmr10ms_t now = get_tmr10ms();
+#endif
 
-  if (_pluggedUsb && !usbPlugged()) {
-    TRACE("USB unplugged");
-    closeUsbMenu();
-    _pluggedUsb = false;
-  } else if (!_pluggedUsb && usbPlugged()) {
+  if (!plugged) {
+    if (_pluggedUsb || usbStarted()) {
+      TRACE("USB disconnected, resetting state");
+      closeUsbMenu();
+
+      const usbMode previousMode = static_cast<usbMode>(getSelectedUsbMode());
+#if defined(COLORLCD)
+      const bool hasStorageWindow = (usbConnectedWindow != nullptr);
+      if (usbConnectedWindow) {
+        usbConnectedWindow->deleteLater();
+        usbConnectedWindow = nullptr;
+      }
+#else
+      const bool hasStorageWindow = false;
+#endif
+
+      if (usbStarted()) {
+        usbStop();
+        TRACE("USB stopped");
+        if (previousMode == USB_SERIAL_MODE) {
+          serialStop(SP_VCP);
+        }
+      }
+
+      if (previousMode == USB_MASS_STORAGE_MODE || hasStorageWindow) {
+        edgeTxResume();
+#if !defined(COLORLCD)
+        pushEvent(EVT_ENTRY);
+#endif
+      }
+
+      TRACE("reset selected USB mode");
+      setSelectedUsbMode(USB_UNSELECTED_MODE);
+      _pluggedUsb = false;
+      _usbDisabled = false;
+#if defined(ESP_PLATFORM)
+      // Give USB stack and SD layer a short window before allowing re-start.
+      usbStoppedAt = now;
+#endif
+      return;
+    }
+  }
+
+  // Note: the unplug transition is fully handled by the (!plugged) block above
+  // (which returns), so only the plug transition needs handling here.
+  if (!_pluggedUsb && plugged) {
     TRACE("USB plugged");
     _pluggedUsb = true;
     _usbDisabled = false;
   }
 
-  if (!_usbDisabled && !usbStarted() && usbPlugged()) {
+  #if defined(ESP_PLATFORM)
+    if (!_usbDisabled && !usbStarted() && plugged &&
+        ((tmr10ms_t)(now - usbStoppedAt) >= 25)) {
+  #else
+    if (!_usbDisabled && !usbStarted() && plugged) {
+  #endif
     if (getSelectedUsbMode() == USB_UNSELECTED_MODE) {
       if (g_eeGeneral.USBMode == USB_UNSELECTED_MODE) {
         openUsbMenu();
@@ -189,51 +246,50 @@ void handleUsbConnection()
     // Mode might have been selected in previous block
     // so re-evaluate the condition
     if (getSelectedUsbMode() != USB_UNSELECTED_MODE) {
-      if (getSelectedUsbMode() == USB_MASS_STORAGE_MODE) {
+      const bool isMsc = (getSelectedUsbMode() == USB_MASS_STORAGE_MODE);
+      if (isMsc) {
         edgeTxClose(false);
 #if defined(COLORLCD)
-        usbConnectedWindow = new UsbSDConnected();
+        if (!usbConnectedWindow) {
+          usbConnectedWindow = new UsbSDConnected();
+        }
 #endif
       }
-#if defined(USB_SERIAL)
+#if defined(USB_SERIAL_AVAILABLE)
       else if (getSelectedUsbMode() == USB_SERIAL_MODE) {
         serialInit(SP_VCP, serialGetMode(SP_VCP));
       }
 #endif
 
       usbStart();
-      TRACE("USB started");
-    }
-  }
 
-  if (usbStarted() && !usbPlugged()) {
-    usbStop();
-    TRACE("USB stopped");
-    if (getSelectedUsbMode() == USB_MASS_STORAGE_MODE) {
+      if (usbStarted()) {
+        TRACE("USB started");
+      } else {
+        // Start failed (e.g. mass storage with no SD card). usbStart() has
+        // already reset the mode to UNSELECTED, so without this guard the next
+        // cycle would auto-select and retry every ~250ms forever (and, for
+        // mass storage, leave the GUI closed until unplug). Disable USB until
+        // the cable is re-plugged (_usbDisabled is cleared on the plug edge),
+        // and undo the mass-storage GUI teardown so the radio stays usable.
+        TRACE("USB start failed, disabling until re-plug");
+        _usbDisabled = true;
+        if (isMsc) {
 #if defined(COLORLCD)
-      usbConnectedWindow->deleteLater();
-      usbConnectedWindow = nullptr;
-      // In case the SD card is removed during the session
-      if (!SD_CARD_PRESENT()) {
-        // Blocks until shutdown or SD card inserted
-        auto w = drawFatalErrorScreen(STR_NO_SDCARD);
-        MainWindow::instance()->blockUntilClose(true, []() {
-          return SD_CARD_PRESENT();
-        }, true);
-        w->deleteLater();
-      }
-      edgeTxResume();
-#else
-      edgeTxResume();
-      pushEvent(EVT_ENTRY);
+          if (usbConnectedWindow) {
+            usbConnectedWindow->deleteLater();
+            usbConnectedWindow = nullptr;
+          }
 #endif
-    } else if (getSelectedUsbMode() == USB_SERIAL_MODE) {
-      serialStop(SP_VCP);
+          edgeTxResume();
+#if !defined(COLORLCD)
+          pushEvent(EVT_ENTRY);
+#endif
+        }
+      }
     }
-    TRACE("reset selected USB mode");
-    setSelectedUsbMode(USB_UNSELECTED_MODE);
   }
-#endif  // defined(STM32) && !defined(SIMU)
+#endif  // (defined(STM32) || defined(ESP_PLATFORM)) && !defined(SIMU)
 }
 
 void checkSpeakerVolume()

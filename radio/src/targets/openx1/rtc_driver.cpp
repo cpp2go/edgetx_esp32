@@ -45,7 +45,7 @@ void rtcSetTime(const struct gtm * t)
             t->tm_hour,
             t->tm_min,
             t->tm_sec);
-  
+
     uint8_t buffer[8] = {DS3231_TIME,
                        bin2bcd(t->tm_sec),
                        bin2bcd(t->tm_min),
@@ -54,19 +54,23 @@ void rtcSetTime(const struct gtm * t)
                        bin2bcd(t->tm_mday),
                        bin2bcd(t->tm_mon + 1),
                        bin2bcd(t->tm_year + TM_YEAR_BASE - 2000U)};
-                       ESP_ERROR_CHECK(i2c_register_write_buf(rtc_handle, buffer, 8));
+    esp_err_t ret = i2c_register_write_buf(rtc_handle, buffer, 8);
+    if (ret != ESP_OK) { TRACE_ERROR("rtcSetTime write err=%d", (int)ret); return; }
 
     uint8_t statreg = 0;
-    ESP_ERROR_CHECK(i2c_register_read(rtc_handle, DS3231_STATUSREG, &statreg, sizeof(statreg)));
+    ret = i2c_register_read(rtc_handle, DS3231_STATUSREG, &statreg, sizeof(statreg));
+    if (ret != ESP_OK) { TRACE_ERROR("rtcSetTime stat read err=%d", (int)ret); return; }
     statreg &= ~0x80; // flip OSF bit
-    ESP_ERROR_CHECK(i2c_register_write_byte(rtc_handle, DS3231_STATUSREG, statreg));
+    ret = i2c_register_write_byte(rtc_handle, DS3231_STATUSREG, statreg);
+    if (ret != ESP_OK) { TRACE_ERROR("rtcSetTime stat write err=%d", (int)ret); }
 }
 
 void rtcGetTime(struct gtm * t)
 {
     uint8_t buffer[7];
     buffer[0] = 0;
-    ESP_ERROR_CHECK(i2c_register_write_read_buf(rtc_handle, buffer, 1, buffer, 7));
+    esp_err_t ret = i2c_register_write_read_buf(rtc_handle, buffer, 1, buffer, 7);
+    if (ret != ESP_OK) { TRACE_ERROR("rtcGetTime err=%d", (int)ret); return; }
 
     TRACE("rtcGetTime %d/%d/%d %d:%d:%d",
             bcd2bin(buffer[6]) + 2000U,

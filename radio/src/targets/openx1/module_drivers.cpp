@@ -56,7 +56,7 @@ static void _set_internal_module_power(uint8_t on) {
 static const etx_module_t _internal_module = {
     .ports = _internal_ports,
     .set_pwr = _set_internal_module_power,
-    .set_bootcmd = nullptr,
+    .set_bootcmd = INTERNAL_MODULE_BOOTCMD,
     .n_ports = DIM(_internal_ports),
 };
 #endif
