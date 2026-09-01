@@ -17,7 +17,14 @@
 #ifndef LV_CONF_EDGETX_H
 #define LV_CONF_EDGETX_H
 
-#if !defined(CONFIG_LV_TFT_DISPLAY_CONTROLLER_RA8875)
+#if defined(ESP_PLATFORM)
+#include "sdkconfig.h"
+#endif
+
+#if defined(CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI)
+#define LV_HOR_RES_MAX CONFIG_LV_TFT_DSI_H_RES
+#define LV_VER_RES_MAX CONFIG_LV_TFT_DSI_V_RES
+#elif !defined(CONFIG_LV_TFT_DISPLAY_CONTROLLER_RA8875)
 #define LV_HOR_RES_MAX 480
 #define LV_VER_RES_MAX 320
 #else

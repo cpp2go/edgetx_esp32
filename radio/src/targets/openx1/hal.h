@@ -21,8 +21,17 @@
 #ifndef _HAL_H_
 #define _HAL_H_
 
+#if defined(ESP_PLATFORM)
+#include "sdkconfig.h"
+#endif
+
+#if defined(CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI)
+#define LCD_W                           CONFIG_LV_TFT_DSI_H_RES
+#define LCD_H                           CONFIG_LV_TFT_DSI_V_RES
+#else
 #define LCD_W                           480
 #define LCD_H                           320
+#endif
 #define LCD_DEPTH                       16
 
 #define ADC_MAIN                        HAL_GIMBAL

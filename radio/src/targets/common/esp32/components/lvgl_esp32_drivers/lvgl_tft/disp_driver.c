@@ -7,11 +7,14 @@
 #include "esp_lcd_backlight.h"
 #include "sdkconfig.h"
 #include "disp_mcu.h"
+#include "disp_dsi.h"
 #include "lvgl_helpers.h"
 
 void *disp_driver_init(void)
 {
-#if defined CONFIG_LV_TFT_DISPLAY_PROTOCOL_MCU
+#if defined CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI
+    dsi_panel_init();
+#elif defined CONFIG_LV_TFT_DISPLAY_PROTOCOL_MCU
     disp_mcu_panel_init();
 #elif defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_ILI9341
     ili9341_init();
@@ -81,7 +84,9 @@ void *disp_driver_init(void)
 
 void disp_driver_flush(lv_disp_drv_t * drv, const lv_area_t * area, lv_color_t * color_map)
 {
-#if defined CONFIG_LV_TFT_DISPLAY_PROTOCOL_MCU
+#if defined CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI
+    dsi_lvgl_flush_cb(drv, area, color_map);
+#elif defined CONFIG_LV_TFT_DISPLAY_PROTOCOL_MCU
     lcd_mcu_lvgl_flush_cb(drv, area, color_map);
 #elif defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_ILI9341
     ili9341_flush(drv, area, color_map);

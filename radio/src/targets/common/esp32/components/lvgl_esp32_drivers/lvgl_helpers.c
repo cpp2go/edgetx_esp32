@@ -109,6 +109,8 @@ void lvgl_driver_init(void)
     disp_driver_init();
 #elif defined (CONFIG_LV_I2C_DISPLAY)
     disp_driver_init();
+#elif defined (CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI)
+    disp_driver_init();
 #elif defined (CONFIG_LV_TFT_DISPLAY_PROTOCOL_MCU)
     disp_driver_init();
 #else

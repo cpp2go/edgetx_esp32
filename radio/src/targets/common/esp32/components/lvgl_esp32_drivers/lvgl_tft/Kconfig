@@ -186,6 +186,12 @@ menu "LVGL TFT Display controller"
         bool
         help
             PCD8544 display controller (Nokia 3110/5110)
+
+    config LV_TFT_DISPLAY_CONTROLLER_ST7701
+        bool
+        help
+            ST7701 / ST7701S MIPI-DSI display controller.
+
     # Display controller communication protocol
     #
     # This symbols define the communication protocol used by the
@@ -204,6 +210,13 @@ menu "LVGL TFT Display controller"
         bool "Use SPI protocol"
         help
             Display controller protocol SPI
+        default n
+
+    config LV_TFT_DISPLAY_PROTOCOL_DSI
+        bool "Use MIPI-DSI protocol (ESP32-P4 only)"
+        help
+            Display controller protocol MIPI-DSI. Requires a chip with a
+            MIPI DSI host controller (ESP32-P4).
         default n
 
     config LV_I2C_DISPLAY
@@ -271,6 +284,82 @@ menu "LVGL TFT Display controller"
             int "GPIO Num for DATA14" if LV_TFT_MCU_BUS_WIDTH_16
         config LV_TFT_MCU_DATA15
             int "GPIO Num for DATA15" if LV_TFT_MCU_BUS_WIDTH_16
+    endmenu
+
+    menu "MIPI-DSI Configuration"
+        visible if LV_TFT_DISPLAY_PROTOCOL_DSI
+
+        config LV_TFT_DSI_LANE_NUM
+            int "Number of MIPI DSI data lanes"
+            default 2
+            help
+                Number of MIPI DSI data lanes (1, 2 or 4).
+
+        config LV_TFT_DSI_LANE_BITRATE_MBPS
+            int "MIPI DSI lane bit rate (Mbps)"
+            default 500
+            help
+                Bit rate of each MIPI DSI data lane in Mbps.
+
+        config LV_TFT_DSI_PHY_LDO_CHAN
+            int "MIPI DSI PHY power LDO channel"
+            default 3
+            help
+                Internal LDO channel that supplies VDD_MIPI_DPHY (2.5V).
+                Set to -1 if the PHY is powered from an external regulator.
+
+        config LV_TFT_DSI_PHY_LDO_VOLTAGE_MV
+            int "MIPI DSI PHY power LDO voltage (mV)"
+            default 2500
+
+        config LV_TFT_DSI_PANEL_RST_NUM
+            int "GPIO Num for panel reset"
+            default -1
+
+        config LV_TFT_DSI_DPI_CLK_MHZ
+            int "MIPI DSI DPI pixel clock (MHz)"
+            default 30
+            help
+                Pixel clock of the DPI video mode, depends on the panel timing
+                (refresh rate = dpi_clk / (h_total * v_total)).
+
+        config LV_TFT_DSI_H_RES
+            int "Horizontal resolution (pixels)"
+            default 320
+        config LV_TFT_DSI_V_RES
+            int "Vertical resolution (pixels)"
+            default 480
+        config LV_TFT_DSI_HSYNC
+            int "Horizontal sync pulse width"
+            default 20
+        config LV_TFT_DSI_HBP
+            int "Horizontal back porch"
+            default 20
+        config LV_TFT_DSI_HFP
+            int "Horizontal front porch"
+            default 20
+        config LV_TFT_DSI_VSYNC
+            int "Vertical sync pulse width"
+            default 4
+        config LV_TFT_DSI_VBP
+            int "Vertical back porch"
+            default 8
+        config LV_TFT_DSI_VFP
+            int "Vertical front porch"
+            default 8
+
+        choice LV_TFT_DSI_PIXEL_FORMAT
+            prompt "Pixel format (input / output)"
+            default LV_TFT_DSI_RGB565
+            help
+                Input format is always RGB565 (matches the LVGL frame buffer).
+                Output is the format sent to the panel over DSI.
+
+            config LV_TFT_DSI_RGB565
+                bool "RGB565 / RGB565"
+            config LV_TFT_DSI_RGB565_TO_RGB888
+                bool "RGB565 / RGB888"
+        endchoice
     endmenu
 
     # Used in display init function to send display orientation commands
@@ -426,6 +515,10 @@ menu "LVGL TFT Display controller"
             select LV_TFT_DISPLAY_CONTROLLER_PCD8544
             select LV_TFT_DISPLAY_PROTOCOL_SPI
             select LV_TFT_DISPLAY_MONOCHROME
+        config LV_TFT_DISPLAY_USER_CONTROLLER_ST7701
+            bool "ST7701 (MIPI-DSI)"
+            select LV_TFT_DISPLAY_CONTROLLER_ST7701
+            select LV_TFT_DISPLAY_PROTOCOL_DSI
     endchoice
 
     config CUSTOM_DISPLAY_BUFFER_SIZE
