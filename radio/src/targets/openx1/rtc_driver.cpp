@@ -19,84 +19,106 @@
  */
 
 #include "edgetx.h"
-#include "i2c_driver.h"
+#include "esp_rtc_time.h"
+#include "nvs_flash.h"
 
-#define DS3231_ADDRESS        0x68 ///< I2C address for DS3231
-#define DS3231_TIME           0x00 ///< Time register
-#define DS3231_ALARM1         0x07 ///< Alarm 1 register
-#define DS3231_ALARM2         0x0B ///< Alarm 2 register
-#define DS3231_CONTROL        0x0E ///< Control register
-#define DS3231_STATUSREG      0x0F ///< Status register
-#define DS3231_TEMPERATUREREG 0x11 ///< Temperature register (high byte - low byte is at 0x12), 10-bit
-                                   ///< temperature value
+#include <string.h>
+#include <sys/time.h>
 
-extern i2c_master_bus_handle_t rtc_i2c_bus_handle;
-static i2c_master_dev_handle_t rtc_handle = NULL;
+/*
+ * OpenX1 RTC driver - no external DS3231 needed.
+ *
+ * The ESP32-P4 module carries an internal (battery/VBAT backed) RTC counter
+ * that keeps counting while the module is powered down.  ESP-IDF exposes it
+ * as esp_rtc_get_time_us().  We keep a reference sample (rtc_us) together
+ * with the matching Unix epoch and persist both in NVS, so the wall-clock
+ * time can be recovered on every boot:
+ *
+ *   epoch_now = stored_epoch + (esp_rtc_get_time_us() - stored_rtc_us) / 1e6
+ *
+ * The first time (or after a full power loss without VBAT) the counter has no
+ * meaningful base, so the radio just reports the last stored epoch until the
+ * user / USB / Wi-Fi sets a new time via rtcSetTime().
+ */
 
-static uint8_t bcd2bin(uint8_t val) { return val - 6 * (val >> 4); }
-static uint8_t bin2bcd(uint8_t val) { return val + 6 * (val / 10); }
+#define RTC_SYNC_KEY       "rtc_time"
+#define RTC_SYNC_NAMESPACE "nvs"
+
+typedef struct {
+  int64_t rtc_us;    /* esp_rtc_get_time_us() at the moment of sync   */
+  int64_t epoch;     /* matching Unix epoch (seconds, UTC)            */
+} rtc_sync_t;
+
+static void rtc_sync_load(rtc_sync_t *sync)
+{
+  nvs_handle_t h;
+  if (nvs_open(RTC_SYNC_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
+    memset(sync, 0, sizeof(*sync));
+    return;
+  }
+  size_t len = sizeof(*sync);
+  if (nvs_get_blob(h, RTC_SYNC_KEY, sync, &len) != ESP_OK) {
+    memset(sync, 0, sizeof(*sync));
+  }
+  nvs_close(h);
+}
+
+static void rtc_sync_save(const rtc_sync_t *sync)
+{
+  nvs_handle_t h;
+  if (nvs_open(RTC_SYNC_NAMESPACE, NVS_READWRITE, &h) != ESP_OK) {
+    return;
+  }
+  nvs_set_blob(h, RTC_SYNC_KEY, sync, sizeof(*sync));
+  nvs_commit(h);
+  nvs_close(h);
+}
+
+/* Sync the ESP-IDF system clock (used by time()/FTP/Lua) with g_rtcTime */
+static void rtc_sync_system_clock(gtime_t epoch)
+{
+  struct timeval tv;
+  tv.tv_sec = (time_t)epoch;
+  tv.tv_usec = 0;
+  settimeofday(&tv, nullptr);
+}
 
 void rtcSetTime(const struct gtm * t)
 {
-    TRACE("rtcSetTime %d/%d/%d %d:%d:%d",
-            t->tm_year + TM_YEAR_BASE,
-            t->tm_mon + 1,
-            t->tm_mday,
-            t->tm_hour,
-            t->tm_min,
-            t->tm_sec);
+  gtime_t epoch = gmktime((struct gtm *)t);
+  TRACE("rtcSetTime %d/%d/%d %d:%d:%d -> %ld",
+        t->tm_year + TM_YEAR_BASE, t->tm_mon + 1, t->tm_mday,
+        t->tm_hour, t->tm_min, t->tm_sec, (long)epoch);
 
-    uint8_t buffer[8] = {DS3231_TIME,
-                       bin2bcd(t->tm_sec),
-                       bin2bcd(t->tm_min),
-                       bin2bcd(t->tm_hour),
-                       bin2bcd(t->tm_wday),
-                       bin2bcd(t->tm_mday),
-                       bin2bcd(t->tm_mon + 1),
-                       bin2bcd(t->tm_year + TM_YEAR_BASE - 2000U)};
-    esp_err_t ret = i2c_register_write_buf(rtc_handle, buffer, 8);
-    if (ret != ESP_OK) { TRACE_ERROR("rtcSetTime write err=%d", (int)ret); return; }
+  rtc_sync_t sync;
+  sync.rtc_us = (int64_t)esp_rtc_get_time_us();
+  sync.epoch = epoch;
+  rtc_sync_save(&sync);
 
-    uint8_t statreg = 0;
-    ret = i2c_register_read(rtc_handle, DS3231_STATUSREG, &statreg, sizeof(statreg));
-    if (ret != ESP_OK) { TRACE_ERROR("rtcSetTime stat read err=%d", (int)ret); return; }
-    statreg &= ~0x80; // flip OSF bit
-    ret = i2c_register_write_byte(rtc_handle, DS3231_STATUSREG, statreg);
-    if (ret != ESP_OK) { TRACE_ERROR("rtcSetTime stat write err=%d", (int)ret); }
+  rtc_sync_system_clock(epoch);
 }
 
 void rtcGetTime(struct gtm * t)
 {
-    uint8_t buffer[7];
-    buffer[0] = 0;
-    esp_err_t ret = i2c_register_write_read_buf(rtc_handle, buffer, 1, buffer, 7);
-    if (ret != ESP_OK) { TRACE_ERROR("rtcGetTime err=%d", (int)ret); return; }
-
-    TRACE("rtcGetTime %d/%d/%d %d:%d:%d",
-            bcd2bin(buffer[6]) + 2000U,
-            bcd2bin(buffer[5] & 0x7F),
-            bcd2bin(buffer[4]),
-            bcd2bin(buffer[2]),
-            bcd2bin(buffer[1]),
-            bcd2bin(buffer[0] & 0x7F));
-
-    t->tm_year = bcd2bin(buffer[6]) + 2000U - TM_YEAR_BASE;
-    t->tm_mon = bcd2bin(buffer[5] & 0x7F) - 1;
-    t->tm_mday = bcd2bin(buffer[4]);
-    t->tm_hour = bcd2bin(buffer[2]);
-    t->tm_min = bcd2bin(buffer[1]);
-    t->tm_sec = bcd2bin(buffer[0] & 0x7F);
+  gettime(t);
 }
 
 void rtcInit()
 {
-    i2c_device_config_t i2c_dev_conf = {
-        .device_address = DS3231_ADDRESS,
-        .scl_speed_hz = 400000,
-    };
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(rtc_i2c_bus_handle, &i2c_dev_conf, &rtc_handle));
+  g_rtcTime = 0;
 
-    struct gtm utm;
-    rtcGetTime(&utm);
-    g_rtcTime = gmktime(&utm);
+  rtc_sync_t sync;
+  rtc_sync_load(&sync);
+  if (sync.rtc_us > 0 && sync.epoch > 0) {
+    // Reconstruct the current epoch from the free-running internal RTC.
+    int64_t delta_us = (int64_t)esp_rtc_get_time_us() - sync.rtc_us;
+    if (delta_us < 0) {
+      // RTC counter was reset (full power loss w/o VBAT): keep last epoch.
+      delta_us = 0;
+    }
+    g_rtcTime = sync.epoch + delta_us / 1000000LL;
+  }
+
+  rtc_sync_system_clock(g_rtcTime > 0 ? g_rtcTime : 0);
+  TRACE("rtcInit: epoch=%ld (internal P4 RTC)", (long)g_rtcTime);
 }
