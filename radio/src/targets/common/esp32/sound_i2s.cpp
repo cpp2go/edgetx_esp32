@@ -55,7 +55,11 @@ void audioInit()
             .bit_order_lsb = false
         },
         .gpio_cfg = {
+#if defined(I2S_MCLK)
+            .mclk = I2S_MCLK,
+#else
             .mclk = I2S_GPIO_UNUSED,
+#endif
             .bclk = I2S_BCLK,
             .ws = I2S_LRCLK,
             .dout = I2S_DOUT,

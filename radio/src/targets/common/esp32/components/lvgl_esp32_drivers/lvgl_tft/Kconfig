@@ -192,6 +192,11 @@ menu "LVGL TFT Display controller"
         help
             ST7701 / ST7701S MIPI-DSI display controller.
 
+    config LV_TFT_DISPLAY_CONTROLLER_ST7102
+        bool
+        help
+            ST7102 MIPI-DSI display controller (e.g. OSPTEK 4.3" 480x800).
+
     # Display controller communication protocol
     #
     # This symbols define the communication protocol used by the
@@ -518,6 +523,10 @@ menu "LVGL TFT Display controller"
         config LV_TFT_DISPLAY_USER_CONTROLLER_ST7701
             bool "ST7701 (MIPI-DSI)"
             select LV_TFT_DISPLAY_CONTROLLER_ST7701
+            select LV_TFT_DISPLAY_PROTOCOL_DSI
+        config LV_TFT_DISPLAY_USER_CONTROLLER_ST7102
+            bool "ST7102 (MIPI-DSI)"
+            select LV_TFT_DISPLAY_CONTROLLER_ST7102
             select LV_TFT_DISPLAY_PROTOCOL_DSI
     endchoice
 

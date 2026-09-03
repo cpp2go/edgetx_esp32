@@ -81,6 +81,114 @@ static void board_init_i2c(void) {
 #endif
 }
 
+// ---- ES8311 audio codec (OSPTEK P4C5 dev board) ----------------------------
+// ES8311 sits on the same I2C0 bus as the touch controller (GPIO7/8, 7-bit
+// address 0x18) and receives I2S from the P4 (DOUT=GPIO9 BCLK=GPIO12
+// LRCLK=GPIO10 MCLK=GPIO13). The NS4150 power amp enable is GPIO53.
+// Register sequence follows the Espressif es8311 driver (MCLK =
+// 256 * 32000 Hz = 8.192 MHz, I2S slave, 16-bit, DAC -> speaker/amp).
+#if defined(I2S_AMP_EN_GPIO)
+#include "driver/gpio.h"
+#include "driver/i2c_master.h"
+#include "esp_log.h"
+
+#define ES8311_I2C_ADDR  0x18   /* 7-bit address (0x30 with CE=0 as 8-bit) */
+
+static i2c_master_dev_handle_t es8311_dev = NULL;
+
+static void es8311_write_reg(uint8_t reg, uint8_t val)
+{
+    uint8_t buf[2] = { reg, val };
+    i2c_master_transmit(es8311_dev, buf, sizeof(buf), 100);
+}
+
+static uint8_t es8311_read_reg(uint8_t reg)
+{
+    uint8_t val = 0;
+    if (i2c_master_transmit_receive(es8311_dev, &reg, 1, &val, 1, 100) != ESP_OK) {
+        ESP_LOGE("ES8311", "read reg 0x%02x failed", reg);
+    }
+    return val;
+}
+
+static void es8311AudioInit(void)
+{
+    i2c_device_config_t dev_cfg = {
+        .device_address = ES8311_I2C_ADDR,
+        .scl_speed_hz = 400000,
+    };
+    if (i2c_master_bus_add_device(i2c_0_bus_handle, &dev_cfg, &es8311_dev) != ESP_OK) {
+        ESP_LOGE("ES8311", "failed to add I2C device");
+        return;
+    }
+    ESP_LOGI("ES8311", "ES8311 codec found on I2C0 @0x%02x", ES8311_I2C_ADDR);
+
+    // Enable the NS4150 class-D power amplifier.
+    gpio_config_t pa_cfg = {
+        .pin_bit_mask = 1ULL << I2S_AMP_EN_GPIO,
+        .mode = GPIO_MODE_OUTPUT,
+    };
+    gpio_config(&pa_cfg);
+    gpio_set_level(I2S_AMP_EN_GPIO, 1);
+
+    // --- base init (Espressif es8311 driver) ---
+    es8311_write_reg(0x01, 0x30);   // clock manager 1
+    es8311_write_reg(0x02, 0x00);   // clock manager 2
+    es8311_write_reg(0x03, 0x10);   // clock manager 3 (adc osr)
+    es8311_write_reg(0x16, 0x24);   // ADC
+    es8311_write_reg(0x04, 0x10);   // dac osr
+    es8311_write_reg(0x05, 0x00);   // adc/dac clk divider
+    es8311_write_reg(0x0B, 0x00);
+    es8311_write_reg(0x0C, 0x00);
+    es8311_write_reg(0x10, 0x1F);
+    es8311_write_reg(0x11, 0x7F);
+    es8311_write_reg(0x00, 0x80);   // reset digital/core/clock
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    // I2S slave mode (P4 is the I2S master), MCLK from the MCLK pin.
+    es8311_write_reg(0x00, es8311_read_reg(0x00) & 0xBF);
+    es8311_write_reg(0x01, 0x3F);
+    es8311_write_reg(0x01, es8311_read_reg(0x01) & 0x7F);  // MCLK source = pin
+
+    // --- clock coefficients for fs = 32 kHz, MCLK = 8.192 MHz ---
+    // coeff row {8192000, 32000, pre_div=1, pre_multi=1, adc_div=1, dac_div=1,
+    //            fs_mode=0, lrck_h=0, lrck_l=0xff, bclk_div=4, osr=0x10}
+    es8311_write_reg(0x02, 0x00);   // (pre_div-1)<<5 | (mult<<3), mult=1 -> 0
+    es8311_write_reg(0x03, 0x10);   // fs_mode<<6 | adc_osr
+    es8311_write_reg(0x04, 0x10);   // dac_osr
+    es8311_write_reg(0x05, 0x00);   // (adc_div-1)<<4 | (dac_div-1)
+    es8311_write_reg(0x06, 0x03);   // bclk_div - 1 (4-1)
+    es8311_write_reg(0x07, 0x00);   // lrck divider high
+    es8311_write_reg(0x08, 0xFF);   // lrck divider low
+
+    // --- serial audio port: I2S, 16-bit, enabled ---
+    uint8_t iface = es8311_read_reg(0x09) & 0xBF;   // DAC SDPIN
+    iface = (iface & 0xFC) | 0x0C;                  // I2S format + 16-bit
+    es8311_write_reg(0x09, iface);
+    uint8_t iface_adc = es8311_read_reg(0x0A) & 0xBF;  // ADC SDPOUT
+    iface_adc = (iface_adc & 0xFC) | 0x0C;
+    es8311_write_reg(0x0A, iface_adc);
+
+    es8311_write_reg(0x13, 0x10);
+    es8311_write_reg(0x1B, 0x0A);
+    es8311_write_reg(0x1C, 0x6A);
+
+    // --- power up DAC path to speaker / amp ---
+    es8311_write_reg(0x32, 0xBF);   // DAC volume ~0 dB (software volume)
+    es8311_write_reg(0x37, 0x48);   // DAC ramp rate
+    es8311_write_reg(0x17, 0xBF);
+    es8311_write_reg(0x0E, 0x02);
+    es8311_write_reg(0x12, 0x00);
+    es8311_write_reg(0x14, 0x1A);
+    es8311_write_reg(0x0D, 0x01);
+    es8311_write_reg(0x15, 0x40);
+    es8311_write_reg(0x45, 0x00);
+
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_LOGI("ES8311", "codec initialized (I2S slave 16-bit, DAC -> speaker)");
+}
+#endif  // I2S_AMP_EN_GPIO
+
 // keep a reference of the layouts so they do not get optimized out by compiler.
 #if 1
 #include "layout.h"
@@ -147,6 +255,9 @@ void boardInit()
     init2MhzTimer();
     
     audioInit();
+#if defined(I2S_AMP_EN_GPIO)
+    es8311AudioInit();   // ES8311 codec + NS4150 amp (OSPTEK P4C5 dev board)
+#endif
     ads1015_adc_init();
 }
 

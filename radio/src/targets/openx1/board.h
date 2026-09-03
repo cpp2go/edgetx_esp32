@@ -77,13 +77,25 @@ SD_MOSI 6
 SD_CS   7
 */
 
-#define TOUCH_IRQ GPIO_NUM_38
+/* ---- OSPTEK ESP32-P4C5 module dev board (V1.3) pin mapping ----
+ *
+ * The openx1 firmware is being brought up on the OSPTEK ESP32-P4C5 dev
+ * board (see osptek/esp32-p4c5-module-dev-board). Its I2C/peripheral layout
+ * follows the ESP32-P4-Function-EV-Board that OSPTEK's demos are based on:
+ *
+ *   I2C0  : SDA = GPIO7, SCL = GPIO8  (ST7123 touch + ES8311 codec share it)
+ *   Audio : MCLK = GPIO13, BCLK = GPIO12, LRCLK = GPIO10, DOUT = GPIO9,
+ *           (mic) DIN = GPIO11, PA enable = GPIO53
+ *   SD    : SDMMC slot0 4-bit (CLK=43 CMD=44 D0=39 D1=40 D2=41 D3=42)
+ *   BL    : DSI backlight enable = GPIO20
+ *   Display / Touch : MIPI-DSI dedicated pins; ST7123 on I2C0 above
+ */
 
 #define I2C_MASTER_NUM I2C_NUM_0
-#define I2C_0_SCL GPIO_NUM_40
-#define I2C_0_SDA GPIO_NUM_39
+#define I2C_0_SCL GPIO_NUM_8
+#define I2C_0_SDA GPIO_NUM_7
 
-#define BACKLITE_PIN GPIO_NUM_45
+#define BACKLITE_PIN GPIO_NUM_20
 
 #define USE_RMT -1
 #if CONFIG_ESP_CONSOLE_UART_NUM == 0
@@ -105,18 +117,22 @@ SD_CS   7
 #define EXTMOD_UART_TX GPIO_NUM_15  // EXTMOD_RX
 #define EXTMOD_UART_RX GPIO_NUM_8   // EXTMOD_TX
 
-#define SD_DEDICATED_SPI
-#ifdef SD_DEDICATED_SPI
-#define SD_SPI_HOST SPI2_HOST
-#define SDSPI_CLK  GPIO_NUM_5
-#define SDSPI_MOSI GPIO_NUM_6
-#define SDSPI_MISO GPIO_NUM_4
-#endif
-#define SDCARD_CS_GPIO GPIO_NUM_7
+// SD card on the OSPTEK board TF slot: SDMMC slot 0, 4-bit mode.
+#define SD_SDMMC_HOST 1
+#define SDMMC_CLK  GPIO_NUM_43
+#define SDMMC_CMD  GPIO_NUM_44
+#define SDMMC_D0   GPIO_NUM_39
+#define SDMMC_D1   GPIO_NUM_40
+#define SDMMC_D2   GPIO_NUM_41
+#define SDMMC_D3   GPIO_NUM_42
 
-#define I2S_DOUT  GPIO_NUM_16
-#define I2S_BCLK  GPIO_NUM_17
-#define I2S_LRCLK GPIO_NUM_18
+// Audio I2S / ES8311 codec (see sound driver in targets/common/esp32)
+#define I2S_MCLK  GPIO_NUM_13
+#define I2S_BCLK  GPIO_NUM_12
+#define I2S_LRCLK GPIO_NUM_10
+#define I2S_DOUT  GPIO_NUM_9
+#define I2S_DIN   GPIO_NUM_11
+#define I2S_AMP_EN_GPIO GPIO_NUM_53
 
 #define SOFT_PWR_CTRL
 uint32_t pwrCheck();

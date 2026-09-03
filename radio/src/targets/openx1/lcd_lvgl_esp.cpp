@@ -64,6 +64,34 @@ struct TouchState getInternalTouchState() {
     return internalTouchState;
 }
 
+#if defined(CONFIG_LV_TOUCH_CONTROLLER_ST7123)
+// The ST7123 touch module (OSPTEK 4.3" ST7102) has no interrupt line
+// connected, so the controller is polled on every LVGL indev cycle and
+// press/release transitions are synthesized for the EdgeTX touch model.
+static bool touchWasPressed = false;
+
+struct TouchState touchPanelRead() {
+    // The sample was already captured by touchPanelEventOccured().
+    return internalTouchState;
+}
+
+bool touchPanelEventOccured() {
+    lv_indev_data_t data = {0};
+    touch_driver_read(NULL, &data);
+
+    internalTouchState.x = data.point.x;
+    internalTouchState.y = data.point.y;
+
+    bool pressed = (data.state == LV_INDEV_STATE_PRESSED);
+    internalTouchState.event = pressed ? TE_DOWN : TE_UP;
+
+    // Deliver an event on every state transition, and keep delivering while a
+    // finger is down so the reported coordinates track the finger.
+    bool event = pressed || (pressed != touchWasPressed);
+    touchWasPressed = pressed;
+    return event;
+}
+#else
 struct TouchState touchPanelRead() {
     lv_indev_data_t data = {0};
     touch_driver_read(NULL, &data);
@@ -87,8 +115,10 @@ bool touchPanelEventOccured() {
     }
     return ret;
 }
+#endif
 
 bool touchPanelInit(void) {
+#if !defined(CONFIG_LV_TOUCH_CONTROLLER_ST7123)
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << (int)TOUCH_IRQ),
         .mode = GPIO_MODE_INPUT,
@@ -97,6 +127,7 @@ bool touchPanelInit(void) {
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&io_conf);
+#endif
     return true;
 }
 

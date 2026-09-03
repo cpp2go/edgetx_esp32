@@ -24,52 +24,42 @@
 #include "driver/gpio.h"
 #include "soc/soc_caps.h"
 #include "driver/sdmmc_host.h"
-#include "driver/sdspi_host.h"
 #include "driver/sdmmc_defs.h"
 #include "sdmmc_cmd.h"
 
+// SD card on the OSPTEK P4C5 dev board TF slot is wired to the SDMMC
+// controller (slot 0, 4-bit) on the module's SD1 pads:
+//   CLK = GPIO43, CMD = GPIO44, D0 = GPIO39, D1 = GPIO40, D2 = GPIO41,
+//   D3 = GPIO42 (see SDMMC_* in the target board.h). Slot 0 uses the fixed
+//   IO-MUX pin mapping, so no GPIOs need to be passed to the host driver.
 
 static bool card_present = false;
-static bool spi_bus_initialized = false;
-static sdmmc_host_t config = SDSPI_HOST_DEFAULT();
-static sdspi_dev_handle_t handle;
-static sdspi_device_config_t dev_config = SDSPI_DEVICE_CONFIG_DEFAULT();
+static bool sdmmc_host_initialized = false;
+static sdmmc_host_t config = SDMMC_HOST_DEFAULT();
 static sdmmc_card_t sdcard;
 static sdmmc_card_t* card = &sdcard;
 
 static DSTATUS sdcard_spi_initialize(BYTE lun)
 {
     if (!card_present) {
-#ifdef SD_DEDICATED_SPI
-        if (!spi_bus_initialized) {
-            spi_bus_config_t bus_config = {
-                .mosi_io_num = SDSPI_MOSI,
-                .miso_io_num = SDSPI_MISO,
-                .sclk_io_num = SDSPI_CLK,
-                .quadwp_io_num = -1,
-                .quadhd_io_num = -1,
-            };
-            config.slot = SD_SPI_HOST;
-            if (spi_bus_initialize((spi_host_device_t)config.slot, &bus_config, SPI_DMA_CH_AUTO) != ESP_OK) {
-                return STA_NOINIT;
-            }
-            spi_bus_initialized = true;
-        } else {
-            // SPI bus already initialized; restore host slot id before reuse.
-            config.slot = SD_SPI_HOST;
-        }
-#endif
-        dev_config.host_id = (spi_host_device_t)config.slot;
-        dev_config.gpio_cs = SDCARD_CS_GPIO;
-        sdspi_host_init();
-        sdspi_host_init_device(&dev_config, &handle);
+        if (!sdmmc_host_initialized) {
+            config.slot = SDMMC_HOST_SLOT_0;
+            config.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
 
-        config.slot = handle;
-        if (0 == sdmmc_card_init(&config, card)) {
+            sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
+            slot_config.width = 4;
+            slot_config.flags = 0;  // TF slot has its own pull-ups
+
+            if (sdmmc_host_init() == ESP_OK &&
+                sdmmc_host_init_slot(SDMMC_HOST_SLOT_0, &slot_config) == ESP_OK) {
+                sdmmc_host_initialized = true;
+            } else {
+                sdmmc_host_deinit();
+            }
+        }
+
+        if (sdmmc_host_initialized && 0 == sdmmc_card_init(&config, card)) {
             card_present = true;
-        } else {
-            sdspi_host_remove_device(handle);
-            sdspi_host_deinit();
         }
     }
     // Return STA_NODISK|STA_NOINIT when no card so f_mount returns FR_NOT_READY cleanly.
