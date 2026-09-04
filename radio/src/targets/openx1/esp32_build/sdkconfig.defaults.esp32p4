@@ -1,4 +1,4 @@
-# ESP32-P4 host: external ESP32-C6 co-processor for WiFi + Bluetooth (esp_hosted)
+# ESP32-P4 host: external ESP32-C5 co-processor for WiFi + Bluetooth (esp_hosted)
 
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y
 
@@ -12,11 +12,17 @@ CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=131072
 CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 
-# esp_wifi_remote: slave = ESP32-C6
-CONFIG_SLAVE_IDF_TARGET_ESP32C6=y
+# esp_wifi_remote: slave = ESP32-C5 (this board's companion chip is a C5)
+CONFIG_SLAVE_IDF_TARGET_ESP32C5=y
 
-# esp_hosted: co-processor ESP32-C6 (SDIO to C6)
-CONFIG_ESP_HOSTED_CP_TARGET_ESP32C6=y
+# esp_hosted: co-processor ESP32-C5 (SDIO to C5)
+CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5=y
+
+# Put the ESP-Hosted SDIO transport mempool into PSRAM (DMA-reachable via cache
+# on ESP32-P4). The default places it in internal DMA RAM as one contiguous
+# ~48KB block; with EdgeTX/LVGL using the scarce internal SRAM this fails at
+# boot with "HS_MP: mempool create failed: no mem" / assert in sdio_drv.c.
+CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM=y
 
 # Uncomment if using ESP32-P4-Function-EV-Board (on-board C6 over SDIO):
 # CONFIG_ESP_HOSTED_P4_DEV_BOARD_FUNC_BOARD=y
@@ -37,7 +43,7 @@ CONFIG_LWIP_UDP_RECVMBOX_SIZE=64
 CONFIG_LWIP_TCPIP_RECVMBOX_SIZE=64
 CONFIG_LWIP_TCP_SACK_OUT=y
 
-# Bluetooth HCI from C6 via esp_hosted (NimBLE host on P4)
+# Bluetooth HCI from C5 via esp_hosted (NimBLE host on P4)
 CONFIG_BT_CONTROLLER_DISABLED=y
 CONFIG_BT_NIMBLE_LEGACY_VHCI_ENABLE=y
 
@@ -50,9 +56,11 @@ CONFIG_LV_TFT_DISPLAY_USER_CONTROLLER_ST7102=y
 # CONFIG_LV_TFT_DISPLAY_PROTOCOL_MCU is not set
 CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI=y
 
-# DSI bus (2 lanes @ 500 Mbps is sufficient for 480x800 RGB565 @ ~60 Hz)
+# DSI bus (2 lanes @ 820 Mbps; OSPTEK verified value for this module - a
+# 500 Mbps config drives the LP escape clock above the 20 MHz spec limit and
+# makes the panel stop ACKing DCS commands, hanging the DSI host)
 CONFIG_LV_TFT_DSI_LANE_NUM=2
-CONFIG_LV_TFT_DSI_LANE_BITRATE_MBPS=500
+CONFIG_LV_TFT_DSI_LANE_BITRATE_MBPS=820
 
 # DSI PHY power (internal LDO, 2.5V for VDD_MIPI_DPHY)
 CONFIG_LV_TFT_DSI_PHY_LDO_CHAN=3
@@ -101,4 +109,15 @@ CONFIG_FATFS_SECTOR_512=y
 # CONFIG_FATFS_SECTOR_4096 is not set
 CONFIG_WL_SECTOR_SIZE_512=y
 # CONFIG_WL_SECTOR_SIZE_4096 is not set
+
+# --- ESP32-P4 silicon revision ---
+# The OpenX1 board uses ESP32-P4 silicon rev v1.3. ESP-IDF v6.x defaults to the
+# mutually-exclusive rev >=3.0 line (min v3.1), which cannot run on rev <3.0
+# silicon. Opt into the "revisions <3.0" line (min v1.0 / max v1.99) instead.
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+CONFIG_ESP32P4_REV_MIN_100=y
+
+# In the "revisions <3.0" line the CPLL is kept at 360 MHz; 400 MHz is only
+# reachable on rev >=3.0 silicon. 360 MHz is the maximum supported here.
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
 

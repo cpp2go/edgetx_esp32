@@ -206,13 +206,26 @@ void ads1015_adc_init(void)
     m_dataRate = RATE_ADS1115_128SPS;
 #endif
 
-  for (int i = 0; i < NUM_OF_ADS; i++) {
-    ESP_ERROR_CHECK(i2c_master_bus_add_device(ads_i2c_bus_handle, &i2c_dev_conf[i], &ads[i]));
+  // ADS1015 is radio-only hardware and is not fitted on the OSPTEK dev board.
+  // Probe the bus first so we don't NACK-spam the ADC task on boards without
+  // it; the real OpenX1 radio (both chips present) still works as before.
+  bool ads_present =
+      (i2c_master_probe(ads_i2c_bus_handle, i2c_dev_conf[0].device_address, 50) == ESP_OK) &&
+      (i2c_master_probe(ads_i2c_bus_handle, i2c_dev_conf[1].device_address, 50) == ESP_OK);
+
+  if (ads_present) {
+    for (int i = 0; i < NUM_OF_ADS; i++) {
+      ESP_ERROR_CHECK(i2c_master_bus_add_device(ads_i2c_bus_handle, &i2c_dev_conf[i], &ads[i]));
+    }
+  } else {
+    TRACE("ADS1015 not detected on I2C bus - analog inputs disabled");
   }
 
   adcInit(&ads1015_hal_adc_driver);
 
-  // The stuff (POTs, VBATT) on ADS1015 are not that critical, so start a task
-  // and read it in the background
-  task_create(&taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO);
+  if (ads_present) {
+    // The stuff (POTs, VBATT) on ADS1015 are not that critical, so start a task
+    // and read it in the background
+    task_create(&taskIdADC, task_adc, "ADC task", taskADC_stack, TASKADC_STACK_SIZE, TASKADC_PRIO);
+  }
 }

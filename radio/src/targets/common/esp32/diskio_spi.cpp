@@ -50,12 +50,29 @@ static DSTATUS sdcard_spi_initialize(BYTE lun)
             slot_config.width = 4;
             slot_config.flags = 0;  // TF slot has its own pull-ups
 
-            if (sdmmc_host_init() == ESP_OK &&
-                sdmmc_host_init_slot(SDMMC_HOST_SLOT_0, &slot_config) == ESP_OK) {
-                sdmmc_host_initialized = true;
+            // ESP32-P4 has a single SDMMC host controller. On this board it is
+            // already claimed by ESP-Hosted (the SDIO WiFi link, started from a
+            // constructor that runs before app_main) using slot 1. Since
+            // ESP-IDF >= 6.0 the controller can only be created once:
+            //   - a second sdmmc_host_init() fails ("no available sd host
+            //     controller"), and
+            //   - sdmmc_host_deinit() would also tear down ESP-Hosted's slot 1
+            //     + controller, crashing the WiFi transport later.
+            // So only call sdmmc_host_init() when we are the first user, and
+            // never deinit the host once another driver is sharing it.
+            esp_err_t host_res = sdmmc_host_init();
+            if (host_res == ESP_OK) {
+                // No other user yet: we own the controller, add our slot.
+                host_res = sdmmc_host_init_slot(SDMMC_HOST_SLOT_0, &slot_config);
+                if (host_res != ESP_OK) {
+                    sdmmc_host_deinit();
+                }
             } else {
-                sdmmc_host_deinit();
+                // Controller already up (e.g. ESP-Hosted SDIO): register slot 0
+                // on the shared host. Do not deinit it.
+                host_res = sdmmc_host_init_slot(SDMMC_HOST_SLOT_0, &slot_config);
             }
+            sdmmc_host_initialized = (host_res == ESP_OK);
         }
 
         if (sdmmc_host_initialized && 0 == sdmmc_card_init(&config, card)) {

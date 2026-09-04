@@ -168,7 +168,9 @@ static lv_res_t decoder_info(struct _lv_img_decoder_t *decoder, const void *src,
   /*If it's a file...*/
   if (src_type == LV_IMG_SRC_FILE) {
     const char *fn = ((const char *)src) + 1;
-    FIL imgFile;
+    // Zero-initialize: if f_open() fails before the volume is up (e.g. no SD
+    // mounted) FatFS frees fp->buf, which must be NULL or it frees stack junk.
+    FIL imgFile = {};
 
     FRESULT result = f_open(&imgFile, fn, FA_OPEN_EXISTING | FA_READ);
     if (result == FR_OK) {
@@ -242,7 +244,9 @@ static lv_res_t decoder_open(lv_img_decoder_t *decoder,
   /*If it's a file...*/
   if (dsc->src_type == LV_IMG_SRC_FILE) {
     const char *fn = ((const char *)dsc->src) + 1;
-    FIL imgFile;
+    // Zero-initialize: if f_open() fails before the volume is up (e.g. no SD
+    // mounted) FatFS frees fp->buf, which must be NULL or it frees stack junk.
+    FIL imgFile = {};
 
     FRESULT result = f_open(&imgFile, fn, FA_OPEN_EXISTING | FA_READ);
     if (result == FR_OK) {

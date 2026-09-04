@@ -234,12 +234,19 @@ static void dsi_panel_reset(void)
 static void dsi_send_init_sequence(const dsi_init_cmd_t *cmds, size_t cnt)
 {
     for (size_t i = 0; i < cnt; i++) {
+        // Log every command so that, if the DSI host ever hangs waiting for a
+        // panel command-ACK, the serial log shows exactly which command was
+        // being sent when it stopped.
+        ESP_LOGI(TAG, "init cmd[%u]/%u: 0x%02X (%u param bytes, %u ms delay)",
+                 i, (unsigned)cnt, cmds[i].cmd, (unsigned)cmds[i].len,
+                 (unsigned)cmds[i].delay_ms);
         ESP_ERROR_CHECK(esp_lcd_panel_io_tx_param(dbi_io, cmds[i].cmd,
                                                   cmds[i].data, cmds[i].len));
         if (cmds[i].delay_ms > 0) {
             vTaskDelay(pdMS_TO_TICKS(cmds[i].delay_ms));
         }
     }
+    ESP_LOGI(TAG, "Panel init sequence sent (%u commands)", (unsigned)cnt);
 }
 
 /* ------------------------------------------------------------------------ */

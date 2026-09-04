@@ -28,6 +28,10 @@
 extern i2c_master_bus_handle_t gpioext_i2c_bus_handle;
 static i2c_master_dev_handle_t mcp[2] = {NULL, NULL};
 
+// Set once keysInit() has confirmed the MCP23017 expanders are actually on
+// the bus (they are radio-only parts, absent on the OSPTEK dev board).
+static bool mcp_available = false;
+
 static uint32_t ShadowOutput = 0U;
 static uint8_t *pShadowData = (uint8_t *)&ShadowOutput;
 uint32_t ShadowInput = MCP23017_PULLUP;
@@ -38,11 +42,13 @@ static uint8_t *pShadowInput = (uint8_t *)&ShadowInput;
 void rotaryEncoderCheck(uint32_t result);
 
 static void mcp_set_gpio(uint32_t pin, uint32_t level)
- {
-    if (0 == level) 
+{
+    if (!mcp_available) return;   // no GPIO expander on the bus
+
+    if (0 == level)
     {
         ShadowOutput &= ~(1 << pin);
-    } 
+    }
     else
     {
         ShadowOutput |= (1 << pin);
@@ -62,6 +68,8 @@ void pollKeys()
 uint32_t readKeys()
 {
     uint32_t result = 0;
+
+    if (!mcp_available) return 0;   // no keys without the MCP23017s
 
     for (int i = 0; i < 4; i++) {
         esp_err_t ret = i2c_register_read(MCP_HANDLE(i), MCP_REG_ADDR(MCP23XXX_GPIO, i), &pShadowInput[i], 1);
@@ -85,6 +93,7 @@ uint32_t readKeys()
 uint32_t readTrims()
 {
     uint32_t result = 0;
+    if (!mcp_available) return 0;   // no trim switches without the MCP23017s
     for (int i = 0; i < sizeof(trim_mapping)/sizeof(trim_mapping[0]); i++) {
         if ((trim_mapping[i].bit & ShadowInput) ^ trim_mapping[i].xor_bit) {
             result |= trim_mapping[i].key_code_bit;
@@ -96,6 +105,17 @@ uint32_t readTrims()
 
 void keysInit()
 {
+    // MCP23017 GPIO expanders are radio-only parts; they are not fitted on the
+    // OSPTEK dev board. Probe before configuring so we don't NACK-spam the key
+    // and trim scan for the whole session on boards without them.
+    if (i2c_master_probe(gpioext_i2c_bus_handle, MCP23XXX_ADDR, 50) != ESP_OK ||
+        i2c_master_probe(gpioext_i2c_bus_handle, MCP23XXX_ADDR + 1, 50) != ESP_OK) {
+        TRACE("MCP23017 GPIO expanders not detected - keys/rotary disabled");
+        mcp_available = false;
+        return;
+    }
+    mcp_available = true;
+
     i2c_device_config_t i2c_dev0_conf = {
         .device_address = MCP23XXX_ADDR,
         .scl_speed_hz = 400000,

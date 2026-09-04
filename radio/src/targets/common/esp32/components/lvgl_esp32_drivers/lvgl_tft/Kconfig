@@ -302,9 +302,14 @@ menu "LVGL TFT Display controller"
 
         config LV_TFT_DSI_LANE_BITRATE_MBPS
             int "MIPI DSI lane bit rate (Mbps)"
-            default 500
+            default 820
             help
                 Bit rate of each MIPI DSI data lane in Mbps.
+                NOTE: this also sets the LP escape clock divider. Values that
+                push TxClkEsc above ~20 MHz make LP-mode DCS commands
+                undecodable by the panel (no command ACK -> DSI host FIFO
+                busy-wait hang). OSPTEK's verified ST7102 480x800 config
+                uses 820 Mbps (byte clk 102.5 MHz / 6 = ~17 MHz escape).
 
         config LV_TFT_DSI_PHY_LDO_CHAN
             int "MIPI DSI PHY power LDO channel"
