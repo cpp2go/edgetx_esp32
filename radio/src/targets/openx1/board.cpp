@@ -174,8 +174,12 @@ static void es8311AudioInit(void)
     es8311_write_reg(0x1C, 0x6A);
 
     // --- power up DAC path to speaker / amp ---
-    es8311_write_reg(0x32, 0xBF);   // DAC volume ~0 dB (software volume)
-    es8311_write_reg(0x37, 0x48);   // DAC ramp rate
+    // DAC volume. 0xBF (~0 dB) is the loudest comfortable ceiling used by the
+    // Espressif driver only at the top of its volume range; with EdgeTX's
+    // software volume added on top it was over-driving the NS4150 amp
+    // ("too loud" + audible DAC noise floor). 0xAD ~ -9 dB is a sane default.
+    es8311_write_reg(0x32, 0xAD);   // DAC volume ~ -9 dB (software volume on top)
+    es8311_write_reg(0x37, 0x08);   // DAC ramp rate (Espressif es8311 driver value)
     es8311_write_reg(0x17, 0xBF);
     es8311_write_reg(0x0E, 0x02);
     es8311_write_reg(0x12, 0x00);
@@ -183,9 +187,29 @@ static void es8311AudioInit(void)
     es8311_write_reg(0x0D, 0x01);
     es8311_write_reg(0x15, 0x40);
     es8311_write_reg(0x45, 0x00);
+    // Enable the internal DAC reference + I2C-noise-immunity bits (reg 0x44),
+    // matching the Espressif es8311 driver / xiaozhi esp32-p4-function-ev-board
+    // init on this same hardware. Without the DAC reference the analog output
+    // is weaker and playback carries extra hiss.
+    es8311_write_reg(0x44, 0x58);   // DAC reference (ADCL+DACR) + I2C noise immunity
+
+    // Start with the DAC soft-muted (ES8311 reg 0x31, bits 6:5) so the codec's
+    // analog noise floor is not amplified while idle. The audio driver
+    // (sound_i2s.cpp) clears this while PCM is actually playing.
+    es8311_write_reg(0x31, 0x60 | (es8311_read_reg(0x31) & 0x9F));
 
     vTaskDelay(pdMS_TO_TICKS(20));
     ESP_LOGI("ES8311", "codec initialized (I2S slave 16-bit, DAC -> speaker)");
+}
+
+// Runtime DAC soft-mute hook used by the EdgeTX audio driver (sound_i2s.cpp):
+// mute the ES8311 DAC while idle so its noise floor is not audible between
+// sounds (reg 0x31 bits 6:5 = DAC mute, per Espressif es8311 driver).
+void boardCodecOutputMute(bool mute)
+{
+    if (!es8311_dev) return;
+    uint8_t v = es8311_read_reg(0x31) & 0x9F;
+    es8311_write_reg(0x31, mute ? (uint8_t)(v | 0x60) : v);
 }
 #endif  // I2S_AMP_EN_GPIO
 

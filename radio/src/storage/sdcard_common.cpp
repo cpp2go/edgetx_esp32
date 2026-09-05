@@ -133,6 +133,15 @@ void storageCheck(bool immediately)
 
   static uint8_t retryModelCount = 0;
   if (storageDirtyMsk & EE_MODEL) {
+#if defined(OPENX1_NO_SD_BRINGUP)
+    // OpenX1 dev-board bring-up (temporary): persisting the auto-created
+    // default model currently dead-locks the YAML model writer inside the
+    // menus task (YamlTreeWalker::generate infinite loop), which freezes the
+    // GUI and trips the task watchdog. Keep the model in RAM only until that
+    // storage issue (yaml_datastructs_openx1.cpp regeneration) is fixed.
+    // Radio settings (EE_GENERAL) are still persisted normally above.
+    storageDirtyMsk &= ~EE_MODEL;
+#else
     if (retryModelCount < retryLimit) {
       TRACE("SD card write model settings");
       const char * error = writeModel();
@@ -152,6 +161,7 @@ void storageCheck(bool immediately)
       retryModelCount = retryLimit / 2; // Retry again after timeout; but fewer times
       // TODO: provide some mechanism to alert user that SD card has serious error
     }
+#endif
   }
 }
 
@@ -224,7 +234,22 @@ void storageReadAll()
       forceSave();
     } else
 #endif
+#if defined(OPENX1_NO_SD_BRINGUP)
+    // OpenX1 dev-board bring-up: with no keys/touch usable yet, the stock
+    // "Missing or bad radio data" alert can never be dismissed, so it would
+    // block the UI from reaching the main menu. Silently create default
+    // radio settings instead - persisted to SD when a card is mounted,
+    // kept in-RAM otherwise - and continue straight to the main menu.
+    // (With a valid radio.yml present, loadRadioSettings() succeeds above
+    // and this normal path is untouched.)
+    storageFormat();
+    g_eeGeneral.chkSum = evalChkSum();
+    if (sdMounted()) {
+      forceSave();  // persist RADIO/radio.yml so later boots are clean
+    }
+#else
     storageEraseAll();
+#endif
   }
 #if !defined(STORAGE_MODELSLIST)
   else {

@@ -436,11 +436,33 @@ inline void mixSample(audio_data_t * result, int16_t sample, unsigned int fade)
 #endif
 }
 
+#if defined(AUDIO_STEREO)
+// Mix one source sample into an interleaved L/R frame, applying a balance pan.
+// pan: 0 = center (equal on both), >0 attenuates left (pan right),
+//      <0 attenuates right (pan left). Magnitude 128 fully mutes one side.
+inline void mixSampleStereo(audio_data_t * frame, int16_t sample,
+                            unsigned int fade, int8_t pan)
+{
+  int16_t left = sample;
+  int16_t right = sample;
+  if (pan > 0) {
+    left = (int16_t)(((int32_t)sample * (128 - pan)) >> 7);
+  } else if (pan < 0) {
+    right = (int16_t)(((int32_t)sample * (128 + pan)) >> 7);
+  }
+  mixSample(&frame[0], left, fade);
+  mixSample(&frame[1], right, fade);
+}
+#endif
+
 #define RIFF_CHUNK_SIZE 12
 uint8_t wavBuffer[AUDIO_BUFFER_SIZE * 2] __DMA;
 
-int WavContext::mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade)
+int WavContext::mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade, int8_t pan)
 {
+#if !defined(AUDIO_STEREO)
+  (void)pan;
+#endif
   FRESULT result = FR_OK;
   UINT read = 0;
 
@@ -507,12 +529,21 @@ int WavContext::mixBuffer(AudioBuffer *buffer, int volume, unsigned int fade)
         read /= 2;
         for (uint32_t i=0; i<read; i++) {
           for (uint8_t j=0; j<state.resampleRatio; j++) {
+#if defined(AUDIO_STEREO)
+            mixSampleStereo(samples, ((int16_t *)wavBuffer)[i], fade+2-volume, pan);
+            samples += 2;
+#else
             mixSample(samples++, ((int16_t *)wavBuffer)[i], fade+2-volume);
+#endif
           }
         }
       }
 
+#if defined(AUDIO_STEREO)
+      return (samples - buffer->data) / 2;  // return frame count, not sample count
+#else
       return samples - buffer->data;
+#endif
     }
   }
 
@@ -533,8 +564,11 @@ inline float evalVolumeRatio(int freq, int volume)
   return result;
 }
 
-int ToneContext::mixBuffer(AudioBuffer * buffer, int volume, unsigned int fade)
+int ToneContext::mixBuffer(AudioBuffer * buffer, int volume, unsigned int fade, int8_t pan)
 {
+#if !defined(AUDIO_STEREO)
+  (void)pan;
+#endif
   int duration = 0;
   int result = 0;
 
@@ -609,7 +643,11 @@ int ToneContext::mixBuffer(AudioBuffer * buffer, int volume, unsigned int fade)
       else
         sineVal = -sine[MAX_SINE_INDEX - sineIdx];
       int16_t sample = sineVal * state.volume;
+#if defined(AUDIO_STEREO)
+      mixSampleStereo(&buffer->data[i * 2], sample, fade, pan);
+#else
       mixSample(&buffer->data[i], sample, fade);
+#endif
       toneIdx += state.step;
       if ((unsigned int)toneIdx >= MAX_SINE_INDEX)
         toneIdx -= MAX_SINE_INDEX;
@@ -650,12 +688,16 @@ void AudioQueue::wakeup()
     int size = 0;
 
     // write silence in the buffer
+#if defined(AUDIO_STEREO)
+    for (uint32_t i=0; i<AUDIO_BUFFER_SIZE * 2; i++) {
+#else
     for (uint32_t i=0; i<AUDIO_BUFFER_SIZE; i++) {
+#endif
       buffer->data[i] = AUDIO_DATA_SILENCE; /* silence */
     }
 
     // mix the priority context (only tones)
-    result = priorityContext.mixBuffer(buffer, g_eeGeneral.beepVolume, fade);
+    result = priorityContext.mixBuffer(buffer, g_eeGeneral.beepVolume, fade, AUDIO_PAN_CENTER);
     if (result > 0) {
       size = result;
       fade += 1;
@@ -667,14 +709,14 @@ void AudioQueue::wakeup()
       normalContext.setFragment(fragmentsFifo.get());
       _audio_unlock();
     }
-    result = normalContext.mixBuffer(buffer, g_eeGeneral.beepVolume, g_eeGeneral.wavVolume, fade);
+    result = normalContext.mixBuffer(buffer, g_eeGeneral.beepVolume, g_eeGeneral.wavVolume, fade, AUDIO_PAN_CENTER);
     if (result > 0) {
       size = max(size, result);
       fade += 1;
     }
 
     // mix the vario context
-    result = varioContext.mixBuffer(buffer, g_eeGeneral.varioVolume, fade);
+    result = varioContext.mixBuffer(buffer, g_eeGeneral.varioVolume, fade, AUDIO_PAN_CENTER);
     if (result > 0) {
       size = max(size, result);
       fade += 1;
@@ -682,7 +724,7 @@ void AudioQueue::wakeup()
 
     // mix the background context
     if (isFunctionActive(FUNCTION_BACKGND_MUSIC) && !isFunctionActive(FUNCTION_BACKGND_MUSIC_PAUSE)) {
-      result = backgroundContext.mixBuffer(buffer, g_eeGeneral.backgroundVolume, fade);
+      result = backgroundContext.mixBuffer(buffer, g_eeGeneral.backgroundVolume, fade, AUDIO_PAN_CENTER);
       if (result > 0) {
         size = max(size, result);
       }
@@ -695,7 +737,11 @@ void AudioQueue::wakeup()
 
 #if defined(SOFTWARE_VOLUME)
       if (currentSpeakerVolume > 0) {
+#if defined(AUDIO_STEREO)
+        for (uint32_t i=0; i<buffer->size * 2; ++i) {
+#else
         for (uint32_t i=0; i<buffer->size; ++i) {
+#endif
           int32_t tmpSample =
               (int32_t)((uint32_t)(buffer->data[i]) - AUDIO_DATA_SILENCE);
           buffer->data[i] = (int16_t)(((tmpSample * currentSpeakerVolume) /

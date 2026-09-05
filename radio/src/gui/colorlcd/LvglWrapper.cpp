@@ -29,6 +29,10 @@
 #include "os/time.h"
 #include "view_main.h"
 
+#if defined(ESP_PLATFORM)
+#include "esp_timer.h"
+#endif
+
 LvglWrapper* LvglWrapper::_instance = nullptr;
 
 static lv_indev_drv_t touchDriver;
@@ -367,6 +371,23 @@ void LvglWrapper::run()
   if (!updating) {
     // Normal UI loop - call lgvl timer handler
     updating = true;
+
+#if defined(ESP_PLATFORM)
+    // ESP32 LVGL clock: LV_TICK_CUSTOM is off and there is no 1 ms LVGL tick
+    // task on real hardware (SIMU gets one), so the LVGL tick never advances
+    // and lv_timer_handler() would never run any of its timers (display
+    // refresh, indev read, animations) - the UI freezes right after the first
+    // synchronous paint. Drive the tick from FreeRTOS time here (this run() is
+    // called every ~50 ms by perMain()).
+    static int64_t _last_lv_ms = 0;
+    int64_t _now_ms = (int64_t)(esp_timer_get_time() / 1000);
+    if (_last_lv_ms == 0) _last_lv_ms = _now_ms;  // baseline on first call
+    if (_now_ms > _last_lv_ms) {
+      lv_tick_inc((uint32_t)(_now_ms - _last_lv_ms));
+      _last_lv_ms = _now_ms;
+    }
+#endif
+
     lv_timer_handler();
     updating = false;
   } else {

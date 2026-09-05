@@ -26,6 +26,7 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_ldo_regulator.h"
+#include "esp_heap_caps.h"
 #include "lvgl.h"
 
 #include "disp_dsi.h"
@@ -196,6 +197,24 @@ static esp_lcd_panel_handle_t dpi_panel = NULL;
 static esp_ldo_channel_handle_t ldo_phy_chan = NULL;
 
 /* ------------------------------------------------------------------------ */
+/* Landscape (90 deg) software rotation                                       */
+/* ------------------------------------------------------------------------ */
+#if defined(CONFIG_LV_TFT_DSI_UI_ROTATE_90)
+/* The ST7102 module is physically mounted rotated: the DSI/DPI layer keeps
+ * streaming the native H_RES x V_RES (480x800) frame, but the LVGL/EdgeTX UI
+ * is sized to the swapped (logical) resolution. Each flushed logical frame is
+ * transposed into a physical frame buffer before it is pushed to the panel.
+ *
+ * DSI_ROT_CW: 1 -> clockwise transpose (default). If the image shows up
+ * mirrored left/right, flip this to 0 (counter-clockwise).
+ */
+#define DSI_LOGICAL_W   DSI_V_RES   /* logical (UI) width, e.g. 800 */
+#define DSI_LOGICAL_H   DSI_H_RES   /* logical (UI) height, e.g. 480 */
+#define DSI_ROT_CW      1
+static uint16_t *dsi_rot_buf = NULL; /* physical H_RES x V_RES, RGB565 */
+#endif /* CONFIG_LV_TFT_DSI_UI_ROTATE_90 */
+
+/* ------------------------------------------------------------------------ */
 /* Helpers                                                                   */
 /* ------------------------------------------------------------------------ */
 
@@ -298,6 +317,14 @@ void dsi_panel_init(void)
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_dpi(dsi_bus, &dpi_config, &dpi_panel));
 
+#if defined(CONFIG_LV_TFT_DSI_UI_ROTATE_90)
+    // Scratch buffer that holds one physical (native) frame, used to rotate
+    // the logical (landscape) LVGL frame before pushing it to the DPI panel.
+    dsi_rot_buf = heap_caps_malloc(DSI_H_RES * DSI_V_RES * sizeof(uint16_t),
+                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    ESP_ERROR_CHECK(dsi_rot_buf ? ESP_OK : ESP_ERR_NO_MEM);
+#endif
+
     // Send the controller init sequence over the DBI command channel.
     // The controller and its register/video-timing settings are chosen from
     // menuconfig (ST7701 / ST7701S by default, ST7102 for OSPTEK 4.3" modules).
@@ -318,10 +345,39 @@ void dsi_panel_init(void)
 void dsi_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area,
                        lv_color_t *color_map)
 {
+    // Bring-up diagnostics: count flushed frames so we can tell whether the
+    // main view is being pushed to the panel after boot.
+    static uint32_t dsi_flush_cnt = 0;
+    if ((++dsi_flush_cnt % 50) == 0) {
+        ESP_LOGI(TAG, "dsi flush #%u", (unsigned)dsi_flush_cnt);
+    }
+
+#if defined(CONFIG_LV_TFT_DSI_UI_ROTATE_90)
+    // LVGL runs in direct/full-frame mode for this driver, so every flush
+    // carries the complete logical (DSI_LOGICAL_W x DSI_LOGICAL_H) frame.
+    // Transpose it into the native H_RES x V_RES frame and push that.
+    const uint16_t *src = (const uint16_t *)color_map;
+    uint16_t *dst = dsi_rot_buf;
+    for (int py = 0; py < DSI_V_RES; py++) {
+        for (int px = 0; px < DSI_H_RES; px++) {
+            // Logical pixel (lx = py, ly = DSI_LOGICAL_H-1-px) for CW,
+            // or (lx = DSI_LOGICAL_W-1-py, ly = px) for CCW.
+#if DSI_ROT_CW
+            uint32_t idx = (uint32_t)(DSI_LOGICAL_H - 1 - px) * DSI_LOGICAL_W + py;
+#else
+            uint32_t idx = (uint32_t)px * DSI_LOGICAL_W + (DSI_LOGICAL_W - 1 - py);
+#endif
+            dst[py * DSI_H_RES + px] = src[idx];
+        }
+    }
+    esp_lcd_panel_draw_bitmap(dpi_panel, 0, 0, DSI_H_RES, DSI_V_RES, dst);
+    lv_disp_flush_ready(drv);
+#else
     // Copy the rendered area into the DPI panel frame buffer. The DPI driver
     // copies the buffer synchronously and the panel refreshes from its own
     // frame buffer in the background, so we can signal LVGL right away.
     esp_lcd_panel_draw_bitmap(dpi_panel, area->x1, area->y1,
                               area->x2 + 1, area->y2 + 1, color_map);
     lv_disp_flush_ready(drv);
+#endif
 }

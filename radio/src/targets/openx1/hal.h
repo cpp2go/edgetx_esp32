@@ -26,8 +26,15 @@
 #endif
 
 #if defined(CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI)
+#if defined(CONFIG_LV_TFT_DSI_UI_ROTATE_90)
+/* Module mounted 90 deg rotated: logical UI is the swapped resolution
+ * (H_RES x V_RES physical 480x800 -> logical 800x480 landscape). */
+#define LCD_W                           CONFIG_LV_TFT_DSI_V_RES
+#define LCD_H                           CONFIG_LV_TFT_DSI_H_RES
+#else
 #define LCD_W                           CONFIG_LV_TFT_DSI_H_RES
 #define LCD_H                           CONFIG_LV_TFT_DSI_V_RES
+#endif
 #else
 #define LCD_W                           480
 #define LCD_H                           320

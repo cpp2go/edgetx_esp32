@@ -28,16 +28,15 @@ extern "C" {
 
 #define ST7123_I2C_SLAVE_ADDR   0x55
 
-/* Register map (16-bit register addresses, big-endian over I2C) */
+/* Register map (16-bit register addresses, big-endian over I2C).
+ * Matches the official Espressif esp_lcd_touch_st7123 component. */
 #define ST7123_FW_VERSION_REG       0x0000
 #define ST7123_FW_REVISION_REG      0x000C
-#define ST7123_MAX_X_COORD_H_REG    0x0005
+#define ST7123_MAX_X_COORD_H_REG    0x0005   /* +1 x_l, +2 y_h, +3 y_l */
 #define ST7123_MAX_Y_COORD_H_REG    0x0007
 #define ST7123_MAX_TOUCHES_REG      0x0009
-#define ST7123_ADV_INFO_REG         0x0010
-#define ST7123_REPORT_COORD_0_REG   0x0014
-
-/* Bit in the advanced-info register: coordinates are ready */
+#define ST7123_ADV_INFO_REG         0x0010   /* advanced-info (bit3 = with_coord) */
+#define ST7123_REPORT_COORD_0_REG   0x0014   /* touch report entries (7 bytes each) */
 #define ST7123_ADV_INFO_WITH_COORD  (1 << 3)
 
 #define ST7123_MAX_TOUCHES          10

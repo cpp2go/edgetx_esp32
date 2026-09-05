@@ -22,12 +22,41 @@
 
 #include "edgetx.h"
 
+#if defined(I2S_AMP_EN_GPIO)
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#endif
+
 #define AUDIO_CODEC_DMA_DESC_NUM  6
 #define AUDIO_CODEC_DMA_FRAME_NUM 240
 
 static uint32_t _sampleRate = AUDIO_SAMPLE_RATE;
 
 static i2s_chan_handle_t tx_chan;  // I2S tx channel handler
+
+#if defined(I2S_AMP_EN_GPIO)
+// Power-amp enable. The class-D amp (NS4150) is only turned on while PCM is
+// actually being played; keeping it always on amplifies the codec/DAC noise
+// floor into a continuous hiss during silence. Toggling it on also gets a
+// short settle delay so the turn-on transient does not pop.
+static bool _amp_enabled = true;  // board init enables it (see es8311AudioInit)
+static void audioAmpSet(bool on)
+{
+    if (on == _amp_enabled) return;
+    _amp_enabled = on;
+    gpio_set_level(I2S_AMP_EN_GPIO, on ? 1 : 0);
+    if (on) {
+        vTaskDelay(pdMS_TO_TICKS(2));  // let the amp settle before audio starts
+    }
+}
+#endif
+
+#if defined(ESP_PLATFORM)
+// Optional board hook: mute the codec DAC during silence (default no-op). The
+// openx1 board provides a real ES8311 implementation in board.cpp.
+__attribute__((weak)) void boardCodecOutputMute(bool mute) { (void)mute; }
+#endif
 
 void audioInit()
 {
@@ -45,8 +74,16 @@ void audioInit()
         .slot_cfg = {
             .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
             .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+#if defined(AUDIO_STEREO)
+            // ES8311 expects standard stereo I2S frames (32 BCLK per WS).
+            // Mono mode frames the data differently and the DAC does not lock
+            // its clocks cleanly -> hiss on top of the audio while playing.
+            .slot_mode = I2S_SLOT_MODE_STEREO,
+            .slot_mask = I2S_STD_SLOT_BOTH,
+#else
             .slot_mode = I2S_SLOT_MODE_MONO,
             .slot_mask = I2S_STD_SLOT_LEFT,
+#endif
             .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
             .ws_pol = false,
             .bit_shift = true,
@@ -90,8 +127,14 @@ static uint32_t currentSize = 0;
 void audioSetCurrentBuffer(const AudioBuffer *buffer)
 {
   if (buffer) {
+#if defined(AUDIO_STEREO)
+    // AudioBuffer holds interleaved L/R frames; each frame = 2 channels * 2 bytes.
+    currentBuffer = (uint8_t *)buffer->data;
+    currentSize = buffer->size * 4;  // frames * 2 channels * 2 bytes
+#else
     currentBuffer = (uint8_t *)buffer->data;
     currentSize = buffer->size * 2;
+#endif
   } else {
     currentBuffer = nullptr;
     currentSize = 0;
@@ -105,6 +148,28 @@ void audioConsumeCurrentBuffer()
   if (!currentBuffer) {
     audioSetCurrentBuffer(audioQueue.buffersFifo.getNextFilledBuffer());
   }
+
+  const bool hasAudio = (currentBuffer && currentSize);
+
+#if defined(I2S_AMP_EN_GPIO)
+  // Gate the power amp on the presence of real PCM to play. Idle (silence)
+  // keeps it off so the amp cannot amplify the DAC noise floor (hiss).
+  audioAmpSet(hasAudio);
+#endif
+
+#if defined(ESP_PLATFORM)
+  // Mute the codec DAC while idle (ES8311 soft mute, reg 0x31 bits 6:5) so the
+  // codec's analog noise floor is not audible between sounds, and unmute while
+  // PCM is actually being played. Only touch the codec on state transitions:
+  // this function is called every ~4 ms and an I2C transaction per call would
+  // saturate the shared I2C bus (it also carries the touch controller).
+  static bool _codec_muted = true;  // board init leaves the DAC muted
+  bool want_mute = !hasAudio;
+  if (want_mute != _codec_muted) {
+    _codec_muted = want_mute;
+    boardCodecOutputMute(want_mute);
+  }
+#endif
 
   static size_t last = 0U;
   if ((NULL == currentBuffer) && (0U != last)) {

@@ -311,6 +311,18 @@ menu "LVGL TFT Display controller"
                 busy-wait hang). OSPTEK's verified ST7102 480x800 config
                 uses 820 Mbps (byte clk 102.5 MHz / 6 = ~17 MHz escape).
 
+        config LV_TFT_DSI_UI_ROTATE_90
+            bool "UI is the panel resolution rotated 90 deg (landscape)"
+            default n
+            help
+                Some modules (e.g. OSPTEK ST7102 480x800) are physically
+                mounted rotated so the UI must be rendered in landscape
+                (here H_RES x V_RES -> 800x480). The ST7102 cannot swap its
+                X/Y scan in DPI/video mode, so this option keeps the DPI
+                timing at the native H_RES x V_RES and instead rotates every
+                flushed frame in software. The LVGL/EdgeTX UI is sized to the
+                swapped (V_RES x H_RES) resolution.
+
         config LV_TFT_DSI_PHY_LDO_CHAN
             int "MIPI DSI PHY power LDO channel"
             default 3

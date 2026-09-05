@@ -26,6 +26,13 @@
 #include <list>
 #include <string>
 
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#define FB_LOG(...) ESP_LOGI("SDbrowser", __VA_ARGS__)
+#else
+#define FB_LOG(...)
+#endif
+
 #define CELL_CTRL_DIR  LV_TABLE_CELL_CTRL_CUSTOM_1
 #define CELL_CTRL_FILE LV_TABLE_CELL_CTRL_CUSTOM_2
 
@@ -110,7 +117,17 @@ static int scan_files(std::list<std::string>& files,
   FILINFO fno;
   DIR dir;
 
-  FRESULT res = f_opendir(&dir, "."); // Open the directory
+  // ESP-IDF's FatFS is built with FF_FS_RPATH = 0, so a relative "." cannot
+  // be opened (f_opendir(".") returns FR_INVALID_NAME). Open the absolute
+  // current directory returned by f_getcwd() instead. f_chdir()/f_getcwd()
+  // are provided by esp32_storage.cpp (and natively when RPATH is enabled),
+  // so this works on every target.
+  static char cur_path[FF_MAX_LFN + 1];
+  if (f_getcwd((TCHAR*)cur_path, FF_MAX_LFN) != FR_OK || !cur_path[0])
+    return -1;
+
+  FRESULT res = f_opendir(&dir, cur_path); // Open the directory
+  FB_LOG("scan_files: f_opendir('%s') = %d", cur_path, (int)res);
   if (res != FR_OK) return -1;
 
   // read all entries
@@ -135,13 +152,18 @@ static int scan_files(std::list<std::string>& files,
   directories.sort(natural_compare_nocase);
   files.sort(natural_compare_nocase);
 
+  FB_LOG("scan_files: dirs=%d files=%d", (int)directories.size(),
+         (int)files.size());
+
   return 0;
 }
 
 FileBrowser::FileBrowser(Window* parent, const rect_t& rect, const char* dir) :
     TableField(parent, rect)
 {
-  f_chdir(dir);
+  FRESULT cr = f_chdir(dir);
+  FB_LOG("FileBrowser: f_chdir('%s') = %d (cwd='%s')", dir, (int)cr,
+         []() { static char p[FF_MAX_LFN + 1]; f_getcwd((TCHAR*)p, FF_MAX_LFN); return p; }());
 
   setAutoEdit();
 

@@ -134,6 +134,20 @@ SD_CS   7
 #define I2S_DIN   GPIO_NUM_11
 #define I2S_AMP_EN_GPIO GPIO_NUM_53
 
+// True stereo audio output (interleaved L/R). Enables the AUDIO_STEREO code
+// paths in the shared audio pipeline (stereo AudioBuffers, L/R mixing) and the
+// stereo I2S slot config - the ES8311 DAC only locks its clocks cleanly on
+// standard 32-BCLK-per-WS stereo I2S frames (mono framing caused hiss on top
+// of the audio while playing).
+#define AUDIO_STEREO
+
+// Match the board's known-clean codec clocking: xiaozhi runs this same
+// ES8311 (esp32-p4-function-ev-board) at 24 kHz with 6.144 MHz MCLK and it is
+// clean. EdgeTX audio synthesis, buffer sizes and the I2S clock all derive
+// from AUDIO_SAMPLE_RATE, and the ES8311 coefficient register values for
+// 24k@6.144M are identical to 32k@8.192M, so only this rate changes.
+#define AUDIO_SAMPLE_RATE 24000
+
 #define SOFT_PWR_CTRL
 uint32_t pwrCheck();
 void pwrOn();

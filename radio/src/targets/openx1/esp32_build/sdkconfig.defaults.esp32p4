@@ -61,6 +61,9 @@ CONFIG_LV_TFT_DISPLAY_PROTOCOL_DSI=y
 # makes the panel stop ACKing DCS commands, hanging the DSI host)
 CONFIG_LV_TFT_DSI_LANE_NUM=2
 CONFIG_LV_TFT_DSI_LANE_BITRATE_MBPS=820
+# The OSPTEK 4.3" 480x800 module is mounted landscape: UI is 800x480 and the
+# flushed frames are rotated in software (DPI stays at native 480x800).
+CONFIG_LV_TFT_DSI_UI_ROTATE_90=y
 
 # DSI PHY power (internal LDO, 2.5V for VDD_MIPI_DPHY)
 CONFIG_LV_TFT_DSI_PHY_LDO_CHAN=3

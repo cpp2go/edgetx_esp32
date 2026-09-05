@@ -1447,6 +1447,19 @@ void edgeTxInit()
 {
   TRACE("edgeTxInit");
 
+#if defined(OPENX1_NO_SD_BRINGUP)
+  // OpenX1 bring-up board: no keys/touch yet, so never block startup on the
+  // touch calibration or the first-boot alarm/checks.
+  //
+  // The boot splash is SHOWN (no OPENTX_START_NO_SPLASH): the earlier
+  // "stuck on the logo after splash teardown" failure was caused by the LVGL
+  // tick never advancing on this ESP32 port (see the tick drive added in
+  // LvglWrapper::run). With the tick running, the splash layer is removed and
+  // repainted normally. AUDIO_HELLO() is only played when the splash is shown,
+  // so keeping the splash also restores the boot-up sound.
+  startOptions = OPENTX_START_NO_CALIBRATION | OPENTX_START_NO_CHECKS;
+#endif
+
 #if defined(COLORLCD)
   // SD_CARD_PRESENT() does not work properly on most
   // B&W targets, so that we need to delay the detection
@@ -1561,6 +1574,21 @@ void edgeTxInit()
   storageReadAll();
 #endif
 
+#if defined(OPENX1_NO_SD_BRINGUP)
+  // The very first sdMount() (in sdInit) races the ESP-Hosted SDIO bring-up,
+  // which claims the single shared SDMMC host controller a moment earlier, so
+  // the immediate f_mount() fails and sdMounted() stays false even though the
+  // TF card is actually fine (FatFS auto-mounts it during storageReadAll()).
+  // Every SD-backed UI screen (SD manager, model list, ...) checks
+  // sdMounted(), so they all came up blank. Re-run the mount now that the
+  // host is stable so sdMounted() reflects reality.
+  if (!sdMounted()) {
+    TRACE("SD: re-mounting after ESP-Hosted SDIO is up");
+    sdMount();
+    TRACE("SD: sdMounted=%d", sdMounted() ? 1 : 0);
+  }
+#endif
+
   initSerialPorts();
 
 #if defined(AUDIO)
@@ -1658,6 +1686,8 @@ void edgeTxInit()
 
   pulsesStart();
   WDG_ENABLE(WDG_DURATION);
+
+  TRACE("edgeTxInit done");
 }
 
 #if defined(SEMIHOSTING)

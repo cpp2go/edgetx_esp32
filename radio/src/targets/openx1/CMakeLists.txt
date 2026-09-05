@@ -9,6 +9,12 @@ set(PWR_BUTTON "SWITCH" CACHE STRING "Pwr button type (PRESS/SWITCH)")
 set(GUI_DIR colorlcd)
 set(BITMAPS_DIR 480x272)
 add_definitions(-DCOLORLCD -DLIBOPENUI -DHARDWARE_TOUCH -DHARDWARE_KEYS)
+# OpenX1 bring-up on the OSPTEK P4C5 dev board: with no keys/touch usable
+# yet, the stock "Missing or bad radio data" format alert can never be
+# dismissed and blocks the main menu. This auto-creates default radio
+# settings whenever radio data is missing (see storageReadAll() bypass).
+# Remove once keys/touch are working.
+add_definitions(-DOPENX1_NO_SD_BRINGUP)
 add_definitions(-DBATTGRAPH -DTHRTRACE)
 set(BITMAPS_TARGET bm480_bitmaps)
 set(STORAGE_MODELSLIST YES)
