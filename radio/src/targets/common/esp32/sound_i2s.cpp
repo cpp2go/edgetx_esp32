@@ -35,29 +35,6 @@ static uint32_t _sampleRate = AUDIO_SAMPLE_RATE;
 
 static i2s_chan_handle_t tx_chan;  // I2S tx channel handler
 
-#if defined(I2S_AMP_EN_GPIO)
-// Power-amp enable. The class-D amp (NS4150) is only turned on while PCM is
-// actually being played; keeping it always on amplifies the codec/DAC noise
-// floor into a continuous hiss during silence. Toggling it on also gets a
-// short settle delay so the turn-on transient does not pop.
-static bool _amp_enabled = true;  // board init enables it (see es8311AudioInit)
-static void audioAmpSet(bool on)
-{
-    if (on == _amp_enabled) return;
-    _amp_enabled = on;
-    gpio_set_level(I2S_AMP_EN_GPIO, on ? 1 : 0);
-    if (on) {
-        vTaskDelay(pdMS_TO_TICKS(2));  // let the amp settle before audio starts
-    }
-}
-#endif
-
-#if defined(ESP_PLATFORM)
-// Optional board hook: mute the codec DAC during silence (default no-op). The
-// openx1 board provides a real ES8311 implementation in board.cpp.
-__attribute__((weak)) void boardCodecOutputMute(bool mute) { (void)mute; }
-#endif
-
 void audioInit()
 {
     // Create a new channel for speaker
@@ -150,26 +127,7 @@ void audioConsumeCurrentBuffer()
   }
 
   const bool hasAudio = (currentBuffer && currentSize);
-
-#if defined(I2S_AMP_EN_GPIO)
-  // Gate the power amp on the presence of real PCM to play. Idle (silence)
-  // keeps it off so the amp cannot amplify the DAC noise floor (hiss).
-  audioAmpSet(hasAudio);
-#endif
-
-#if defined(ESP_PLATFORM)
-  // Mute the codec DAC while idle (ES8311 soft mute, reg 0x31 bits 6:5) so the
-  // codec's analog noise floor is not audible between sounds, and unmute while
-  // PCM is actually being played. Only touch the codec on state transitions:
-  // this function is called every ~4 ms and an I2C transaction per call would
-  // saturate the shared I2C bus (it also carries the touch controller).
-  static bool _codec_muted = true;  // board init leaves the DAC muted
-  bool want_mute = !hasAudio;
-  if (want_mute != _codec_muted) {
-    _codec_muted = want_mute;
-    boardCodecOutputMute(want_mute);
-  }
-#endif
+  (void)hasAudio;
 
   static size_t last = 0U;
   if ((NULL == currentBuffer) && (0U != last)) {

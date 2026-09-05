@@ -139,14 +139,20 @@ SD_CS   7
 // stereo I2S slot config - the ES8311 DAC only locks its clocks cleanly on
 // standard 32-BCLK-per-WS stereo I2S frames (mono framing caused hiss on top
 // of the audio while playing).
+//
+// Sample rate stays at the EdgeTX default (32000 Hz = 8.192 MHz MCLK) exactly
+// as in the 2.12 branch reference; the ES8311 clock-coefficient registers in
+// board.cpp are programmed for 32 kHz / 8.192 MHz. (A 24 kHz trial left those
+// registers mismatched with the I2S clock and produced no audio.)
 #define AUDIO_STEREO
 
-// Match the board's known-clean codec clocking: xiaozhi runs this same
-// ES8311 (esp32-p4-function-ev-board) at 24 kHz with 6.144 MHz MCLK and it is
-// clean. EdgeTX audio synthesis, buffer sizes and the I2S clock all derive
-// from AUDIO_SAMPLE_RATE, and the ES8311 coefficient register values for
-// 24k@6.144M are identical to 32k@8.192M, so only this rate changes.
-#define AUDIO_SAMPLE_RATE 24000
+// PCM is sent straight to the ES8311 over standard I2S, which is signed
+// two's-complement 16-bit (silence = 0x0000). Without this override the
+// shared audio pipeline falls back to AUDIO_SAMPLE_FMT_U16 (silence = 0x8000)
+// on non-sim/non-AUDIO_SPI targets, so playback carried a full-scale DC
+// offset on the DAC -> hiss/noise on top of the audio while playing (clean
+// when idle, because nothing is sent and the amp/DAC are muted).
+#define AUDIO_SAMPLE_FMT AUDIO_SAMPLE_FMT_S16
 
 #define SOFT_PWR_CTRL
 uint32_t pwrCheck();

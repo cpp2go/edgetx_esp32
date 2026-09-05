@@ -32,9 +32,7 @@
 #define VOLUME_LEVEL_DEF 12
 #endif
 
-#ifndef AUDIO_SAMPLE_RATE
 #define AUDIO_SAMPLE_RATE 32000
-#endif
 
 #define AUDIO_SAMPLE_FMT_S16 0
 #define AUDIO_SAMPLE_FMT_U16 1

@@ -1447,18 +1447,16 @@ void edgeTxInit()
 {
   TRACE("edgeTxInit");
 
-#if defined(OPENX1_NO_SD_BRINGUP)
-  // OpenX1 bring-up board: no keys/touch yet, so never block startup on the
-  // touch calibration or the first-boot alarm/checks.
+  // startOptions stays 0: standard startup flow is restored for the OpenX1
+  // bring-up board. The first-boot stick calibration and the boot-time checks
+  // (throttle/switch/alarm/...) no longer block startup because the touch
+  // screen works - both the color LCD calibration page and every FullScreen
+  // alert carry on-screen buttons (Start/Next/Exit or "press any key to skip")
+  // that can be tapped. (The old "stuck on the logo" was a missing LVGL tick,
+  // fixed separately in LvglWrapper::run(), not caused by these checks.)
   //
-  // The boot splash is SHOWN (no OPENTX_START_NO_SPLASH): the earlier
-  // "stuck on the logo after splash teardown" failure was caused by the LVGL
-  // tick never advancing on this ESP32 port (see the tick drive added in
-  // LvglWrapper::run). With the tick running, the splash layer is removed and
-  // repainted normally. AUDIO_HELLO() is only played when the splash is shown,
-  // so keeping the splash also restores the boot-up sound.
-  startOptions = OPENTX_START_NO_CALIBRATION | OPENTX_START_NO_CHECKS;
-#endif
+  // The boot splash is shown because OPENTX_START_NO_SPLASH is not set and
+  // AUDIO_HELLO() plays with it.
 
 #if defined(COLORLCD)
   // SD_CARD_PRESENT() does not work properly on most
