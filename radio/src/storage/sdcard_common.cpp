@@ -133,15 +133,9 @@ void storageCheck(bool immediately)
 
   static uint8_t retryModelCount = 0;
   if (storageDirtyMsk & EE_MODEL) {
-#if defined(OPENX1_NO_SD_BRINGUP)
-    // OpenX1 dev-board bring-up (temporary): persisting the auto-created
-    // default model currently dead-locks the YAML model writer inside the
-    // menus task (YamlTreeWalker::generate infinite loop), which freezes the
-    // GUI and trips the task watchdog. Keep the model in RAM only until that
-    // storage issue (yaml_datastructs_openx1.cpp regeneration) is fixed.
-    // Radio settings (EE_GENERAL) are still persisted normally above.
-    storageDirtyMsk &= ~EE_MODEL;
-#else
+    // Model persistence re-enabled 2026-09-06: yaml_datastructs_openx1.cpp was
+    // regenerated from the current ModelData (libclang + real OPENX1 compile
+    // flags via compile_commands.json), so writeModelYaml no longer walks off.
     if (retryModelCount < retryLimit) {
       TRACE("SD card write model settings");
       const char * error = writeModel();
@@ -161,7 +155,6 @@ void storageCheck(bool immediately)
       retryModelCount = retryLimit / 2; // Retry again after timeout; but fewer times
       // TODO: provide some mechanism to alert user that SD card has serious error
     }
-#endif
   }
 }
 
