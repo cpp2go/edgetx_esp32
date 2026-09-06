@@ -7,7 +7,12 @@ option(AUTOUPDATE "Auto update internal chips from SD" OFF)
 set(PWR_BUTTON "SWITCH" CACHE STRING "Pwr button type (PRESS/SWITCH)")
 
 set(GUI_DIR colorlcd)
-set(BITMAPS_DIR 480x272)
+# UI runs at 800x480 (landscape), so use the 800x480 bitmap asset set and the
+# matching large ("lrg") fonts - exactly like TX16S MK3 / stm32h7s78-dk.
+# (Was 480x272: building the 800-wide UI with 480x272-sized icons + standard
+# fonts made built-in icons/text metrics mismatch the layout -> things looked
+# slightly offset. fonts/CMakeLists.txt maps 800x480 -> lrg automatically.)
+set(BITMAPS_DIR 800x480)
 add_definitions(-DCOLORLCD -DLIBOPENUI -DHARDWARE_TOUCH -DHARDWARE_KEYS)
 # OpenX1 bring-up on the OSPTEK P4C5 dev board: with no keys/touch usable
 # yet, the stock "Missing or bad radio data" format alert can never be
@@ -16,7 +21,7 @@ add_definitions(-DCOLORLCD -DLIBOPENUI -DHARDWARE_TOUCH -DHARDWARE_KEYS)
 # Remove once keys/touch are working.
 add_definitions(-DOPENX1_NO_SD_BRINGUP)
 add_definitions(-DBATTGRAPH -DTHRTRACE)
-set(BITMAPS_TARGET bm480_bitmaps)
+set(BITMAPS_TARGET bm800_bitmaps)
 set(STORAGE_MODELSLIST YES)
 
 set(STATUS_LEDS NO)
