@@ -34,13 +34,19 @@
 static uint32_t _sampleRate = AUDIO_SAMPLE_RATE;
 
 static i2s_chan_handle_t tx_chan;  // I2S tx channel handler
+static i2s_chan_handle_t rx_chan;  // I2S rx channel handler (ES8311 ADC / mic)
 
 void audioInit()
 {
-    // Create a new channel for speaker
+    // Create a full-duplex channel for the ES8311 codec
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
     chan_cfg.auto_clear_after_cb = true;
+#if defined(I2S_DIN)
+    // RX captures the ES8311 ADC (MEMS mic) on I2S_DIN.
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_chan, &rx_chan));
+#else
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_chan, nullptr));
+#endif
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
@@ -77,7 +83,11 @@ void audioInit()
             .bclk = I2S_BCLK,
             .ws = I2S_LRCLK,
             .dout = I2S_DOUT,
+#if defined(I2S_DIN)
+            .din = I2S_DIN,
+#else
             .din = I2S_GPIO_UNUSED,
+#endif
             .invert_flags = {
                 .mclk_inv = false,
                 .bclk_inv = false,
@@ -86,6 +96,12 @@ void audioInit()
         }
     };
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_chan, &std_cfg));
+#if defined(I2S_DIN)
+    // Same clock/slot framing on RX; the codec ADC data (ES8311 SDOUT) arrives
+    // on I2S_DIN once es8311AudioInit() has powered up the ADC path.
+    ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_chan, &std_cfg));
+    ESP_ERROR_CHECK(i2s_channel_enable(rx_chan));
+#endif
     ESP_ERROR_CHECK(i2s_channel_enable(tx_chan));
 }
 
@@ -159,3 +175,64 @@ void audioConsumeCurrentBuffer()
     }
   }
 }
+
+#if defined(OPENX1_MIC_SELFTEST)
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <math.h>
+
+static const char *MIC_TAG = "MIC";
+
+// Bring-up helper: every second it reads ~100 ms of ES8311 ADC (mic) frames
+// and logs per-channel peak/RMS. Speak or blow into the MSM381A mic -> RMS
+// rises; silent -> near 0. Self-deletes after runCount iterations.
+static void audioMicProbeTask(void *arg)
+{
+    const int runCount = (int)(intptr_t)arg;
+    const size_t bytes = 3200 * 2 * sizeof(int16_t);   // 100 ms @ 32 kHz stereo
+    int16_t *buf = (int16_t *)malloc(bytes);
+    if (buf) {
+        for (int r = 0; r < runCount; r++) {
+            size_t got = 0;
+            esp_err_t err = i2s_channel_read(rx_chan, buf, bytes, &got, 1000);
+            if (err != ESP_OK) {
+                ESP_LOGW(MIC_TAG, "read failed: %s", esp_err_to_name(err));
+            } else {
+                size_t n = got / sizeof(int16_t);
+                int64_t accL = 0, accR = 0;
+                int32_t peakL = 0, peakR = 0;
+                size_t cntL = 0, cntR = 0;
+                for (size_t i = 0; i + 1 < n; i += 2) {
+                    int32_t sL = buf[i];
+                    int32_t sR = buf[i + 1];
+                    if (sL < 0) sL = -sL;
+                    if (sR < 0) sR = -sR;
+                    if (sL > peakL) peakL = sL;
+                    if (sR > peakR) peakR = sR;
+                    accL += (int64_t)buf[i] * buf[i];
+                    accR += (int64_t)buf[i + 1] * buf[i + 1];
+                    cntL++;
+                    cntR++;
+                }
+                uint32_t rmsL = cntL ? (uint32_t)(sqrt((double)accL / cntL) + 0.5) : 0;
+                uint32_t rmsR = cntR ? (uint32_t)(sqrt((double)accR / cntR) + 0.5) : 0;
+                ESP_LOGI(MIC_TAG, "frames=%u L:peak=%u rms=%u  R:peak=%u rms=%u",
+                         (unsigned)(n / 2), peakL, rmsL, peakR, rmsR);
+            }
+            vTaskDelay(pdMS_TO_TICKS(900));
+        }
+        free(buf);
+    }
+    vTaskDelete(NULL);
+}
+
+void audioStartMicSelfTest()
+{
+    static bool started = false;
+    if (started || !rx_chan) return;
+    started = true;
+    xTaskCreate(audioMicProbeTask, "micProbe", 4096, (void *)20, 5, nullptr);
+}
+#endif
+

@@ -134,6 +134,10 @@ SD_CS   7
 #define I2S_DIN   GPIO_NUM_11
 #define I2S_AMP_EN_GPIO GPIO_NUM_53
 
+// Bring-up: enable the ES8311 ADC (MEMS mic) capture self-test. After boot it
+// logs per-channel peak/RMS every second for ~20 s so the mic can be verified.
+#define OPENX1_MIC_SELFTEST
+
 // True stereo audio output (interleaved L/R). Enables the AUDIO_STEREO code
 // paths in the shared audio pipeline (stereo AudioBuffers, L/R mixing) and the
 // stereo I2S slot config - the ES8311 DAC only locks its clocks cleanly on
@@ -189,6 +193,9 @@ void lcdFadeOut();
 
 // Audio driver
 void audioInit() ;
+#if defined(OPENX1_MIC_SELFTEST)
+void audioStartMicSelfTest();
+#endif
 #define VOLUME_LEVEL_MAX  23
 #define VOLUME_LEVEL_DEF  12
 #if !defined(SOFTWARE_VOLUME)

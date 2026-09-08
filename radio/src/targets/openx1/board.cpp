@@ -267,6 +267,9 @@ void boardInit()
 #if defined(I2S_AMP_EN_GPIO)
     es8311AudioInit();   // ES8311 codec + NS4150 amp (OSPTEK P4C5 dev board)
 #endif
+#if defined(OPENX1_MIC_SELFTEST)
+    audioStartMicSelfTest();  // validate ES8311 ADC / mic capture (logs RMS)
+#endif
     ads1015_adc_init();
 }
 
