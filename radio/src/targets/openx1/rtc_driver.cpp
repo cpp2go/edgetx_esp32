@@ -38,13 +38,13 @@ static uint8_t bin2bcd(uint8_t val) { return val + 6 * (val / 10); }
 
 void rtcSetTime(const struct gtm * t)
 {
-    TRACE("rtcSetTime %d/%d/%d %d:%d:%d",
-            t->tm_year + TM_YEAR_BASE,
-            t->tm_mon + 1,
-            t->tm_mday,
-            t->tm_hour,
-            t->tm_min,
-            t->tm_sec);
+    // TRACE("rtcSetTime %d/%d/%d %d:%d:%d",
+    //         t->tm_year + TM_YEAR_BASE,
+    //         t->tm_mon + 1,
+    //         t->tm_mday,
+    //         t->tm_hour,
+    //         t->tm_min,
+    //         t->tm_sec);
 
     uint8_t buffer[8] = {DS3231_TIME,
                        bin2bcd(t->tm_sec),
@@ -72,13 +72,13 @@ void rtcGetTime(struct gtm * t)
     esp_err_t ret = i2c_register_write_read_buf(rtc_handle, buffer, 1, buffer, 7);
     if (ret != ESP_OK) { TRACE_ERROR("rtcGetTime err=%d", (int)ret); return; }
 
-    TRACE("rtcGetTime %d/%d/%d %d:%d:%d",
-            bcd2bin(buffer[6]) + 2000U,
-            bcd2bin(buffer[5] & 0x7F),
-            bcd2bin(buffer[4]),
-            bcd2bin(buffer[2]),
-            bcd2bin(buffer[1]),
-            bcd2bin(buffer[0] & 0x7F));
+    // TRACE("rtcGetTime %d/%d/%d %d:%d:%d",
+    //         bcd2bin(buffer[6]) + 2000U,
+    //         bcd2bin(buffer[5] & 0x7F),
+    //         bcd2bin(buffer[4]),
+    //         bcd2bin(buffer[2]),
+    //         bcd2bin(buffer[1]),
+    //         bcd2bin(buffer[0] & 0x7F));
 
     t->tm_year = bcd2bin(buffer[6]) + 2000U - TM_YEAR_BASE;
     t->tm_mon = bcd2bin(buffer[5] & 0x7F) - 1;

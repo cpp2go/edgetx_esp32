@@ -17,6 +17,7 @@ add_definitions(-I${CMAKE_SOURCE_DIR} -I${EDGETX_SRCDIR} -I${EDGETX_SRCDIR}/gui/
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 set(PCB "OPENX1" CACHE STRING "Project OpenX-1")
+set(TRANSLATIONS "CN" CACHE STRING "Radio language" FORCE)
 option(BOOTLOADER "Include Bootloader" OFF)
 
 project(edgetx)

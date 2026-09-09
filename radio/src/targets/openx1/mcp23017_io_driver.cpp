@@ -132,7 +132,7 @@ void keysInit()
     if (ESP_OK != ret) {
         TRACE_ERROR("Error during MCP23017 init");
     } else {
-        TRACE("MCP23017 initialized, now hold 3V3 active and enable 5V");
+        // TRACE("MCP23017 initialized, now hold 3V3 active and enable 5V");
         mcp_set_gpio(MCP_PWR_EN, 1);
         //mcp_set_gpio(MCP_5V_EN, 1);
     }
@@ -169,7 +169,7 @@ void internal_protocol_led_on(bool on) {
 
 void pwrOff()
 {
-    TRACE("Power off");
+    // TRACE("Power off");
     RTOS_WAIT_MS(200);
     mcp_set_gpio(MCP_PWR_EN, 0);
 }
@@ -305,7 +305,7 @@ void rotaryEncoderCheck(uint32_t result)
   }
 #endif
 
-    TRACE("Rotary==== %d %d", pins, rotencValue);
+    // TRACE("Rotary==== %d %d", pins, rotencValue);
 }
 
 void rotaryEncoderInit()
