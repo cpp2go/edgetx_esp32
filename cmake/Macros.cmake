@@ -90,6 +90,46 @@ function(GenerateDatacopy source output)
     ${CMAKE_CURRENT_SOURCE_DIR}/${source}
     -DBACKUP ${GEN_DATACOPY_ARGS} ${SYSROOT_ARG})
 
+  # WASM builds run generate_datacopy.py with the *host* libclang, which on
+  # hosts without system C/C++ headers (e.g. Windows with no MSVC) cannot find
+  # <cinttypes>/<stdint.h>. Mirror the target compiler's resolution so libclang
+  # parses against the WASI SDK sysroot, exactly like the real wasm build.
+  if(WASI AND WASI_SDK_PREFIX AND triple)
+    file(GLOB _wasi_clang_res_dirs "${WASI_SDK_PREFIX}/lib/clang/*")
+    if(_wasi_clang_res_dirs)
+      list(GET _wasi_clang_res_dirs 0 _wasi_clang_res_dir)
+    endif()
+    if(_wasi_clang_res_dir)
+      set(GEN_DATACOPY_ARGS
+        ${GEN_DATACOPY_ARGS}
+        -target ${triple}
+        --sysroot=${WASI_SDK_PREFIX}/share/wasi-sysroot
+        -resource-dir=${_wasi_clang_res_dir})
+      set(GEN_DATACOPY_DEPEND ${GEN_DATACOPY_DEPEND} ${_wasi_clang_res_dir}/include)
+    endif()
+  elseif(ANDROID AND CMAKE_SYSROOT)
+    # Android build: same story, parse against the NDK sysroot so libclang
+    # resolves <inttypes.h> / <stdint.h> like the NDK compiler does.
+    get_filename_component(_ndk_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(_ndk_prebuilt_dir "${_ndk_bin_dir}" DIRECTORY)
+    file(GLOB _ndk_clang_res_dirs "${_ndk_prebuilt_dir}/lib/clang/*")
+    if(_ndk_clang_res_dirs)
+      list(GET _ndk_clang_res_dirs 0 _ndk_clang_res_dir)
+    endif()
+    if(_ndk_clang_res_dir)
+      set(GEN_DATACOPY_ARGS
+        ${GEN_DATACOPY_ARGS}
+        --sysroot=${CMAKE_SYSROOT}
+        -resource-dir=${_ndk_clang_res_dir})
+      if(CMAKE_CXX_COMPILER_TARGET)
+        set(GEN_DATACOPY_ARGS ${GEN_DATACOPY_ARGS} -target ${CMAKE_CXX_COMPILER_TARGET})
+      elseif(triple)
+        set(GEN_DATACOPY_ARGS ${GEN_DATACOPY_ARGS} -target ${triple})
+      endif()
+      set(GEN_DATACOPY_DEPEND ${GEN_DATACOPY_DEPEND} ${_ndk_clang_res_dir}/include)
+    endif()
+  endif()
+
   set(GEN_DATACOPY_CMD
     ${PYTHON_EXECUTABLE} ${GEN_DATACOPY} ${GEN_DATACOPY_ARGS})
 

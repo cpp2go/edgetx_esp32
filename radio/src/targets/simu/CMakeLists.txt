@@ -122,6 +122,27 @@ if(WASI)
   if(USE_LTO)
     target_link_options(wasi-module PRIVATE -Wl,--thinlto-jobs=all)
   endif()
+elseif(ANDROID)
+  # Android port: the same SDL-free simu core, packaged as a SHARED library
+  # (libedgetx-<name>-simulator.so) so an Android app can load it and drive the
+  # exported simu API (simuInit / simuStart / simuFatfsSetPaths / simuSetKey /
+  # simuTouchDown / simuLcdCopy / simuLcdFlushed ...).
+  # The platform imports it needs (simuGetAnalog / simuLcdNotify /
+  # simuQueueAudio / simuTrace / simuAuxSerial*) are provided by the app that
+  # loads it, so undefined symbols must be allowed here.
+  add_library(edgetx_simu_core SHARED ${SIMU_SRC} android_host.cpp)
+  target_link_libraries(edgetx_simu_core PUBLIC log android)
+
+  # Artifact name: libedgetx-<name>-simulator.so
+  if(ANDROID_SIMU_NAME)
+    set(_simu_name ${ANDROID_SIMU_NAME})
+  else()
+    set(_simu_name ${FLAVOUR})
+  endif()
+  set_target_properties(edgetx_simu_core PROPERTIES
+    OUTPUT_NAME "edgetx-${_simu_name}-simulator"
+    PREFIX "lib"
+  )
 else()
   add_executable(simu
     EXCLUDE_FROM_ALL

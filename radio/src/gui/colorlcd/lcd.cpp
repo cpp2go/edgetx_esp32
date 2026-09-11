@@ -31,7 +31,14 @@
 #endif
 
 #if LV_MEM_CUSTOM == 0
-char LVGL_MEM_BUFFER[LV_MEM_SIZE] __SDRAM __ALIGNED(16);
+// NOTE: `__ALIGNED(x)` expands to nothing in the SIMU / host builds (see
+// definitions.h), so this array is a plain `char[]` with 1-byte alignment
+// there. LVGL validates the pool alignment in lv_tlsf_create() and returns NULL
+// for a mis-aligned pointer, which leaves lv_mem_alloc() with a NULL TLSF
+// control and crashes on the very first allocation. It only appeared to work on
+// x86_64 because the linker happened to place the array on an aligned address;
+// on arm64 it landed on an odd address. Ask for the alignment explicitly.
+char LVGL_MEM_BUFFER[LV_MEM_SIZE] __SDRAM __attribute__((aligned(16)));
 
 char* get_lvgl_mem(int nbytes)
 {

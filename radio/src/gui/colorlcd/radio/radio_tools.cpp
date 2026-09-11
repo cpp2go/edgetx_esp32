@@ -332,6 +332,15 @@ void RadioToolsPage::rebuild(Window* window)
   }
 #endif
 
+#if defined(__ANDROID__)
+  // Android port: this is a pure simulator, so the module-type test above can
+  // never be satisfied with the built-in defaults (the TX16SMK3 internal module
+  // is CRSF, and there is no module port to probe). The spectrum analyser is a
+  // legitimate EdgeTX screen, so offer it unconditionally here. Note that with
+  // no RF hardware it renders an empty trace.
+  intSpecAnalyser = true;
+#endif
+
 #if defined(HARDWARE_EXTERNAL_MODULE) && (defined(PXX2) || defined(MULTIMODULE))
   if (isModuleMultimodule(EXTERNAL_MODULE)) {
     extSpecAnalyser = true;

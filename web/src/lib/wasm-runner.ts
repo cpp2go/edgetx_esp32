@@ -296,6 +296,13 @@ export class WasmRunner {
             Atomics.add(this.lcdSync, 0, 1);
             Atomics.notify(this.lcdSync, 0);
           },
+          // Aux-serial bridge (firmware -> host). No host UI in the browser
+          // simulator yet, so these are no-ops. Needed because radio targets
+          // with AUX_SERIAL (e.g. X10) import them from the WASM module.
+          simuAuxSerialStart: (_port: number, _baud: number, _enc: number): void => {},
+          simuAuxSerialStop: (_port: number): void => {},
+          simuAuxSerialSetBaudrate: (_port: number, _baud: number): void => {},
+          simuAuxSerialSendBuffer: (_port: number, _data: number, _len: number): void => {},
         },
       }
     );

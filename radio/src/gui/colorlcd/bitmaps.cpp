@@ -413,6 +413,11 @@ static const _BuiltinIcon _builtinIcons[EDGETX_ICONS_COUNT] = {
     BI(ICON_RADIO_HARDWARE, mask_radio_hardware),
 #if defined(ESP_PLATFORM)
     BI(ICON_RADIO_WIFI, mask_radio_wifi),
+#else
+    // ICON_RADIO_WIFI is unconditional in the EdgeTxIcon enum, so the table must
+    // keep its slot even without the ESP32 bitmap or every later icon (e.g.
+    // ICON_TOP_LOGO) reads out of bounds and dereferences NULL.
+    BI(ICON_RADIO_WIFI, mask_radio_hardware),
 #endif
     BI(ICON_RADIO_CALIBRATION, mask_radio_calibration),
     BI(ICON_RADIO_EDIT_THEME, mask_ui_themes),
