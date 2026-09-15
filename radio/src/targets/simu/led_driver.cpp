@@ -20,10 +20,13 @@
  */
 
 #include "edgetx.h"
+#include "simulib.h"
 #include "hal/rgbleds.h"
 #include "definitions.h"
 
-bool usbChargerLed() { return true; }
+// Drives the charging icon in the top bar. The Android host knows whether the pack is
+// really on charge (see android_host.cpp); the old behaviour was a hardcoded true.
+bool usbChargerLed() { return edgetxAndroidIsCharging(); }
 void ledRed() {}
 void ledGreen() {}
 void ledBlue() {}

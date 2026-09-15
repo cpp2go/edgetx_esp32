@@ -28,6 +28,12 @@
 #include "hal/abnormal_reboot.h"
 
 #if defined(SIMU)
+// Provided by the simulator glue (targets/simu/simulib.cpp): checks that the voice
+// language has a pack on the card and falls back to the UI language's if it has not.
+bool simuEnsureVoicePack();
+#endif
+
+#if defined(SIMU)
 extern bool simuCreateDefaultSettings;
 #endif
 
@@ -253,6 +259,15 @@ void storageReadAll()
   if (g_eeGeneral.uiLanguage[0] == 0)
     generalDefaultUILanguage();
   currentLanguagePackIdx = getLanguageId(g_eeGeneral.ttsLanguage);
+#if defined(SIMU)
+  // Ran on the SD card the user actually has: if the configured voice language has no
+  // pack, every prompt is silently missing (greeting, startup warnings, model name),
+  // which looks like a broken audio path. Adopt the UI language's pack instead.
+  if (simuEnsureVoicePack()) {
+    storageDirty(EE_GENERAL);
+    currentLanguagePackIdx = getLanguageId(g_eeGeneral.ttsLanguage);
+  }
+#endif
   currentLanguagePack = languagePacks[currentLanguagePackIdx];
 #if defined(ALL_LANGS)
   uint8_t uiLangIdx = getLanguageId(g_eeGeneral.uiLanguage);

@@ -181,7 +181,36 @@ const etx_module_t _sport_module = {
 #endif
 
 #if defined(HARDWARE_EXTERNAL_MODULE)
+
+#if defined(AUX_SERIAL) && !defined(__wasm__)
+// Bridged to the host serial transport (see simulib.cpp): this lets the
+// external module run any serial protocol EdgeTX is configured for, with the
+// bytes actually leaving through the host's serial port.
+extern const etx_serial_driver_t hostModuleSerialDriver;
+#endif
+
 const etx_module_port_t _external_ports[] = {
+#if defined(AUX_SERIAL) && !defined(__wasm__)
+  // TX+RX over the host serial transport (USB serial on Android)
+  {
+    .port = ETX_MOD_PORT_UART,
+    .type = ETX_MOD_TYPE_SERIAL,
+    .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
+    .drv = { .serial = &hostModuleSerialDriver },
+    .hw_def = nullptr,
+  },
+  // The same bridge on the S.PORT pin. That is where an external module's serial line
+  // sits on a real TX16S, and crossfireInit() asks for ETX_MOD_PORT_SPORT - without this
+  // entry the CRSF driver (ELRS modules) finds no port and never starts, which leaves the
+  // host waiting at its default baud rate with nothing to talk to.
+  {
+    .port = ETX_MOD_PORT_SPORT,
+    .type = ETX_MOD_TYPE_SERIAL,
+    .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
+    .drv = { .serial = &hostModuleSerialDriver },
+    .hw_def = nullptr,
+  },
+#endif
 #if defined(EXTMODULE_USART)
   // TX on PPM, RX on HEARTBEAT
   {

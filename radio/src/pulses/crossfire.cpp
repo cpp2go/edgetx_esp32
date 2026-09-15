@@ -461,12 +461,45 @@ static void crossfireDeInit(void* ctx)
   modulePortDeInit(mod_st);
 }
 
+#if defined(SIMU)
+// On hardware a CRSF frame arrives through the receiver's idle-line interrupt, which the
+// simulator does not have (those handlers are compiled out under SIMU). There the telemetry
+// poll loop feeds the bytes in one at a time instead, so accumulate them here and hand a
+// complete frame to the very same decoder the interrupt path uses.
+static void crossfireProcessData(void* ctx, uint8_t data, uint8_t* buffer, uint8_t* len)
+{
+  if (*len < TELEMETRY_RX_PACKET_SIZE) buffer[(*len)++] = data;
+
+  // CRSF framing: [addr][len][type][payload ...][crc], so the whole frame is len + 2
+  // bytes. A length byte that cannot be right means we lost sync: start over.
+  if (*len >= 2 && (buffer[1] < 2 || buffer[1] > TELEMETRY_RX_PACKET_SIZE - 2)) {
+    *len = 0;
+    return;
+  }
+
+  if (*len >= 2 && *len >= (uint8_t)(buffer[1] + 2)) {
+    for (uint8_t m = 0; m < MAX_MODULES; m++) {
+      auto mod = pulsesGetModuleDriver(m);
+      if (mod && mod->ctx == ctx) {
+        processCrossfireTelemetryFrame(m, buffer, *len);
+        break;
+      }
+    }
+    *len = 0;
+  }
+}
+#endif
+
 const etx_proto_driver_t CrossfireDriver = {
   .protocol = PROTOCOL_CHANNELS_CROSSFIRE,
   .init = crossfireInit,
   .deinit = crossfireDeInit,
   .sendPulses = crossfireSendPulses,
+#if defined(SIMU)
+  .processData = crossfireProcessData,
+#else
   .processData = nullptr,
+#endif
   .processFrame = crossfireProcessFrame,
   .onConfigChange = nullptr,
   .txCompleted = modulePortSerialTxCompleted,

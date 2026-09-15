@@ -367,6 +367,13 @@ USART6: INTMODULE_USART
 // External Module
 #define EXTMODULE
 #define EXTMODULE_PULSES
+
+// The module bay's serial line (the S.PORT pin) runs CRSF/ELRS at 400 kbaud on this
+// radio, as it does on the rest of the T16 family. This macro is what tells the CRSF
+// driver that, and without it the external module defaults to 115200 - a rate an ELRS
+// module does not answer at, so it looks like the module is not there at all.
+#define SPORT_MAX_BAUDRATE              400000
+
 #define EXTMODULE_PWR_GPIO              GPIO_PIN(GPIOD, 4) // PD.04
 #define EXTMODULE_TX_GPIO               GPIO_PIN(GPIOA, 2) // TIM2_CH3, TIM5_CH3,TIM15_CH1,
 #define EXTMODULE_RX_GPIO               GPIO_PIN(GPIOA, 3)

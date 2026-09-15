@@ -51,6 +51,16 @@ bool WASM_EXPORT(simuIsRunning)();
 // Set SD card and settings paths before simuStart() to avoid STORAGE WARNING.
 void WASM_EXPORT(simuFatfsSetPaths)(const char * sdPath, const char * settingsPath);
 
+// Boot with the EdgeTX splash screen, but without the first-boot calibration
+// wizard and the throttle/switch startup checks. Call before simuStart(); it
+// takes over the OPENTX_START_* flags that simuStart() would otherwise derive
+// from its `tests` argument.
+//
+// Intended for hosts that cannot answer those prompts. The splash only holds
+// startup up for SPLASH_TIMEOUT and is then dismissed on its own, whereas the
+// wizard and the startup checks wait for key presses.
+void simuSetSplashStartup();
+
 // Input: keys use Board::Keys enum, switches use Board switch indices,
 // trims use Board::TrimSwitches enum (momentary press, not value).
 void WASM_EXPORT(simuSetKey)(uint8_t key, bool state);
@@ -82,6 +92,59 @@ void WASM_EXPORT(simuRotaryEncoderEvent)(int32_t steps);
 // (0=LUA, 1=ROTARY_ENC, 2=ROTARY_ENC_NAV, 3=TELEM_FRSKY_SPORT,
 //  4=SERIAL_AUX1, 5=SERIAL_AUX2). Returns 0 or 1.
 int32_t WASM_EXPORT(simuGetCapability)(uint8_t cap);
+
+// Battery and charging state injected by the host (targets/simu/android_host.cpp).
+// edgetxAndroidSetBattery() is what the host calls; the getters are what the firmware
+// reads - adc_driver.cpp uses the mV (0 = unknown, keep the simulated default) and
+// led_driver.cpp uses the charging flag.
+void edgetxAndroidSetBattery(uint16_t millivolts, uint8_t charging);
+uint16_t edgetxAndroidBatteryMillivolts();
+bool edgetxAndroidIsCharging();
+
+// Bytes the app's audio device has accepted but not played yet. Pushed by the host
+// (edgetxAndroidSetHostAudioPending) and read by the boot splash.
+void edgetxAndroidSetHostAudioPending(uint32_t bytes);
+uint32_t edgetxAndroidHostAudioPending();
+
+// Battery warning threshold and the range behind the percentage, in 100 mV steps (the
+// range with the firmware's offsets already applied).
+void edgetxAndroidBatterySettings(uint16_t* warn, uint16_t* batMin, uint16_t* batMax);
+
+// Protocol the model selected for the external module (MODULE_TYPE_*, 0 = slot off).
+uint8_t edgetxAndroidExternalModuleType();
+
+// Makes sure the voice language has a pack on the SD card: if it has none, the UI
+// language's pack is adopted instead (so prompts are never silently missing).
+// Returns true when the language was changed.
+bool simuEnsureVoicePack();
+
+// Aux serial bridge (firmware -> host) for non-WASM builds.  On WASI these are
+// WASM imports provided by the page; on Android the app registers a sink here
+// (see edgetxAndroidSetAuxSerialSink in targets/simu/android_host.cpp) and the
+// calls below are dropped when no sink is registered.
+//
+// port_nr is 0 for AUX1, 1 for AUX2.  encoding values are ETX_Encoding_xx.
+struct edgetxAndroidSerialSink {
+  // the firmware initialised / shut down / reconfigured an aux serial port
+  void (*start)(uint8_t port_nr, uint32_t baudrate, uint8_t encoding);
+  void (*stop)(uint8_t port_nr);
+  void (*setBaudrate)(uint8_t port_nr, uint32_t baudrate);
+  // the firmware transmitted data
+  void (*send)(uint8_t port_nr, const uint8_t* data, uint32_t len);
+};
+
+void edgetxAndroidSetAuxSerialSink(const edgetxAndroidSerialSink* sink);
+void edgetxAndroidAuxSerialStart(uint8_t port_nr, uint32_t baudrate, uint8_t encoding);
+void edgetxAndroidAuxSerialStop(uint8_t port_nr);
+void edgetxAndroidAuxSerialSetBaudrate(uint8_t port_nr, uint32_t baudrate);
+void edgetxAndroidAuxSerialSendBuffer(uint8_t port_nr, const uint8_t* data, uint32_t len);
+
+// Audio: the firmware queues the PCM its mixer produces (see simuQueueAudio in
+// android_host.cpp) and the app drains and plays it.
+uint32_t edgetxAndroidTakeAudio(uint8_t* dst, uint32_t maxLen);
+uint32_t edgetxAndroidAudioSampleRate();
+uint32_t edgetxAndroidAudioWrittenBytes();
+uint32_t edgetxAndroidAudioDroppedBytes();
 
 int WASM_EXPORT(simuAudioGetVolume)();
 

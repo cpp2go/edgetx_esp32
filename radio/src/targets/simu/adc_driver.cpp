@@ -61,11 +61,20 @@ static bool simu_start_conversion()
   // set batteries default voltages
   int i = adcGetInputOffset(ADC_INPUT_VBAT);
   if (i > 0) {
-    // +0.5V and prec2
-    uint16_t vBatWarn = BATTERY_WARN;
-    if (g_eeGeneral.vBatWarn > 0) vBatWarn = g_eeGeneral.vBatWarn;
-    uint16_t volts = (vBatWarn + 5) * 10;
-    setAnalogValue(i, volts * 2);
+    const uint16_t hostMv = edgetxAndroidBatteryMillivolts();
+    if (hostMv > 0) {
+      // The Android host knows the real pack (see android_host.cpp).
+      // getBatteryVoltage() == anaIn(i), and anaIn() halves what setAnalogValue()
+      // receives (ANA_FILT divides by JITTER_ALPHA * ANALOG_MULTIPLIER = 2), while
+      // the firmware reads the result in 10 mV steps. So the value to write is
+      // mV / 5: 7570 mV -> 1514 -> anaIn 757 -> 7.57 V.
+      setAnalogValue(i, hostMv / 5);
+    } else {
+      uint16_t vBatWarn = BATTERY_WARN;
+      if (g_eeGeneral.vBatWarn > 0) vBatWarn = g_eeGeneral.vBatWarn;
+      uint16_t volts = (vBatWarn + 5) * 10;
+      setAnalogValue(i, volts * 2);
+    }
   }
 
   return true;

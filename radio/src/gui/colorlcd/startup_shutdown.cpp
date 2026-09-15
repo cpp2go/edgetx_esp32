@@ -104,6 +104,18 @@ void cancelSplash()
   }
 }
 
+#if defined(SIMU)
+// Provided by the simulator's Android host glue (targets/simu/android_host.cpp): what
+// the app's audio device has accepted but not played yet. The desktop simulator never
+// pushes anything into it, so it simply stays zero there.
+uint32_t edgetxAndroidHostAudioPending();
+
+// The splash stays up for at least the grace period (so a queued greeting has time to
+// reach the host), and - while the host is still playing - for at most the second one.
+static constexpr uint32_t SPLASH_HOST_AUDIO_GRACE = 50;    // 500 ms
+static constexpr uint32_t SPLASH_HOST_AUDIO_MAX = 1200;    // 12 s
+#endif
+
 void waitSplash()
 {
   // Handle color splash screen
@@ -112,6 +124,19 @@ void waitSplash()
     splashStartTime += SPLASH_TIMEOUT;
 
     MainWindow::instance()->blockUntilClose(true, [=]() {
+#if defined(SIMU)
+      // Android port: the boot greeting is played by the host's own audio device,
+      // which the simulator knows nothing about. Keep the splash up until that
+      // device has finished the samples the firmware handed over, otherwise the
+      // main view appears while the greeting is still being spoken.
+      {
+        const uint32_t waited = get_tmr10ms() - (splashStartTime - SPLASH_TIMEOUT);
+        const bool hostBusy = edgetxAndroidHostAudioPending() != 0;
+        if (waited < SPLASH_HOST_AUDIO_GRACE ||
+            (hostBusy && waited < SPLASH_HOST_AUDIO_MAX))
+          return false;
+      }
+#endif
       if (splashStartTime < get_tmr10ms())
         return true;
       auto evt = getEvent();
@@ -121,6 +146,16 @@ void waitSplash()
       }
       return false;
     });
+
+#if defined(SIMU)
+    // Tells how the splash above ended: "host audio pending 0" with a duration past
+    // SPLASH_TIMEOUT means it waited for the host to finish the greeting. The voice
+    // language is shown as two characters because the field is not terminated.
+    TRACE("splash: shown for %ums, host audio pending %u B, voice %c%c",
+          (unsigned)(get_tmr10ms() - (splashStartTime - SPLASH_TIMEOUT)) * 10,
+          (unsigned)edgetxAndroidHostAudioPending(),
+          g_eeGeneral.ttsLanguage[0], g_eeGeneral.ttsLanguage[1]);
+#endif
 
     // Reset timer so special/global functions set to !1x don't get triggered
     START_SILENCE_PERIOD();

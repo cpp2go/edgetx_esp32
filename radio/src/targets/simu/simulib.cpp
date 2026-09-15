@@ -22,6 +22,8 @@
 #include "simulib.h"
 #include "simulcd.h"
 
+#include "ff.h"
+
 #include "hal/adc_driver.h"
 #include "hal/rotary_encoder.h"
 #include "hal/usb_driver.h"
@@ -136,6 +138,78 @@ void simuCreateDefaults()
   simuCreateDefaultSettings = true;
 }
 
+// Set by the host through simuSetSplashStartup(): show the boot splash and run the
+// normal startup checks (the stick/switch warnings). Only the calibration wizard is
+// skipped, so a settings mismatch cannot leave the radio waiting on it.
+static bool s_splashStartup = false;
+
+void simuSetSplashStartup()
+{
+  s_splashStartup = true;
+}
+
+// A language directory can exist while carrying almost no prompts: this port ships a
+// single complete pack, and others are half-installed stubs. A usable pack holds
+// dozens of prompt files, so a small count means the language has nothing to play.
+static bool voicePackOnCard(const char* lang)
+{
+  if (lang[0] == 0 || lang[1] == 0)
+    return false;
+
+  char path[32];
+  snprintf(path, sizeof(path), "/SOUNDS/%c%c", lang[0], lang[1]);
+
+  DIR dir;
+  if (f_opendir(&dir, path) != FR_OK)
+    return false;
+
+  int entries = 0;
+  FILINFO fno;
+  while (entries < 20 && f_readdir(&dir, &fno) == FR_OK && fno.fname[0] != 0)
+    entries++;
+
+  f_closedir(&dir);
+  return entries >= 20;
+}
+
+// What the firmware has in RAM for the battery, so the host can show it next to its own
+// reading: the warning threshold (Radio Setup -> Alarms) and the range that scales the
+// percentage (Radio Setup -> Hardware). These are different settings, and only the first
+// one raises the low-voltage warning. All in 100 mV steps, the range with the firmware's
+// offsets removed.
+// Protocol selected for the external module slot (MODULE_TYPE_*), 0 when the slot is off.
+// The host logs it: only a serial protocol makes EdgeTX start the port, so "no bytes are
+// flowing" is otherwise hard to tell from a wrong baud rate.
+uint8_t edgetxAndroidExternalModuleType()
+{
+  return g_model.moduleData[EXTERNAL_MODULE].type;
+}
+
+void edgetxAndroidBatterySettings(uint16_t* warn, uint16_t* batMin, uint16_t* batMax)
+{
+  if (warn)
+    *warn = g_eeGeneral.vBatWarn;
+  if (batMin)
+    *batMin = static_cast<uint16_t>(90 + g_eeGeneral.vBatMin);
+  if (batMax)
+    *batMax = static_cast<uint16_t>(120 + g_eeGeneral.vBatMax);
+}
+
+bool simuEnsureVoicePack()
+{
+  if (voicePackOnCard(g_eeGeneral.ttsLanguage))
+    return false;
+
+  if (!voicePackOnCard(g_eeGeneral.uiLanguage))
+    return false;
+
+  // Note: both fields are exactly two characters wide and not terminated.
+  g_eeGeneral.ttsLanguage[0] = g_eeGeneral.uiLanguage[0];
+  g_eeGeneral.ttsLanguage[1] = g_eeGeneral.uiLanguage[1];
+  TRACE("audio: no voice pack for the configured language, using the UI one");
+  return true;
+}
+
 void simuStart(bool tests)
 {
   if (simu_running)
@@ -145,7 +219,11 @@ void simuStart(bool tests)
   menuLevel = 0;
 #endif
 
-  startOptions = (tests ? 0 : OPENTX_START_NO_SPLASH | OPENTX_START_NO_CALIBRATION | OPENTX_START_NO_CHECKS);
+  if (s_splashStartup) {
+    startOptions = OPENTX_START_NO_CALIBRATION;
+  } else {
+    startOptions = (tests ? 0 : OPENTX_START_NO_SPLASH | OPENTX_START_NO_CALIBRATION | OPENTX_START_NO_CHECKS);
+  }
   simu_shutdown = false;
 
   /*
@@ -426,13 +504,29 @@ const etx_serial_port_t UsbSerialPort = { "USB-VCP", nullptr, nullptr };
 // Native builds (unit-tests, SDL simulator) don't have a WASM host to
 // forward aux-serial traffic to: WASM_IMPORT is a no-op macro off-target,
 // so the declarations in simulib.h become plain externs with no
-// definitions.  Provide no-op stubs so host_drv_* can link — the host
-// bridge is only meaningfully exercised in the WASM simulator, where
-// these symbols are resolved as WAMR imports by Companion.
-void simuAuxSerialStart(uint8_t, uint32_t, uint8_t) {}
-void simuAuxSerialStop(uint8_t) {}
-void simuAuxSerialSetBaudrate(uint8_t, uint32_t) {}
-void simuAuxSerialSendBuffer(uint8_t, const uint8_t*, uint32_t) {}
+// definitions.  Route them to the host sink instead (registered by the
+// embedding application, see edgetxAndroidSetAuxSerialSink).  When no sink
+// is registered the calls are dropped, which is how the unit-tests and the
+// plain SDL simulator behave.
+void simuAuxSerialStart(uint8_t port_nr, uint32_t baudrate, uint8_t encoding)
+{
+  edgetxAndroidAuxSerialStart(port_nr, baudrate, encoding);
+}
+
+void simuAuxSerialStop(uint8_t port_nr)
+{
+  edgetxAndroidAuxSerialStop(port_nr);
+}
+
+void simuAuxSerialSetBaudrate(uint8_t port_nr, uint32_t baudrate)
+{
+  edgetxAndroidAuxSerialSetBaudrate(port_nr, baudrate);
+}
+
+void simuAuxSerialSendBuffer(uint8_t port_nr, const uint8_t* data, uint32_t len)
+{
+  edgetxAndroidAuxSerialSendBuffer(port_nr, data, len);
+}
 #endif
 
 // Per-port bridge state.  TX is forwarded to the host via WASM imports;
@@ -527,6 +621,88 @@ const etx_serial_driver_t host_drv = {
   .clearRxBuffer = nullptr,
   .getBaudrate = nullptr,
   .setBaudrate = host_drv_set_baudrate,
+  .setPolarity = nullptr,
+  .setHWOption = nullptr,
+  .setReceiveCb = nullptr,
+  .setIdleCb = nullptr,
+  .setBaudrateCb = nullptr,
+};
+
+// -- External RF module port -------------------------------------------------
+// A real radio hangs its RF module off a hardware UART, which this target does
+// not have.  Instead the external module port is bridged to the host: whatever
+// protocol EdgeTX is configured to speak to the module (CRSF, SBUS, DSM, ...)
+// drives this driver, its TX bytes leave through simuAuxSerialSendBuffer() and
+// bytes returned by the module enter the firmware through
+// simuAuxSerialReceive() - both on the AUX1 host port, whose RX queue is used
+// as this port's receive buffer.
+static host_serial_port_t* host_mod_port()
+{
+  return &hostSerialPorts[SP_AUX1];
+}
+
+static void* host_mod_init(void*, const etx_serial_init* dev)
+{
+  auto* port = host_mod_port();
+
+  mutex_lock(&port->rxMutex);
+  port->rxQueue.clear();
+  mutex_unlock(&port->rxMutex);
+
+  simuAuxSerialStart(port->index,
+                     dev ? dev->baudrate : 115200,
+                     dev ? dev->encoding : ETX_Encoding_8N1);
+  return port;
+}
+
+static void host_mod_deinit(void* ctx)
+{
+  if (ctx == nullptr) return;
+  simuAuxSerialStop(static_cast<host_serial_port_t*>(ctx)->index);
+}
+
+static void host_mod_send_byte(void* ctx, uint8_t byte)
+{
+  if (ctx == nullptr) return;
+  simuAuxSerialSendBuffer(static_cast<host_serial_port_t*>(ctx)->index, &byte, 1);
+}
+
+static void host_mod_send_buffer(void* ctx, const uint8_t* data, uint32_t len)
+{
+  if (ctx == nullptr || data == nullptr || len == 0) return;
+  simuAuxSerialSendBuffer(static_cast<host_serial_port_t*>(ctx)->index, data, len);
+}
+
+static bool host_mod_tx_completed(void*) { return true; }
+
+static int host_mod_get_byte(void* ctx, uint8_t* data)
+{
+  return host_drv_get_byte(ctx, data);
+}
+
+static void host_mod_set_baudrate(void* ctx, uint32_t baudrate)
+{
+  if (ctx == nullptr) return;
+  simuAuxSerialSetBaudrate(static_cast<host_serial_port_t*>(ctx)->index, baudrate);
+}
+
+// Referenced from module_drivers.cpp, hence the explicit external linkage
+// (a namespace-scope const object is internal by default in C++).
+extern const etx_serial_driver_t hostModuleSerialDriver = {
+  .init = host_mod_init,
+  .deinit = host_mod_deinit,
+  .sendByte = host_mod_send_byte,
+  .sendBuffer = host_mod_send_buffer,
+  .txCompleted = host_mod_tx_completed,
+  .waitForTxCompleted = nullptr,
+  .enableRx = nullptr,
+  .getByte = host_mod_get_byte,
+  .getLastByte = nullptr,
+  .getBufferedBytes = nullptr,
+  .copyRxBuffer = nullptr,
+  .clearRxBuffer = nullptr,
+  .getBaudrate = nullptr,
+  .setBaudrate = host_mod_set_baudrate,
   .setPolarity = nullptr,
   .setHWOption = nullptr,
   .setReceiveCb = nullptr,
@@ -659,7 +835,24 @@ void simuTouchUp()
 void simuRotaryEncoderEvent(int32_t steps)
 {
 #if defined(ROTARY_ENCODER_NAVIGATION)
+  // Move the encoder position. This target does have encoder navigation - the
+  // TX16SMK3 hal header is generated into the build directory, so the macro is
+  // set - and the firmware turns the position into LVGL encoder input: between
+  // controls it moves the focus, and once a field is in edit mode it changes the
+  // value (LVGL delivers LV_KEY_LEFT/RIGHT, which the controls turn into
+  // EVT_ROTARY_LEFT/RIGHT themselves - see libui/numberedit.cpp).
   rotencValue += steps * ROTARY_ENCODER_GRANULARITY;
+
+  // Time stamp for the acceleration in LvglWrapper::rotaryDriverRead(), which is
+  // what makes a quick turn step further than a slow one. The real targets do
+  // this from the encoder interrupt; nothing does it on the simulator, and while
+  // rotencDt stays 0 every second step looks instantaneous, i.e. always
+  // accelerated. Same units as the hardware drivers: milliseconds, accumulated.
+  static uint16_t lastStepTick = 0;
+  const uint16_t nowTick = g_tmr10ms;
+  // The unsigned subtraction copes with the 10 ms counter wrapping.
+  rotencDt += static_cast<uint32_t>(static_cast<uint16_t>(nowTick - lastStepTick)) * 10;
+  lastStepTick = nowTick;
 #endif
 }
 
