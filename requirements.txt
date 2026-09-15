@@ -1,6 +1,0 @@
-clang
-jinja2
-pillow
-lz4
-pydantic
-typing_extensions

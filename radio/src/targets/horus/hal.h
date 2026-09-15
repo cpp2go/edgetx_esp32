@@ -62,7 +62,7 @@
 #elif defined(RADIO_V16)
   #define ADC_VREF_PREC2                330
 #elif defined(PCBX10)
-  #if defined(RADIO_X10) || defined(RADIO_X10E)
+  #if defined(RADIO_X10) || defined(RADIO_X10EXPRESS)
     #define PWM_STICKS
     #define PWM_TIMER                   TIM5
     #define PWM_TIMER_FREQ              (PERI1_FREQUENCY * TIMER_MULT_APB1)
@@ -70,7 +70,7 @@
     #define PWM_GPIO_AF                 GPIO_AF2
     #define PWM_IRQHandler              TIM5_IRQHandler
     #define PWM_IRQn                    TIM5_IRQn
-    #define PWM_GPIOA_PINS              (LL_GPIO_PIN_0 | LL_GPIO_PIN_1 | LL_GPIO_PIN_2 | LL_GPIO_PIN_3)
+    #include "hal_pwm_sticks.h"
   #endif
   // VBat divider is /4 on F42x and F43x devices
   #if defined(RADIO_TX16S) || defined(RADIO_T15) || defined(RADIO_F16) || defined(RADIO_V16) || defined(RADIO_T18)
@@ -485,10 +485,7 @@
   #define FLYSKY_HALL_DMA_Stream_TX                LL_DMA_STREAM_4
 #endif
 
-// Internal PXX1 Module:
-//  -> let's assume all internal XJT modules used are either X10 or X12S type
-#define EXTERNAL_ANTENNA
-
+// Internal Module
 #define INTMODULE_PWR_GPIO              GPIO_PIN(GPIOA, 8) // PA.08
 #define INTMODULE_TX_GPIO               GPIO_PIN(GPIOB, 6) // PB.06
 #define INTMODULE_RX_GPIO               GPIO_PIN(GPIOB, 7) // PB.07

@@ -22,14 +22,14 @@ jobs:
         working-directory: radio/util/hw_defs
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Install Python dependencies
         working-directory: .
-        run: uv venv && uv pip install -r requirements.txt
+        run: uv sync
 
       - name: Check Python script syntax
         run: uv run python3 -m py_compile *.py

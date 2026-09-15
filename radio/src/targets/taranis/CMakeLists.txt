@@ -360,21 +360,6 @@ elseif(PCB STREQUAL X7)
     set(BLUETOOTH YES)
     set(ROTARY_ENCODER YES)
     add_definitions(-DMANUFACTURER_FRSKY)
-  elseif(PCBREV STREQUAL V12)
-    set(DEFAULT_INTERNAL_MODULE CROSSFIRE CACHE STRING "Default internal module")
-    set(INTERNAL_MODULE_SERIAL YES)
-    set(MODULE_SIZE_STD YES)
-    set(FLAVOUR v12)
-    set(CPU_TYPE_FULL STM32F407xG)
-    set(ROTARY_ENCODER YES)
-    set(USB_CHARGER YES)
-    add_definitions(-DSTM32_SUPPORT_32BIT_TIMERS)
-    set(PXX2 ON)
-    set(ENABLE_SERIAL_PASSTHROUGH ON CACHE BOOL "Enable serial passthrough")
-    set(CSD203_SENSOR ON)
-    if (NOT BLUETOOTH)
-      set(AUX_SERIAL ON)
-    endif()
   elseif(PCBREV STREQUAL V14 OR PCBREV STREQUAL V14LCD)
     set(DEFAULT_INTERNAL_MODULE CROSSFIRE CACHE STRING "Default internal module")
     set(INTERNAL_MODULE_SERIAL YES)
@@ -583,6 +568,12 @@ if(ROTARY_ENCODER)
   )
 endif()
 
+if(PCBREV STREQUAL MT12)
+  list(APPEND BOARD_COMMON_SRC
+    ${TARGET_SRC_DIR}/pwm_ch_driver.cpp
+  )
+endif()
+
 # Bootloader board library
 add_library(board_bl OBJECT EXCLUDE_FROM_ALL
   ${BOARD_COMMON_SRC}
@@ -653,6 +644,15 @@ endif()
 if(FLAVOUR STREQUAL xlites)
   target_sources(board PRIVATE
     ${TARGET_SRC_DIR}/shared_dsc_headphone.cpp
+  )
+endif()
+
+if(FLAVOUR STREQUAL mt12)
+  target_sources(board PRIVATE
+    ${TARGET_SRC_DIR}/pwm_ch_driver.cpp
+  )
+  set(SRC ${SRC}
+    gui/common/stdlcd/radio_servo_pwm.cpp
   )
 endif()
 

@@ -284,7 +284,7 @@ PACK(struct TimerData {
   uint32_t minuteBeep:1;
   uint32_t persistent:2;
   int32_t  countdownStart:2;
-  uint8_t  showElapsed:1; 
+  uint8_t  showElapsed:1;
   uint8_t  extraHaptic:1;
   uint8_t  spare:6 SKIP;
   NOBACKUP(char name[LEN_TIMER_NAME]);
@@ -499,7 +499,10 @@ PACK(struct PpmModule {
 });
 
 PACK(struct ModuleData {
-  uint8_t type ENUM(ModuleType) CUST(r_moduleType, w_moduleType);
+  // antennaMode stays unconditional as boards differing on EXTERNAL_ANTENNA share
+  // generated YAML descriptors.
+  uint8_t type:6 ENUM(ModuleType) CUST(r_moduleType, w_moduleType);
+  int8_t  antennaMode:2 ENUM(AntennaModes);
   CUST_ATTR(subType,r_modSubtype,w_modSubtype);
   uint8_t channelsStart;
   int8_t  channelsCount CUST(r_channelsCount,w_channelsCount); // 0=8 channels
@@ -525,8 +528,8 @@ PACK(struct ModuleData {
       uint8_t spare1:2 SKIP;
       uint8_t receiverTelemetryOff:1;     // false = receiver telem enabled
       uint8_t receiverHigherChannels:1;  // false = pwm out 1-8, true 9-16
-      int8_t antennaMode:2;
-      uint8_t spare2 SKIP;
+      uint8_t spare2:2 SKIP;
+      uint8_t spare3 SKIP;
     } pxx);
     NOBACKUP(struct {
       uint8_t spare1:6 SKIP;
@@ -716,8 +719,9 @@ PACK(struct customSwitch {
 #endif
 
 PACK(struct PartialModel {
+  CUST_ATTR(semver,nullptr,w_semver);
   ModelHeader header;
-  TimerData timers[MAX_TIMERS];
+  ModuleData moduleData[NUM_MODULES];
 });
 
 /*
@@ -757,8 +761,10 @@ PACK(struct USBJoystickChData {
 });
 
 PACK(struct ModelData {
+  // Must match start of PartialModel
   CUST_ATTR(semver,nullptr,w_semver);
   ModelHeader header;
+
   TimerData timers[MAX_TIMERS];
   uint8_t   telemetryProtocol:3;
   uint8_t   thrTrim:1;            // Enable Throttle Trim
@@ -886,7 +892,7 @@ PACK(struct ModelData {
   NOBACKUP(uint8_t usbJoystickIfMode:3 ENUM(USBJoystickIfMode));
   NOBACKUP(uint8_t usbJoystickCircularCut:4);
   NOBACKUP(USBJoystickChData usbJoystickCh[USBJ_MAX_JOYSTICK_CHANNELS]);
-  
+
   // Radio level tabs control (model settings)
 #if defined(COLORLCD)
   uint8_t radioThemesDisabled:2 ENUM(ModelOverridableEnable);
@@ -1176,7 +1182,14 @@ PACK(struct RadioData {
   // Radio level tabs control (global settings)
   NOBACKUP(uint8_t modelSelectLayout:2);
   NOBACKUP(uint8_t radioThemesDisabled:1);
+#if defined(USB_CHARGE_CONTROL)
+  // 0 = charge while USB active (default), 1 = hold the charger off while USB
+  // is plugged in SD/Joystick/VCP mode
+  NOBACKUP(uint8_t usbChargeDisabled:1);
+  NOBACKUP(uint8_t spare:6 SKIP);
+#else
   NOBACKUP(uint8_t spare:7 SKIP);
+#endif
 #elif LCD_W == 128
   uint8_t invertLCD:1;          // Invert B&W LCD display
   NOBACKUP(uint8_t spare:4 SKIP);

@@ -140,6 +140,7 @@ class ModuleData {
     unsigned int channelsStart;
     int          channelsCount;
     unsigned int failsafeMode;
+    int          antennaMode;       // false = internal antenna, true = external antenna
 
     struct PPM {
       int delay;
@@ -193,7 +194,6 @@ class ModuleData {
       unsigned int power;          // 0 10 mW, 1 100 mW, 2 500 mW, 3 1W
       bool receiverTelemetryOff;     // false = receiver telem enabled
       bool receiverHigherChannels;  // false = pwm out 1-8, true 9-16
-      int antennaMode;       // false = internal antenna, true = external antenna
     } pxx;
 
     struct GHOST {

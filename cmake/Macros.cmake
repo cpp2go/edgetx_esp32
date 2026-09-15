@@ -78,7 +78,9 @@ endfunction()
 function(GenerateDatacopy source output)
 
   set(GEN_DATACOPY ${RADIO_DIRECTORY}/util/generate_datacopy.py)
-  set(GEN_DATACOPY_DEPEND ${CMAKE_CURRENT_SOURCE_DIR}/${source} ${GEN_DATACOPY})
+  set(GEN_DATACOPY_DEPEND
+    ${CMAKE_CURRENT_SOURCE_DIR}/${source} ${GEN_DATACOPY}
+    ${CMAKE_CURRENT_BINARY_DIR}/hal_settings.h)
 
   # Fetch defines / include directories in use
   AddCompilerFlags(GEN_DATACOPY_ARGS)
@@ -225,7 +227,10 @@ function(CollectCommandLineArgs out_var)
       else()
         set(_type :${_type})
       endif()
-      list(APPEND _args "-D${_var}${_type}=${${_var}}")
+      # Escape CMake's ';' so a multi-path value (CMAKE_PREFIX_PATH) stays one argument
+      # instead of splitting; callers pair this with LIST_SEPARATOR | to restore it.
+      string(REPLACE ";" "|" _value "${${_var}}")
+      list(APPEND _args "-D${_var}${_type}=${_value}")
     endif()
   endforeach()
   set(${out_var} ${_args} PARENT_SCOPE)

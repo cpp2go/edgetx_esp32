@@ -1,7 +1,7 @@
 include(CMakeForceCompiler)
 include(Bitmaps)
 
-set(PCB_TYPES X9LITE X9LITES X7 XLITE XLITES X9D X9D+ X9E X10 X12S PL18 T15PRO ST16 PA01 TX15 TX16SMK3 T22 OPENX1)
+set(PCB_TYPES X9LITE X9LITES X7 XLITE XLITES X9D X9D+ X9E X10 X12S PL18 T15PRO ST16 PA01 TX15 GX15 TX16SMK3 T22 V12 OPENX1)
 set(RADIO_LANGUAGES CN CZ DA DE EN ES FI FR HE HU IT JP KO NL PL PT RU SE SK TW UA)
 set(TTS_LANGUAGES CN CZ DA DE EN ES FI FR HE HU IT JP KO NL PL PT RU SE SK TW UA)
 
@@ -99,8 +99,12 @@ elseif(PCB STREQUAL ST16)
   include(targets/c14/CMakeLists.txt)
 elseif(PCB STREQUAL PA01)
   include(targets/pa01/CMakeLists.txt)
+elseif(PCB STREQUAL V12)
+  include(targets/v12/CMakeLists.txt)
 elseif(PCB STREQUAL TX15)
   include(targets/tx15/CMakeLists.txt)
+elseif(PCB STREQUAL GX15)
+  include(targets/gx15/CMakeLists.txt)
 elseif(PCB STREQUAL TX16SMK3)
     include(targets/tx16smk3/CMakeLists.txt)
 elseif(PCB STREQUAL T22)
@@ -130,6 +134,7 @@ set(HW_DESC_JSON ${FLAVOUR}.json)
 
 # Generate files from radio JSON
 AddHWGenTarget(${HW_DESC_JSON} hal_settings hal_settings.h)
+AddHWGenTarget(${HW_DESC_JSON} hal_pwm_sticks hal_pwm_sticks.h)
 
 AddHWGenTarget(${HW_DESC_JSON} hal_keys hal_keys.inc)
 AddHWGenTarget(${HW_DESC_JSON} hal_adc_inputs hal_adc_inputs.inc)
@@ -150,11 +155,13 @@ AddHWGenTarget(${HW_DESC_JSON} simu_switches simu_switches.inc)
 
 AddHWGenTarget(${HW_DESC_JSON} hal_keys_lock hal_keys_lock.h)
 
+# Not every target provides the board / board_bl object libraries
+# (e.g. ESP32 targets only provide board_lib + radiolib_esp32), so guard these.
 if(TARGET board)
-  add_dependencies(board hal_settings hal_keys hal_keys_lock hal_adc_inputs stm32_keys stm32_switches stm32_adc_inputs stm32_pwm_inputs yaml_inputs lua_inputs lua_mixsrc lua_keys)
+  add_dependencies(board hal_settings hal_pwm_sticks hal_keys hal_keys_lock hal_adc_inputs stm32_keys stm32_switches stm32_adc_inputs stm32_pwm_inputs yaml_inputs lua_inputs lua_mixsrc lua_keys)
 endif()
 if(TARGET board_bl)
-  add_dependencies(board_bl hal_settings hal_keys stm32_keys)
+  add_dependencies(board_bl hal_settings hal_pwm_sticks hal_keys stm32_keys)
 endif()
 
 
@@ -229,7 +236,7 @@ if(STORAGE_MODELSLIST)
   add_definitions(-DSTORAGE_MODELSLIST)
 endif()
 
-if(RTC_BACKUP_RAM)
+if(RTC_BACKUP_RAM AND NOT WASI)
   add_definitions(-DRTC_BACKUP_RAM)
 
   GenerateDataCopy(datastructs_private.h datacopy.inc)
@@ -608,7 +615,9 @@ if(NATIVE_BUILD)
     os/time_native.cpp
     os/timer_native.cpp
   )
-  add_dependencies(radiolib_native ${RADIO_DEPENDENCIES})
+  add_dependencies(radiolib_native ${RADIO_DEPENDENCIES}
+    hal_settings hal_pwm_sticks hal_keys hal_keys_lock hal_adc_inputs
+    yaml_inputs lua_inputs lua_mixsrc lua_keys)
   set_property(TARGET radiolib_native PROPERTY POSITION_INDEPENDENT_CODE ON)
 
   add_subdirectory(targets/simu)
@@ -629,7 +638,11 @@ endif()
 
 if(ESP_PLATFORM)
     add_library(radiolib_esp32 STATIC ${SRC})
-    add_dependencies(radiolib_esp32 ${RADIO_DEPENDENCIES})
+    # The board / board_bl targets do not exist on ESP32, so make the generated
+    # hardware headers a dependency of the radio library itself instead.
+    add_dependencies(radiolib_esp32 ${RADIO_DEPENDENCIES}
+      hal_settings hal_pwm_sticks hal_keys hal_keys_lock hal_adc_inputs
+      yaml_inputs lua_inputs lua_mixsrc lua_keys)
     set_target_properties(radiolib_esp32 PROPERTIES EXCLUDE_FROM_ALL TRUE)
 else() #ESP_PLATFORM
 

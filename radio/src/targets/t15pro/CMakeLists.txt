@@ -7,6 +7,7 @@ option(GHOST "Ghost TX Module" ON)
 option(MODULE_SIZE_STD "Standard size TX Module" ON)
 option(LUA_MIXER "Enable LUA mixer/model scripts support" ON)
 option(DISK_CACHE "Enable SD card disk cache" ON)
+option(STICK_DEAD_ZONE "Enable sticks dead zone" OFF)
 
 set(FIRMWARE_QSPI YES)
 set(FIRMWARE_FORMAT_UF2 YES)
@@ -28,8 +29,6 @@ set(ROTARY_ENCODER YES)
 set(FUNCTION_SWITCHES YES)
 set(FUNCTION_SWITCHES_RGB_LEDS YES)
 
-#option(STICK_DEAD_ZONE "Enable sticks dead zone" YES)
-
 # IMU support
 set(IMU ON)
 
@@ -48,7 +47,7 @@ add_definitions(-DUSE_CUSTOM_EXTI_IRQ)
 add_definitions(-DUSB_CHARGER)
 
 set(FLAVOUR t15pro)
-add_definitions(-DRADIO_T15PRO)
+add_definitions(-DMANUFACTURER_JUMPER)
 
 # defines existing internal modules
 set(INTERNAL_MODULES CRSF CACHE STRING "Internal modules")
