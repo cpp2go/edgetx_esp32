@@ -349,7 +349,11 @@ static const etx_serial_init crsfSerialParams = {
 
 #if !defined(SIMU)
 
-#if defined(INTERNAL_MODULE_CRSF)
+// The simulator has no internal RF module at all, but this port bridges the internal
+// slot to the host serial port as well (see targets/simu/module_drivers.cpp), which is
+// what an ELRS module plugged in over USB needs. Without this the whole internal-CRSF
+// branch is compiled out and selecting it on the radio does nothing.
+#if defined(INTERNAL_MODULE_CRSF) || defined(SIMU)
 static void _crsf_intmodule_frame_received(void*)
 {
   telemetryFrameTrigger_ISR(INTERNAL_MODULE, &CrossfireDriver);
@@ -389,7 +393,7 @@ static void* crossfireInit(uint8_t module)
   etx_module_state_t* mod_st = nullptr;
   etx_serial_init params(crsfSerialParams);
 
-#if defined(INTERNAL_MODULE_CRSF)
+#if defined(INTERNAL_MODULE_CRSF) || defined(SIMU)
   if (module == INTERNAL_MODULE) {
     params.baudrate = INT_CROSSFIRE_BAUDRATE;
     mod_st = modulePortInitSerial(module, ETX_MOD_PORT_UART, &params, false);

@@ -941,7 +941,7 @@ bool isInternalModuleSupported(int moduleType)
 #if defined(INTERNAL_MODULE_MULTI)
   case MODULE_TYPE_MULTIMODULE: return true;
 #endif
-#if defined(INTERNAL_MODULE_CRSF)
+#if defined(INTERNAL_MODULE_CRSF) || defined(SIMU)
   case MODULE_TYPE_CROSSFIRE: return true;
 #endif
 #if defined(INTERNAL_MODULE_PXX1)

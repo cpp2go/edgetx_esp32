@@ -121,6 +121,18 @@ uint8_t edgetxAndroidExternalModuleType();
 // Returns true when the language was changed.
 bool simuEnsureVoicePack();
 
+// Replaces the compiled-in default UI language (English) with Chinese when the card has
+// no English content. Returns true when it was changed.
+bool simuEnsureUILanguage();
+
+// Replaces the board's battery defaults with this port's (2S Li-ion: warn 6.6 V, range
+// 6.1-8.4 V). Returns true when anything was changed.
+bool simuEnsureBatteryDefaults();
+
+// Turns the internal module slot on (CRSF) when the model still has it off, which is the
+// compiled-in default. Returns true when it was changed.
+bool simuEnsureInternalModule();
+
 // Aux serial bridge (firmware -> host) for non-WASM builds.  On WASI these are
 // WASM imports provided by the page; on Android the app registers a sink here
 // (see edgetxAndroidSetAuxSerialSink in targets/simu/android_host.cpp) and the

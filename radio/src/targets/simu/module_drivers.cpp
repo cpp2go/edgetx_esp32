@@ -133,13 +133,18 @@ const etx_timer_driver_t _fakeTimerDriver = {
 #endif
 
 #if defined(HARDWARE_INTERNAL_MODULE)
+// Bridged to the host serial transport as well (defined further down for the external
+// slot): the internal module slot is where an ELRS module can be driven from when the
+// model selects CRSF for it.
+extern const etx_serial_driver_t hostModuleSerialDriver;
+
 const etx_module_port_t _internal_ports[] = {
 #if defined(INTMODULE_USART)
   {
     .port = ETX_MOD_PORT_UART,
     .type = ETX_MOD_TYPE_SERIAL,
     .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
-    .drv = { .serial = &_fakeSerialDriver },
+    .drv = { .serial = &hostModuleSerialDriver },
     .hw_def = nullptr,
   },
 #else // INTMODULE_USART

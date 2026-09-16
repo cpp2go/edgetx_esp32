@@ -195,6 +195,78 @@ void edgetxAndroidBatterySettings(uint16_t* warn, uint16_t* batMin, uint16_t* ba
     *batMax = static_cast<uint16_t>(120 + g_eeGeneral.vBatMax);
 }
 
+// The card this port ships carries Chinese only, while the compiled-in default is
+// English. Replace that default - and only the default - so a fresh radio comes up in
+// Chinese; a language the user picked themselves is left alone.
+// This port drives an ELRS module from the internal module slot as well (see
+// module_drivers.cpp), while the compiled-in default for a model is "slot off" - so a
+// fresh model would send nothing until the user picks a protocol. Turn CRSF on unless
+// the model already says something else.
+bool simuEnsureInternalModule()
+{
+  bool changed = false;
+
+  if (g_model.moduleData[INTERNAL_MODULE].type == MODULE_TYPE_NONE) {
+    g_model.moduleData[INTERNAL_MODULE].type = MODULE_TYPE_CROSSFIRE;
+    changed = true;
+  }
+
+  // ELRS speaks CRSF at 400 kbaud. The firmware's default for a CRSF radio is stored 1,
+  // which indexes CROSSFIRE_BAUDRATES to 921600 ("921k if possible", see edgetx.cpp) -
+  // meant for a built-in ISRM chip, and a rate the module does not answer at. Stored 0
+  // maps to 400000 once the radio is known to handle it (SPORT_MAX_BAUDRATE).
+  if (g_eeGeneral.internalModuleBaudrate == 1) {
+    g_eeGeneral.internalModuleBaudrate = 0;
+    changed = true;
+  }
+
+  if (changed)
+    TRACE("module: internal slot defaults to CRSF at 400 kbaud");
+  return changed;
+}
+
+// Battery defaults for this port: the pack is a 2S Li-ion, so 6.1 V is empty, 8.4 V is
+// full and the low-voltage warning goes off at 6.6 V. Only the values the board seeded
+// are replaced (BATTERY_WARN 74 = 7.4 V, BATTERY_MIN 70, BATTERY_MAX 86), so anything
+// the user set themselves in Radio Setup is kept. The stored forms carry the firmware's
+// offsets: vBatMin is in 100 mV steps minus 90, vBatMax minus 120.
+bool simuEnsureBatteryDefaults()
+{
+  bool changed = false;
+
+  if (g_eeGeneral.vBatWarn == 74) {
+    g_eeGeneral.vBatWarn = 66;  // 6.6 V
+    changed = true;
+  }
+  if (g_eeGeneral.vBatMin == 70 - 90) {
+    g_eeGeneral.vBatMin = 61 - 90;  // 6.1 V
+    changed = true;
+  }
+  if (g_eeGeneral.vBatMax == 86 - 120) {
+    g_eeGeneral.vBatMax = 84 - 120;  // 8.4 V
+    changed = true;
+  }
+
+  if (changed)
+    TRACE("battery: using this port's defaults, warn 6.6 V, range 6.1-8.4 V");
+  return changed;
+}
+
+bool simuEnsureUILanguage()
+{
+  if (g_eeGeneral.uiLanguage[0] != 'e' || g_eeGeneral.uiLanguage[1] != 'n')
+    return false;
+
+  if (!voicePackOnCard("cn"))
+    return false;
+
+  // Both fields are exactly two characters wide and not terminated.
+  g_eeGeneral.uiLanguage[0] = 'c';
+  g_eeGeneral.uiLanguage[1] = 'n';
+  TRACE("ui: no English content on this card, defaulting to Chinese");
+  return true;
+}
+
 bool simuEnsureVoicePack()
 {
   if (voicePackOnCard(g_eeGeneral.ttsLanguage))

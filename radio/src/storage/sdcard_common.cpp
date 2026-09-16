@@ -28,9 +28,13 @@
 #include "hal/abnormal_reboot.h"
 
 #if defined(SIMU)
-// Provided by the simulator glue (targets/simu/simulib.cpp): checks that the voice
-// language has a pack on the card and falls back to the UI language's if it has not.
+// Provided by the simulator glue (targets/simu/simulib.cpp): the voice language gets a
+// pack that is really on the card, and the UI language defaults to Chinese when the
+// card carries no English content.
 bool simuEnsureVoicePack();
+bool simuEnsureUILanguage();
+bool simuEnsureBatteryDefaults();
+bool simuEnsureInternalModule();
 #endif
 
 #if defined(SIMU)
@@ -258,6 +262,14 @@ void storageReadAll()
 
   if (g_eeGeneral.uiLanguage[0] == 0)
     generalDefaultUILanguage();
+#if defined(SIMU)
+  // Default to Chinese when the card has no English content: this port ships a Chinese
+  // translation and voice pack, so the compiled-in English default would come up with
+  // prompts missing and a UI the user cannot read.
+  if (simuEnsureUILanguage()) storageDirty(EE_GENERAL);
+  // 2S Li-ion pack: 6.1 V empty, 8.4 V full, warning at 6.6 V (see simulib.cpp).
+  if (simuEnsureBatteryDefaults()) storageDirty(EE_GENERAL);
+#endif
   currentLanguagePackIdx = getLanguageId(g_eeGeneral.ttsLanguage);
 #if defined(SIMU)
   // Ran on the SD card the user actually has: if the configured voice language has no
@@ -296,6 +308,15 @@ void storageReadAll()
   if (loadModel(g_eeGeneral.currModelFilename, false) != nullptr) {
     TRACE("No current model or SD card error");
   }
+
+#if defined(SIMU)
+  // The internal module slot is the one an ELRS module is driven from on this port, and
+  // the model's default is "off": turn it on for a model that has not chosen yet.
+  if (simuEnsureInternalModule()) {
+    storageDirty(EE_MODEL);    // the slot's protocol
+    storageDirty(EE_GENERAL);  // the baud rate
+  }
+#endif
 #else
   if (loadModel(g_eeGeneral.currModel, false) != nullptr) {
     TRACE("No current model or SD card error");
