@@ -11,6 +11,7 @@ option(BLUETOOTH "FrSky BT module support" OFF)
 option(FLYSKY_GIMBAL "Serial gimbal support" OFF)
 option(KCX_BTAUDIO "KCX_BTAUDIO audio emitter installed" OFF)
 option(INTERNAL_GPS "Support for internal GPS" ON)
+option(STICK_DEAD_ZONE "Enable sticks dead zone" OFF)
 
 set(FIRMWARE_QSPI YES)
 set(FIRMWARE_FORMAT_UF2 YES)
@@ -41,8 +42,6 @@ elseif(KCX_BTAUDIO)
   set(FLYSKY_GIMBAL OFF)
 endif()
 
-#option(STICK_DEAD_ZONE "Enable sticks dead zone" YES)
-
 # IMU support
 set(IMU ON)
 add_definitions(-DIMU_ICM4207C)
@@ -62,6 +61,7 @@ add_definitions(-DFIRMWARE_QSPI)
 add_definitions(-DFIRMWARE_FORMAT_UF2)
 add_definitions(-DUSE_CUSTOM_EXTI_IRQ)
 add_definitions(-DUSB_CHARGER)
+add_definitions(-DUSB_CHARGE_CONTROL)
 
 set(FLAVOUR tx15)
 add_definitions(-DMANUFACTURER_RADIOMASTER)

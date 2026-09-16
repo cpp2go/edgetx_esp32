@@ -87,6 +87,7 @@ const struct YamlIdStr enum_Functions[] = {
   {  FUNC_DISABLE_AUDIO_AMP, "DISABLE_AUDIO_AMP"  },
   {  FUNC_RGB_LED, "RGB_LED"  },
   {  FUNC_PUSH_CUST_SWITCH, "PUSH_CUST_SWITCH"  },
+  {  FUNC_DISABLE_KEYS, "DISABLE_KEYS"  },
   {  FUNC_TEST, "TEST"  },
   {  0, NULL  }
 };
@@ -483,7 +484,8 @@ static const struct YamlNode struct_RadioData[] = {
   YAML_UNSIGNED( "favMultiMode", 1 ),
   YAML_UNSIGNED( "modelSelectLayout", 2 ),
   YAML_UNSIGNED( "radioThemesDisabled", 1 ),
-  YAML_PADDING( 7 ),
+  YAML_UNSIGNED( "usbChargeDisabled", 1 ),
+  YAML_PADDING( 6 ),
   YAML_UNSIGNED( "pwrOffIfInactive", 8 ),
   YAML_ARRAY("keyShortcuts", 8, 6, struct_KeyShortcut, NULL),
   YAML_ARRAY("qmFavorites", 8, 12, struct_QMFavorite, NULL),
@@ -682,7 +684,7 @@ static const struct YamlNode struct_anonymous_6[] = {
   YAML_PADDING( 2 ),
   YAML_UNSIGNED( "receiverTelemetryOff", 1 ),
   YAML_UNSIGNED( "receiverHigherChannels", 1 ),
-  YAML_SIGNED( "antennaMode", 2 ),
+  YAML_PADDING( 2 ),
   YAML_PADDING( 8 ),
   YAML_END
 };
@@ -755,7 +757,8 @@ static const struct YamlNode union_anonymous_4_elmts[] = {
 };
 static const struct YamlNode struct_ModuleData[] = {
   YAML_IDX,
-  YAML_UNSIGNED_CUST( "type", 8, r_moduleType, w_moduleType ),
+  YAML_UNSIGNED_CUST( "type", 6, r_moduleType, w_moduleType ),
+  YAML_ENUM("antennaMode", 2, enum_AntennaModes, NULL),
   YAML_CUSTOM("subType",r_modSubtype,w_modSubtype),
   YAML_UNSIGNED( "channelsStart", 8 ),
   YAML_SIGNED_CUST( "channelsCount", 8, r_channelsCount, w_channelsCount ),
@@ -1025,8 +1028,9 @@ static const struct YamlNode struct_ModelData[] = {
   YAML_END
 };
 static const struct YamlNode struct_PartialModel[] = {
+  YAML_CUSTOM("semver",nullptr,w_semver),
   YAML_STRUCT("header", 1048, struct_ModelHeader, NULL),
-  YAML_ARRAY("timers", 136, 3, struct_TimerData, NULL),
+  YAML_ARRAY("moduleData", 232, 2, struct_ModuleData, NULL),
   YAML_END
 };
 

@@ -210,6 +210,24 @@ bool simuEnsureVoicePack()
   return true;
 }
 
+// Host time helpers used by the FatFS mapping (see simufatfs.cpp), which converts
+// between a file's timestamp and the host's time_t.
+bool simuLocalTime(time_t t, struct tm* result)
+{
+  if (result == nullptr) return false;
+
+  struct tm* tmp = localtime(&t);
+  if (tmp == nullptr) return false;
+
+  *result = *tmp;
+  return true;
+}
+
+time_t simuLocalTimeToEpoch(struct tm* tm)
+{
+  return tm == nullptr ? 0 : mktime(tm);
+}
+
 void simuStart(bool tests)
 {
   if (simu_running)

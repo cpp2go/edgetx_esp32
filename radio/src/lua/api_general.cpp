@@ -625,7 +625,7 @@ The list of valid sources is available:
  * `id`   (number) field identifier
  * `name` (string) field name
  * `desc` (string) field description
- * `unit` (number) unit identifier [Full list](../appendix/units.html)
+ * `unit` (number) unit identifier, see the Units reference for the full list
 
 @retval nil the requested field was not found
 
@@ -1505,7 +1505,7 @@ Play a numerical value (text to speech)
 
 @param value (number) number to play. Value is interpreted as integer.
 
-@param unit (number) unit identifier [Full list]((../appendix/units.html))
+@param unit (number) unit identifier, see the Units reference for the full list
 
 @param attributes (unsigned number) possible values:
  * `0 or not present` plays integral part of the number (for a number 123 it plays 123)
@@ -1634,21 +1634,17 @@ static int luaPlayTone(lua_State * L)
 }
 
 /*luadoc
-@name screenshot
+@function screenshot()
 
-@description Takes a screenshot, which is saved to the SCREENSHOTS folder on the radio SD card.
+Takes a screenshot, which is saved to the SCREENSHOTS folder on the radio SD card.
 
-@syntax screenshot()
+@retval none
 
-@return none
-
-@notes This command is currently not rate limited, so repeated frequent calls will slow down the UI and can even freeze the entire radio, so should be used with care. 
-
-@target [BW]
-@target [GS]
-@target [COLOR]
+@notice This command is currently not rate limited, so repeated frequent calls will slow down the UI and can even freeze the entire radio, so should be used with care.
 
 @status current Introduced in 2.11
+
+// targets: BW, GS, COLOR
 */
 static int luaScreenshot(lua_State * L)
 {
@@ -1658,7 +1654,7 @@ static int luaScreenshot(lua_State * L)
 }
 
 /*luadoc
-@function playHaptic(duration, pause [, flags])
+@function playHaptic(duration, pause [, flags [, intensity]])
 
 Generate haptic feedback
 
@@ -1670,7 +1666,11 @@ Generate haptic feedback
  * `0 or not present` play with normal priority
  * `PLAY_NOW` play immediately
 
-@status current Introduced in 2.2.0
+@param intensity (number) [optional] haptic motor strength, 0-100 (only
+effective on boards with PWM-driven haptic support); defaults to the user's
+configured haptic strength setting
+
+@status current Introduced in 2.2.0, intensity added in 3.0
 */
 static int luaPlayHaptic(lua_State * L)
 {
@@ -1678,7 +1678,12 @@ static int luaPlayHaptic(lua_State * L)
   int length = luaL_checkinteger(L, 1);
   int pause = luaL_checkinteger(L, 2);
   int flags = luaL_optinteger(L, 3, 0);
-  haptic.play(length, pause, flags);
+  int intensity = luaL_optinteger(L, 4, userHapticStrength);
+  if (intensity != userHapticStrength) {
+    if (intensity < 0) intensity = 0;
+    else if (intensity > 100) intensity = 100;
+  }
+  haptic.play(length, pause, flags, intensity);
 #else
   UNUSED(L);
 #endif
@@ -1996,7 +2001,7 @@ static int luaDefaultStick(lua_State * L)
 
 @param value fed to the sensor
 
-@param unit unit of the sensor [Full list](../../appendix/units.html)
+@param unit unit of the sensor, see the Units reference for the full list
 
 @param precision the precision of the sensor
  * `0 or not present` no decimal precision.
@@ -2935,18 +2940,20 @@ static int luaSetRgbLedColor(lua_State * L)
   uint8_t b = luaL_checkunsigned(L, 4);
 
 #if CFS_LED_STRIP_LENGTH > 0
-  if (id >= BLING_LED_STRIP_LENGTH) {
-    id -= BLING_LED_STRIP_LENGTH;
-    uint8_t swIdx = switchGetSwitchFromCustomIdx(id / CFS_LEDS_PER_SWITCH);
-    if (g_model.getSwitchType(swIdx) == SWITCH_NONE) {
-      rgbSetLedColor(id + CFS_LED_STRIP_START, r, g, b);
-    } else {
-      lua_pushboolean(L, false);
-      return 1;
-    }
-  } else {
+#if BLING_LED_STRIP_LENGTH > 0
+  if (id < BLING_LED_STRIP_LENGTH) {
     rgbSetLedColor(id + BLING_LED_STRIP_START, r, g, b);
+    lua_pushboolean(L, true);
+    return 1;
   }
+  id -= BLING_LED_STRIP_LENGTH;
+#endif
+  uint8_t swIdx = switchGetSwitchFromCustomIdx(id / CFS_LEDS_PER_SWITCH);
+  if (g_model.getSwitchType(swIdx) != SWITCH_NONE) {
+    lua_pushboolean(L, false);
+    return 1;
+  }
+  rgbSetLedColor(id + CFS_LED_STRIP_START, r, g, b);
 #else
   rgbSetLedColor(id + BLING_LED_STRIP_START, r, g, b);
 #endif
@@ -3296,6 +3303,9 @@ LROT_BEGIN(etxcst, NULL, 0)
   LROT_NUMENTRY( FUNC_PUSH_CUST_SWITCH, FUNC_PUSH_CUST_SWITCH )
 #endif
   LROT_NUMENTRY( FUNC_SET_SCREEN, FUNC_SET_SCREEN )
+#if defined(KEYS_LOCK_KEY1) && defined(KEYS_LOCK_KEY2)
+  LROT_NUMENTRY( FUNC_DISABLE_KEYS, FUNC_DISABLE_KEYS )
+#endif
 #if defined(COLORLCD)
   LROT_NUMENTRY( FUNC_DISABLE_TOUCH, FUNC_DISABLE_TOUCH )
 

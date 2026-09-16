@@ -59,7 +59,6 @@ bool hpDetected = false;
 
 uint8_t currentBacklightBright = 0;
 uint8_t requiredBacklightBright = 0;
-uint8_t mainRequestFlags = 0;
 
 static bool _usbDisabled = false;
 
@@ -178,55 +177,22 @@ void handleUsbConnection()
   const tmr10ms_t now = get_tmr10ms();
 #endif
 
-  if (!plugged) {
-    if (_pluggedUsb || usbStarted()) {
-      TRACE("USB disconnected, resetting state");
-      closeUsbMenu();
-
-      const usbMode previousMode = static_cast<usbMode>(getSelectedUsbMode());
-#if defined(COLORLCD)
-      const bool hasStorageWindow = (usbConnectedWindow != nullptr);
-      if (usbConnectedWindow) {
-        usbConnectedWindow->deleteLater();
-        usbConnectedWindow = nullptr;
-      }
-#else
-      const bool hasStorageWindow = false;
+  if (_pluggedUsb && !usbPlugged()) {
+    TRACE("USB unplugged");
+    closeUsbMenu();
+    _pluggedUsb = false;
+#if defined(USB_CHARGE_CONTROL)
+    usbChargerEnableCharge(true);
 #endif
-
-      if (usbStarted()) {
-        usbStop();
-        TRACE("USB stopped");
-        if (previousMode == USB_SERIAL_MODE) {
-          serialStop(SP_VCP);
-        }
-      }
-
-      if (previousMode == USB_MASS_STORAGE_MODE || hasStorageWindow) {
-        edgeTxResume();
-#if !defined(COLORLCD)
-        pushEvent(EVT_ENTRY);
-#endif
-      }
-
-      TRACE("reset selected USB mode");
-      setSelectedUsbMode(USB_UNSELECTED_MODE);
-      _pluggedUsb = false;
-      _usbDisabled = false;
-#if defined(ESP_PLATFORM)
-      // Give USB stack and SD layer a short window before allowing re-start.
-      usbStoppedAt = now;
-#endif
-      return;
-    }
-  }
-
-  // Note: the unplug transition is fully handled by the (!plugged) block above
-  // (which returns), so only the plug transition needs handling here.
-  if (!_pluggedUsb && plugged) {
+  } else if (!_pluggedUsb && usbPlugged()) {
     TRACE("USB plugged");
     _pluggedUsb = true;
     _usbDisabled = false;
+#if defined(USB_CHARGE_CONTROL)
+    // Apply on plug, not on usbStart(): the mode popup can sit open for a long
+    // time and the radio would charge until a mode is picked
+    usbChargerEnableCharge(!g_eeGeneral.usbChargeDisabled);
+#endif
   }
 
   #if defined(ESP_PLATFORM)
@@ -342,6 +308,7 @@ void checkHatsAsKeys()
 // Tick count at which to clear our key-lock message. 0 = no message active.
 static tmr10ms_t s_keysLockMsgUntil = 0;
 static const char* s_keysLockMsg = nullptr;
+static const char* s_keysLockInfo = nullptr;
 #endif
 
 void checkKeysLock()
@@ -364,7 +331,8 @@ void checkKeysLock()
     // couldn't dismiss it. Keep our own deadline and re-arm POPUP_WAIT every
     // tick below — that survives other code clearing warningText (e.g. the
     // GVAR display in view_main.cpp).
-    s_keysLockMsg = areKeysLocked() ? lockedMsg : STR_KEYS_UNLOCKED;
+    s_keysLockMsg = areKeysLocked() ? STR_KEYS_LOCKED : STR_KEYS_UNLOCKED;
+    s_keysLockInfo = areKeysLocked() ? lockedMsg : nullptr;
     s_keysLockMsgUntil = get_tmr10ms() + 150;
 #endif
   }
@@ -377,10 +345,11 @@ void checkKeysLock()
       // may have replaced it in the meantime.
       if (warningText == s_keysLockMsg) CLEAR_POPUP();
       s_keysLockMsg = nullptr;
+      s_keysLockInfo = nullptr;
     } else {
       // Keep the popup fresh every tick — another path (GVAR, etc.) may
       // have cleared warningText; just re-arm it.
-      POPUP_WAIT(s_keysLockMsg);
+      POPUP_WAIT(s_keysLockMsg, s_keysLockInfo);
     }
   }
 #endif
@@ -458,6 +427,8 @@ void periodicTick()
 }
 
 #if defined(GUI) && defined(COLORLCD)
+static LAYOUT_VAL_SCALED(GV_POPUP_WIDTH, 200)
+
 void guiMain(event_t evt)
 {
 #if defined(LUA)
@@ -480,24 +451,6 @@ void guiMain(event_t evt)
   }
 #endif
 
-  bool mainViewRequested = (mainRequestFlags & (1u << REQUEST_MAIN_VIEW));
-  if (mainViewRequested) {
-    auto viewMain = ViewMain::instance();
-    if (g_model.view < viewMain->getMainViewsCount()) {
-      viewMain->setCurrentMainView(g_model.view);
-      storageDirty(EE_MODEL);
-    } else {
-      g_model.view = viewMain->getCurrentMainView();
-    }
-    mainRequestFlags &= ~(1u << REQUEST_MAIN_VIEW);
-  }
-
-  bool screenshotRequested = (mainRequestFlags & (1u << REQUEST_SCREENSHOT));
-  if (screenshotRequested) {
-    writeScreenshot();
-    mainRequestFlags &= ~(1u << REQUEST_SCREENSHOT);
-  }
-
   // For color screens show a popup deferred from another task
   show_ui_popup();
   // Show GVAR popup
@@ -508,7 +461,7 @@ void guiMain(event_t evt)
     p = strAppend(p, g_model.gvars[gvarLastChanged].name, LEN_GVAR_NAME);
     p = strAppend(p, " = ", 3);
     p = strAppendSigned(p, GVAR_VALUE(gvarLastChanged, getGVarFlightMode(mixerCurrentFlightMode, gvarLastChanged)));
-    POPUP_BUBBLE(s, gvarDisplayTimer * 10, 200);
+    POPUP_BUBBLE(s, gvarDisplayTimer * 10, GV_POPUP_WIDTH);
     gvarDisplayTimer = 0;
   }
 }
@@ -607,11 +560,6 @@ void guiMain(event_t evt)
   }
 
   if (refreshNeeded) lcdRefresh();
-
-  if (mainRequestFlags & (1u << REQUEST_SCREENSHOT)) {
-    writeScreenshot();
-    mainRequestFlags &= ~(1u << REQUEST_SCREENSHOT);
-  }
 }
 #endif
 
@@ -638,12 +586,6 @@ void perMain()
   checkTrainerSettings();
   periodicTick();
   DEBUG_TIMER_STOP(debugTimerPerMain1);
-
-  if (mainRequestFlags & (1u << REQUEST_FLIGHT_RESET)) {
-    TRACE("Executing requested Flight Reset");
-    flightReset();
-    mainRequestFlags &= ~(1u << REQUEST_FLIGHT_RESET);
-  }
 
   checkBacklight();
 
@@ -701,6 +643,11 @@ void perMain()
 #if defined(KEYS_GPIO_REG_BIND) && defined(BIND_KEY)
   bindButtonHandler(evt);
 #endif
+
+  if (radioGFEnabled())
+    evalUIFunctions(g_eeGeneral.customFn, globalFunctionsContext);
+  if (modelSFEnabled())
+    evalUIFunctions(g_model.customFn, modelFunctionsContext);
 
 #if defined(GUI)
   DEBUG_TIMER_START(debugTimerGuiMain);

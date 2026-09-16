@@ -30,8 +30,16 @@ else
 fi
 
 COMMON_OPTIONS="${COMMON_OPTIONS} -DCMAKE_BUILD_TYPE=Release -DCMAKE_MESSAGE_LOG_LEVEL=WARNING -Wno-dev"
+# Qt 6.9's frameworks are macOS 12, so the bundle cannot start below that anyway.
 if [ "$(uname)" = "Darwin" ]; then
-  COMMON_OPTIONS="${COMMON_OPTIONS} -DCMAKE_OSX_DEPLOYMENT_TARGET='11.0'"
+  COMMON_OPTIONS="${COMMON_OPTIONS} -DCMAKE_OSX_DEPLOYMENT_TARGET='12.0'"
+fi
+
+# find_package(... CONFIG) skips the lib/cmake/<Name> search pattern for prefixes that only
+# come from the CMAKE_PREFIX_PATH env var (not -D) - forward it so CI's source-built SDL3 is
+# actually found instead of silently missing from the bundle.
+if [[ -n "${CMAKE_PREFIX_PATH:-}" ]]; then
+  COMMON_OPTIONS="${COMMON_OPTIONS} -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
 fi
 
 # Generate EDGETX_VERSION_SUFFIX if not already set
@@ -52,10 +60,11 @@ if [[ -z ${EDGETX_VERSION_SUFFIX} ]]; then
   fi
 fi
 
-rm -rf build && mkdir build && cd build
+rm -rf build && mkdir build && cd build || exit
 
 get_platform_config() {
-    local platform=$(uname)
+    local platform
+    platform=$(uname)
     case "$platform" in
         "Darwin")
             PACKAGE_TARGET="package"
@@ -116,13 +125,21 @@ elif ! cmake_build_parallel native --target ${PACKAGE_TARGET} >> "$LOG_FILE" 2>&
     echo "    ❌ Packaging failed"
     cat "$LOG_FILE"
     error_status=1
-elif cp native/$PACKAGE_FILES "${OUTDIR}" 2>/dev/null; then
-    echo "    ✅ Build completed successfully!"
-    echo "    📁 Package saved to: ${OUTDIR}"
 else
-    echo "    ❌ Failed to copy package files to output directory"
-    ls -la native/ || echo "native/ directory not found"
-    error_status=1
+    PACKAGE_FILE=$(find native/ -path "native/${PACKAGE_FILES}" -type f | head -n1)
+    if [ -n "$PACKAGE_FILE" ] && cp "$PACKAGE_FILE" "${OUTDIR}" 2>/dev/null; then
+        echo "    ✅ Build completed successfully!"
+        echo "    📁 Package saved to: ${OUTDIR}"
+        echo "    📄 Copied: $(basename "$PACKAGE_FILE")"
+    else
+        echo "    ❌ Failed to copy package files to output directory"
+        echo "    📁 Directory Contents:"
+        echo "    ----------------------"
+        ls -la native/ || echo "native/ directory not found"
+        echo "Looking for files matching: $PACKAGE_FILES"
+        find native/ -path "native/${PACKAGE_FILES}" 2>/dev/null || echo "No matching files found"
+        error_status=1
+    fi
 fi
 
 if [[ -n "$GITHUB_ACTIONS" ]]; then

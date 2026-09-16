@@ -27,6 +27,9 @@
 // Drives the charging icon in the top bar. The Android host knows whether the pack is
 // really on charge (see android_host.cpp); the old behaviour was a hardcoded true.
 bool usbChargerLed() { return edgetxAndroidIsCharging(); }
+#if defined(USB_CHARGE_CONTROL)
+void usbChargerEnableCharge(bool enable) {}
+#endif
 void ledRed() {}
 void ledGreen() {}
 void ledBlue() {}

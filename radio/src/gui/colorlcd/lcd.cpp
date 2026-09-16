@@ -76,6 +76,15 @@ extern "C" void lcdFlushed()
 
 void lcdRefresh() {}
 
+// Asks the UI to repaint everything. The Android host calls this right after it
+// attaches its window: the firmware may have drawn its screens while nothing was
+// presenting them (it runs from a service, before the activity has a surface), and it
+// only repaints on input afterwards - which left the window black until a key press.
+void lcdRequestFullRefresh()
+{
+  lv_obj_invalidate(lv_scr_act());
+}
+
 static void flushLcd(lv_disp_drv_t* disp_drv, const lv_area_t* area,
                      lv_color_t* color_p)
 {

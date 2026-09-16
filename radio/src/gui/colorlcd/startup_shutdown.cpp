@@ -29,8 +29,6 @@
 #include "stamp.h"
 #include "theme_manager.h"
 
-extern void checkSpeakerVolume();
-
 constexpr const char* strip_leading_hyphen(const char* str) {
     return (str[0] == '-') ? str + 1 : str;
 }
@@ -86,11 +84,13 @@ void drawSplash()
 }
 
 static tmr10ms_t splashStartTime = 0;
+static bool splashRunning = false;
 
 void startSplash()
 {
   if (!UNEXPECTED_SHUTDOWN()) {
     splashStartTime = get_tmr10ms();
+    splashRunning = true;
     drawSplash();
   }
 }
@@ -119,9 +119,20 @@ static constexpr uint32_t SPLASH_HOST_AUDIO_MAX = 1200;    // 12 s
 void waitSplash()
 {
   // Handle color splash screen
-  if (splashStartTime) {
+  if (splashRunning) {
     inactivityCheckInputs();
     splashStartTime += SPLASH_TIMEOUT;
+
+#if defined(PWR_BUTTON_DUAL)
+    // Wait for dual power buttons to be released
+    while (pwrPressed()) {
+      WDG_RESET();
+      sleep_ms(10);
+    }
+    // Kill SYS and/or MDL events
+    killAllEvents();
+    MainWindow::instance()->run();
+#endif
 
     MainWindow::instance()->blockUntilClose(true, [=]() {
 #if defined(SIMU)

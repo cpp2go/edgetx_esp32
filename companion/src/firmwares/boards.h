@@ -68,6 +68,7 @@ namespace Board {
     BOARD_RADIOMASTER_TX16S,
     BOARD_RADIOMASTER_TX16SMK3,
     BOARD_RADIOMASTER_TX15,
+    BOARD_RADIOMASTER_GX15,
     BOARD_JUMPER_T18,
     BOARD_JUMPER_T20,
     BOARD_RADIOMASTER_TX12,
@@ -100,6 +101,7 @@ namespace Board {
     BOARD_HELLORADIOSKY_V14,
     BOARD_HELLORADIOSKY_V14LCD,
     BOARD_IFLIGHT_COMMANDO14,
+    BOARD_HELLORADIOSKY_V12,
     BOARD_TYPE_COUNT,
     BOARD_TYPE_MAX = BOARD_TYPE_COUNT - 1
   };
@@ -232,7 +234,9 @@ namespace Board {
     HasBlingLEDS,
     HasBluetooth,
     HasColorLcd,
+    HasExternalAntenna,
     HasExternalModuleSupport,
+    HasHardwareAntennaSwitch,
     HasIMU,
     HasInternalGPS,
     HasInternalModuleSupport,
@@ -611,6 +615,11 @@ inline bool IS_RADIOMASTER_TX15(Board::Type board)
   return board == Board::BOARD_RADIOMASTER_TX15;
 }
 
+inline bool IS_RADIOMASTER_GX15(Board::Type board)
+{
+  return board == Board::BOARD_RADIOMASTER_GX15;
+}
+
 inline bool IS_RADIOMASTER_TX12(Board::Type board)
 {
   return board == Board::BOARD_RADIOMASTER_TX12;
@@ -656,6 +665,11 @@ inline bool IS_FATFISH_F16(Board::Type board)
   return board == Board::BOARD_FATFISH_F16;
 }
 
+inline bool IS_HELLORADIOSKY_V12(Board::Type board)
+{
+  return board == Board::BOARD_HELLORADIOSKY_V12;
+}
+
 inline bool IS_HELLORADIOSKY_V14(Board::Type board)
 {
   return board == Board::BOARD_HELLORADIOSKY_V14;
@@ -674,12 +688,14 @@ inline bool IS_HELLORADIOSKY_V16(Board::Type board)
 inline bool IS_FAMILY_T16(Board::Type board)
 {
   return board == Board::BOARD_FATFISH_F16 ||
+         board == Board::BOARD_HELLORADIOSKY_V12 ||
          board == Board::BOARD_HELLORADIOSKY_V16 ||
          board == Board::BOARD_JUMPER_T15 ||
          board == Board::BOARD_JUMPER_T15PRO ||
          board == Board::BOARD_JUMPER_T16 ||
          board == Board::BOARD_JUMPER_T18 ||
          board == Board::BOARD_RADIOMASTER_TX15 ||
+         board == Board::BOARD_RADIOMASTER_GX15 ||
          board == Board::BOARD_RADIOMASTER_TX16S ||
          board == Board::BOARD_RADIOMASTER_TX16SMK3;
 }
@@ -850,10 +866,6 @@ inline bool HAS_LARGE_LCD(Board::Type board)
   return IS_FAMILY_HORUS_OR_T16(board) || IS_TARANIS_X9(board);
 }
 
-inline bool HAS_EXTERNAL_ANTENNA(Board::Type board)
-{
-  return (IS_FAMILY_HORUS(board) || IS_FAMILY_T16(board) || (IS_TARANIS_XLITE(board) && !IS_TARANIS_XLITES(board)));
-}
 
 inline bool IS_TARANIS_X9DP_2019(Board::Type board)
 {
