@@ -48,14 +48,34 @@ bool mixerSchedulerWaitForTrigger(uint8_t timeoutMs)
     return true;
   }
 #else
+  // The simulator has nothing that raises a module interrupt, so without this the
+  // caller would always wait out its full timeout and the mixer would end up running
+  // at MIXER_MAX_PERIOD - 20 times a second. That is the pace at which the sticks are
+  // then sampled (getADC() is called from the mixer) and at which channel frames
+  // reach the module, so it is several tens of milliseconds of latency the radio
+  // itself is adding. Emulate the trigger from the period the module driver asked for
+  // (4 ms for CRSF at 400 kbaud) instead, which is what the hardware timer does.
+  static uint32_t sinceTriggerUs = 0;
+  const uint32_t periodUs = getMixerSchedulerPeriod();
+
+  sinceTriggerUs += static_cast<uint32_t>(timeoutMs) * 1000u;
   sleep_ms(timeoutMs);
-  return true;
+
+  if (sinceTriggerUs >= periodUs) {
+    // Keep the remainder so the average rate stays right, unless we are so far
+    // behind that catching up would only make it burst.
+    sinceTriggerUs = (sinceTriggerUs < periodUs * 4u) ? sinceTriggerUs - periodUs : 0;
+    return false;   // triggered: the mixer task runs a frame
+  }
+
+  return true;      // not yet: keep waiting
 #endif
 }
 
 #if !defined(SIMU)
 
 // Global trigger flag
+#endif
 
 // Mixer schedule
 struct MixerSchedule {
@@ -108,6 +128,7 @@ uint16_t mixerSchedulerGetPeriod(uint8_t moduleIdx)
   return mixerSchedules[moduleIdx].period;
 }
 
+#if !defined(SIMU)
 void mixerSchedulerISRTrigger()
 {
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;

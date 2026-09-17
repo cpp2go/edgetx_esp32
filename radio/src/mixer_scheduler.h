@@ -29,22 +29,25 @@
 #define MIN_REFRESH_RATE       850 /* us */
 #define MAX_REFRESH_RATE     50000 /* us */
 
-#if !defined(SIMU)
-
 // Call once to initialize the mixer scheduler
 void mixerSchedulerInit();
-
-// Configure and start the scheduler timer
-void mixerSchedulerStart();
-
-// Stop the scheduler timer
-void mixerSchedulerStop();
 
 // Set the scheduling period for a given module
 void mixerSchedulerSetPeriod(uint8_t moduleIdx, uint16_t periodUs);
 
 // Get the scheduling period for a given module
 uint16_t mixerSchedulerGetPeriod(uint8_t moduleIdx);
+
+// Fetch the current scheduling period
+uint16_t getMixerSchedulerPeriod();
+
+#if !defined(SIMU)
+
+// Configure and start the scheduler timer
+void mixerSchedulerStart();
+
+// Stop the scheduler timer
+void mixerSchedulerStop();
 
 // Enable the timer trigger
 void mixerSchedulerEnableTrigger();
@@ -55,26 +58,20 @@ void mixerSchedulerDisableTrigger();
 // Trigger mixer from heartbeat interrupt 
 void mixerSchedulerSoftTrigger();
 
-// Fetch the current scheduling period
-uint16_t getMixerSchedulerPeriod();
-
 // Trigger mixer from an ISR
 void mixerSchedulerISRTrigger();
 
 #else
 
-#define mixerSchedulerInit()
+// The simulator has no scheduler timer, but it does keep the period: the trigger
+// is emulated from it (see mixerSchedulerWaitForTrigger in mixer_scheduler.cpp).
 #define mixerSchedulerStart()
 #define mixerSchedulerStop()
-#define mixerSchedulerSetPeriod(m,p) ((void)(p))
-#define mixerSchedulerGetPeriod(m) ((uint16_t)MIXER_SCHEDULER_DEFAULT_PERIOD_US)
 
 #define mixerSchedulerEnableTrigger()
 #define mixerSchedulerDisableTrigger()
 
 #define mixerSchedulerSoftTrigger()
-
-#define getMixerSchedulerPeriod() (MIXER_SCHEDULER_DEFAULT_PERIOD_US)
 #define mixerSchedulerISRTrigger()
 
 #endif
