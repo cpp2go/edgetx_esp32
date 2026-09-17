@@ -54,7 +54,10 @@
 #endif
 
 #if defined(COLORLCD)
-  const char fw_stamp[]     = "FW" TAB ": edgetx-" FLAVOUR;
+  // The name this port reports itself by - the first line of the Version page. It is
+  // "OpenX-1" rather than "edgetx-<flavour>"; the flavour is still visible in the
+  // version line and on the boot splash.
+  const char fw_stamp[]     = "FW" TAB ": OpenX-1";
   #if defined(VERSION_TAG) // tagged release, possibly mfg build
     const char vers_stamp[] = "VERS" TAB ": " WITH_FACTORY_RELEASE(VERSION_TAG) " \"" CODENAME "\"";
   #elif defined(FACTORY_RELEASE) // mfg build of non-tagged release, show commit hash only
