@@ -63,6 +63,36 @@ void edgetxAndroidSetAnalogExternal(uint8_t on)
   s_analogExternal = on ? 1 : 0;
 }
 
+// ---- Switches ---------------------------------------------------------------
+// Where the app's switches are. The app has already pushed them by the time the
+// firmware boots, and the boot then resets every switch to "up" - and does so twice
+// (simuInit() and boardInit() both call switchInit()) - so the positions are kept here
+// and re-applied by boardInitSwitches() in the board's switch driver. Without that,
+// everything the app drove showed as "up" until the user moved it again.
+namespace {
+
+constexpr uint8_t kSwitchCount = 16;
+int8_t s_switch[kSwitchCount];
+uint16_t s_switchKnown = 0;  // bit i: the app has told us about switch i
+
+}  // namespace
+
+void edgetxAndroidSetSwitch(uint8_t idx, int8_t state)
+{
+  if (idx >= kSwitchCount) return;
+  s_switch[idx] = state;
+  s_switchKnown |= (uint16_t)(1u << idx);
+}
+
+// Called from the board's switch driver (see switch_driver.cpp). False = the app never
+// mentioned this switch, so it keeps its power-on position ("up").
+bool edgetxAndroidGetSwitchState(uint8_t idx, int8_t* state)
+{
+  if (idx >= kSwitchCount || !(s_switchKnown & (1u << idx))) return false;
+  if (state) *state = s_switch[idx];
+  return true;
+}
+
 // Radio battery reported by the Android app: pack voltage in mV and whether it is on
 // charge. Zero mV means "unknown", in which case the drivers keep their simulated
 // defaults. See adc_driver.cpp (the reading) and led_driver.cpp (the charging icon).

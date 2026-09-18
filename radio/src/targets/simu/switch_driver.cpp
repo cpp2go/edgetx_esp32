@@ -44,6 +44,17 @@ struct hw_switch_def {
 
 int8_t switchesStates[MAX_SWITCHES];
 
+// Where the Android host says the switches are. Weak with a default returning false, so
+// the desktop simulator - which does not link android_host.cpp - builds and behaves
+// exactly as before.
+__attribute__((weak))
+bool edgetxAndroidGetSwitchState(uint8_t idx, int8_t* state)
+{
+  (void)idx;
+  (void)state;
+  return false;
+}
+
 #if defined(RADIO_GX12)
 void _poll_switches() {}
 #endif
@@ -56,6 +67,14 @@ void simuSetSwitch(uint8_t swtch, int8_t state)
 
 void boardInitSwitches() {
   memset(switchesStates, -1, sizeof(switchesStates));
+
+  // This runs twice while booting (simuInit() and boardInit()), and the app has already
+  // pushed the RC's real switch positions by then - so put the host's values back, or
+  // every switch the app drives would show as "up" until it was moved again.
+  for (uint8_t i = 0; i < MAX_SWITCHES; i++) {
+    int8_t state;
+    if (edgetxAndroidGetSwitchState(i, &state)) switchesStates[i] = state;
+  }
 }
 
 SwitchHwPos boardSwitchGetPosition(uint8_t idx)
