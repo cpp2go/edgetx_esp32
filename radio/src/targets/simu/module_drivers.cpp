@@ -192,6 +192,28 @@ const etx_module_t _sport_module = {
 // external module run any serial protocol EdgeTX is configured for, with the
 // bytes actually leaving through the host's serial port.
 extern const etx_serial_driver_t hostModuleSerialDriver;
+
+// Polarity.  A radio inverts these lines in hardware (an inverter GPIO, or the
+// MCU's own USART inversion); a USB serial adapter cannot be inverted from
+// here, so the module sees whatever the adapter puts on the wire and this only
+// records which polarity the protocol asked for.
+//
+// It has to be reported all the same, because modulePortInitSerial() binds an
+// ETX_Pol_Inverted request to a port only when that port can report its
+// polarity.  Without the callback the inverted protocols - MULTI, DSM2/DSMP,
+// SBUS, AFHDS3, plus the telemetry half of several others - matched no host
+// port and fell through to the soft-serial stub in this table, which accepts
+// the init and then swallows every frame: the module looked configured and
+// stayed silent.
+static uint8_t _host_mod_inverted = 0;
+
+static void host_mod_set_inverted(uint8_t enable)
+{
+  if (_host_mod_inverted == enable) return;
+  _host_mod_inverted = enable;
+  TRACE("module port: %s polarity on the host serial bridge",
+        enable ? "inverted" : "normal");
+}
 #endif
 
 const etx_module_port_t _external_ports[] = {
@@ -203,6 +225,7 @@ const etx_module_port_t _external_ports[] = {
     .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
     .drv = { .serial = &hostModuleSerialDriver },
     .hw_def = nullptr,
+    .set_inverted = host_mod_set_inverted,
   },
   // The same bridge on the S.PORT pin. That is where an external module's serial line
   // sits on a real TX16S, and crossfireInit() asks for ETX_MOD_PORT_SPORT - without this
@@ -214,6 +237,7 @@ const etx_module_port_t _external_ports[] = {
     .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
     .drv = { .serial = &hostModuleSerialDriver },
     .hw_def = nullptr,
+    .set_inverted = host_mod_set_inverted,
   },
 #endif
 #if defined(EXTMODULE_USART)
