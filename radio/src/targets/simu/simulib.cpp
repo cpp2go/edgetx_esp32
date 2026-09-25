@@ -47,6 +47,8 @@
 #include "lua/lua_api.h"
 #endif
 
+#include "gps.h"  // the radio's own position - see edgetxAndroidSetGps() below
+
 #include <assert.h>
 #include <deque>
 #include <stdint.h>
@@ -62,6 +64,52 @@ void hapticOff() {}
 // WASM export — polled by host every 50ms to detect haptic events
 uint32_t WASM_EXPORT(simuGetHaptic)() {
   return simuHapticValue;
+}
+
+// ---- The remote controller's own GPS ---------------------------------------
+//
+// EdgeTX has a place for a radio's own position: gpsdata_t gpsData (radio/src/gps.h), the slot
+// an internal GPS module fills - and this board is built with INTERNAL_GPS on (see
+// targets/tx16smk3/CMakeLists.txt), so Radio Info, the Statistics page, the top-bar GPS view
+// and luaGetGPSPosition() are all in the firmware already. What is missing is the module: there
+// is no GPS on a UART here.
+//
+// The remote controller has one of its own, so the app reads it through the DJI SDK and pushes
+// it in through the function below (see DjiMsdkBridge.listenGps). Deliberately not the telemetry
+// GPS: that one belongs to the aircraft, is set by the protocol drivers from what arrives over
+// the RF link, and is not touched by any of this.
+//
+// Nothing else has to be arranged for it to be the only source: gpsWakeup() returns immediately
+// while no serial driver is set. Units are the firmware's own, from gps.h - 1e-6 degrees, 0.1 m,
+// 0.1 m/s, 0.1 degrees, satellites, and 0/1 for the fix.
+void edgetxAndroidSetGps(int32_t latitude, int32_t longitude, int32_t altitude, uint16_t speed,
+                         uint16_t course, uint8_t satellites, uint8_t fix)
+{
+  if (!fix) {
+    // Say "no fix" rather than keep showing a position that is no longer known.
+    gpsData.fix = 0;
+    gpsData.numSat = 0;
+    return;
+  }
+
+  gpsData.latitude = latitude;
+  gpsData.longitude = longitude;
+  gpsData.altitude = altitude;
+  gpsData.speed = speed;
+  gpsData.groundCourse = course;
+  gpsData.numSat = satellites;
+  gpsData.fix = 1;
+  gpsData.packetCount++;
+}
+
+// Read back by the app, to tell "the position reached the firmware's own GPS" apart from "the
+// app has it and the firmware does not" - the same reason edgetxAndroidGetSwitchState exists.
+void edgetxAndroidGetGps(int32_t* latitude, int32_t* longitude, uint8_t* satellites, uint8_t* fix)
+{
+  if (latitude) *latitude = gpsData.latitude;
+  if (longitude) *longitude = gpsData.longitude;
+  if (satellites) *satellites = gpsData.numSat;
+  if (fix) *fix = gpsData.fix;
 }
 
 int g_snapshot_idx = 0;
