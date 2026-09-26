@@ -942,6 +942,13 @@ void touchPanelUp()
   simTouchOccured = true;
 }
 
+void touchPanelCancel()
+{
+  simTouchState.event = TE_SLIDE_END;
+  simTouchState.tapCount = 0;
+  simTouchOccured = true;
+}
+
 struct TouchState touchPanelRead()
 {
   struct TouchState st = simTouchState;
@@ -967,6 +974,13 @@ void simuTouchUp()
 {
 #if defined(HARDWARE_TOUCH)
   touchPanelUp();
+#endif
+}
+
+void simuTouchCancel()
+{
+#if defined(HARDWARE_TOUCH)
+  touchPanelCancel();
 #endif
 }
 

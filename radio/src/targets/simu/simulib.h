@@ -75,6 +75,7 @@ void WASM_EXPORT(simuSetSwitch)(uint8_t swtch, int8_t state);
 // The firmware detects slides from successive position changes.
 void WASM_EXPORT(simuTouchDown)(int16_t x, int16_t y);
 void WASM_EXPORT(simuTouchUp)();
+void WASM_EXPORT(simuTouchCancel)();
 
 // LCD: the firmware calls simuLcdNotify() (import) when a new frame is ready.
 // The host waits for this notification, then calls simuLcdCopy() to read the
