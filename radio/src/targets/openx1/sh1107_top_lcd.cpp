@@ -222,7 +222,7 @@ void toplcdInit()
         TRACE("SH1107 Top LCD not detected");
         top_lcd_exists = false;
     } else {
-        TRACE("SH1107 Top LCD initialized");
+        // TRACE("SH1107 Top LCD initialized");
         draw_str(0, 40, "EdgeTX", FONT(XL));
         sh1107_flush();
     }
