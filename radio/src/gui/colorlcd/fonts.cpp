@@ -51,7 +51,12 @@ struct etxLvglFont {
   bool              loaded;
 };
 
+#if defined(ALL_LANGS)
+// Set when the shared multi-language font buffer could not be allocated.
+// Without ALL_LANGS each font size is allocated on demand instead, so no
+// such global flag is needed there.
 static bool fontAllocFailed = false;
+#endif
 
 #define BUFSIZE(x) (((x) + 15) & 0xFFFFFFF0)
 
@@ -124,50 +129,23 @@ static etxLvglFont en_fontTable[FONTS_COUNT] = {
 
 } // extern "C"
 
-int getSize(etxLvglFont* fonts)
+/*
+  Allocate the LZ4 decompression buffer for a single font size, on demand.
+
+  Reserving space for every font size up-front is expensive on CJK builds:
+  the language fonts are big and the EN fonts are kept as runtime fallback
+  (e.g. ~1MB of PSRAM for CN), even though the largest sizes are only used
+  by a few screens. Allocating per size keeps the RAM footprint proportional
+  to the sizes the UI actually uses.
+*/
+static bool allocFontBuffer(int idx, etxLvglFont* fonts)
 {
-  int sz = 0;
-  for (int i = FONT_STD_INDEX; i < FONTS_COUNT; i += 1) {
-    if (fonts[i].lz4Font) {
-      sz += BUFSIZE(fonts[i].lz4Font->lvglFontBufSize);
-    }
-  }
-  return sz;
-}
+  // STD fonts are used directly from flash, no buffer needed
+  if (fonts[idx].lz4Font == nullptr) return true;
+  // Buffer already allocated
+  if (fonts[idx].lvglFont != nullptr) return true;
 
-uint8_t* allocBuf(etxLvglFont* fonts, uint8_t* b)
-{
-  for (int i = FONT_STD_INDEX; i < FONTS_COUNT; i += 1) {
-    if (fonts[i].lz4Font) {
-      fonts[i].lvglFont = (lv_font_t*)b;
-      b += BUFSIZE(fonts[i].lz4Font->lvglFontBufSize);
-    }
-  }
-  return b;
-}
-
-void forceStd(etxLvglFont* fonts)
-{
-  for (int i = FONT_STD_INDEX; i < FONTS_COUNT; i += 1) {
-    if (fonts[i].lz4Font) {
-      fonts[i].lvglFont = fonts[FONT_STD_INDEX].lvglFont;
-      fonts[i].loaded = true;
-    }
-  }
-}
-
-void initFontBuffers()
-{
-  if (fontTable[FONT_BOLD_INDEX].lvglFont || fontAllocFailed) return;
-
-  // Calc max size needed for all compressed fonts
-  int sz = 0;
-#if defined(ENABLE_FALLBACK)
-  sz += getSize(en_fontTable);
-#endif
-  sz += getSize(fontTable);
-
-  // Allocate buffer and assign to fonts
+  uint32_t sz = BUFSIZE(fonts[idx].lz4Font->lvglFontBufSize);
 #if defined(SIMU)
   uint8_t* b = (uint8_t*)malloc(sz);
 #elif defined(ESP_PLATFORM)
@@ -175,19 +153,18 @@ void initFontBuffers()
 #else
   uint8_t* b = (uint8_t*)sbrk(sz);
 #endif
-  if (b) {
-#if defined(ENABLE_FALLBACK)
-    b = allocBuf(en_fontTable, b);
+  if (b == nullptr) {
+#if defined(ESP_PLATFORM)
+    ESP_EARLY_LOGW("fonts", "font buffer alloc failed: %u bytes", (unsigned)sz);
 #endif
-    b = allocBuf(fontTable, b);
-  } else {
-    // Force all fonts to use STD size
-    fontAllocFailed = true;
-#if defined(ENABLE_FALLBACK)
-    forceStd(en_fontTable);
-#endif
-    forceStd(fontTable);
+    return false;
   }
+
+#if defined(ESP_PLATFORM)
+  ESP_EARLY_LOGI("fonts", "font[%d] buffer: %u bytes", idx, (unsigned)sz);
+#endif
+  fonts[idx].lvglFont = (lv_font_t*)b;
+  return true;
 }
 
 #else
@@ -351,9 +328,22 @@ void decompressFont(int idx, etxLvglFont* fonts)
   if (fonts[idx].loaded) return;
 
   const etxLz4Font* etxFont = fonts[idx].lz4Font;
+  if (etxFont == nullptr) return;
+
+#if defined(ALL_LANGS)
+  // Shared buffer for all languages, assigned up-front for every size
+  initFontBuffers();
+#else
+  // Allocate the buffer for this size only, on first use
+  if (!allocFontBuffer(idx, fonts)) {
+    // Out of memory: reuse the STD font for this size and don't retry
+    fonts[idx].lvglFont = fonts[FONT_STD_INDEX].lvglFont;
+    fonts[idx].loaded = true;
+    return;
+  }
+#endif
 
   // Init SDRAM buffer
-  initFontBuffers();
   uint8_t* data = (uint8_t*)fonts[idx].lvglFont;
   memset(data, 0, etxFont->lvglFontBufSize);
 
