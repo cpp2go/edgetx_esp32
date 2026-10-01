@@ -686,7 +686,9 @@ SWITCH_CONFIG = {
         "SA": {"default": "2POS"},
         "SB": {"default": "2POS"},
         "SC": {"default": "3POS"},
-        "SD": {"default": "2POS"},
+        "SD": {"default": "3POS"},
+        "SE": {"default": "2POS"},
+        "SF": {"default": "2POS"},
     },
 }
 
