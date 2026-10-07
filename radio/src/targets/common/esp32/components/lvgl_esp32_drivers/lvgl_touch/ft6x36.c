@@ -30,7 +30,10 @@
 #define TAG "FT6X36"
 #define FT6X36_TOUCH_QUEUE_ELEMENTS 1
 
-#define FT6X36_I2C_TIMEOUT -1
+/* Bounded I2C timeout: the touch bus is shared with the RTC / GPIO expander /
+ * top LCD, so an unbounded wait could stall the LVGL task. Transfers take a few
+ * hundred microseconds, so 200 ms is effectively "never times out" in practice. */
+#define FT6X36_I2C_TIMEOUT 200
 static i2c_master_dev_handle_t ft6x06_handle = NULL;
 
 static ft6x36_status_t ft6x36_status;
@@ -109,6 +112,12 @@ void ft6x06_init(uint16_t dev_addr) {
     if ((ret = ft6x06_i2c_write8(FT6X36_G_MODE_REG, 0)) != ESP_OK)
        ESP_LOGE(TAG, "ft6x06_i2c_write8 err: %s", esp_err_to_name(ret));
 
+    // Touch detection threshold. Lowering it below the factory default (0x16)
+    // makes the panel detect lighter taps and touches near its edges.
+    if ((ret = ft6x06_i2c_write8(FT6X36_TH_GROUP_REG, FT6X36_TH_GROUP_VALUE)) != ESP_OK)
+        ESP_LOGE(TAG, "ft6x06_i2c_write8 err: %s", esp_err_to_name(ret));
+    ESP_LOGI(TAG, "Touch detection threshold (0x80) set to 0x%02x", FT6X36_TH_GROUP_VALUE);
+
 #if CONFIG_LV_FT6X36_COORDINATES_QUEUE
     ft6x36_touch_queue_handle = xQueueCreate( FT6X36_TOUCH_QUEUE_ELEMENTS, sizeof( ft6x36_touch_t ) );
     if( ft6x36_touch_queue_handle == NULL )
@@ -131,17 +140,24 @@ bool ft6x36_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
         ESP_LOGE(TAG, "Init first!");
         return 0x00;
     }
-    uint8_t data_buf[5];        // 1 byte status, 2 bytes X, 2 bytes Y
+    uint8_t data_buf[5] = {0};  // 1 byte status, 2 bytes X, 2 bytes Y
     uint8_t register_addr = FT6X36_TD_STAT_REG;
     esp_err_t ret = i2c_master_transmit_receive(ft6x06_handle, &register_addr, 1, data_buf, 5, FT6X36_I2C_TIMEOUT);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Error talking to touch IC: %s", esp_err_to_name(ret));
+        // Single retry: a transient NAK on the shared I2C bus would otherwise be
+        // reported as a release and cut an ongoing drag short.
+        ret = i2c_master_transmit_receive(ft6x06_handle, &register_addr, 1, data_buf, 5, FT6X36_I2C_TIMEOUT);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Error talking to touch IC: %s", esp_err_to_name(ret));
+        }
     }
     // Number of detected touch points
-    uint8_t touch_pnt_cnt = data_buf[0];  
+    uint8_t touch_pnt_cnt = data_buf[0] & FT6X36_TD_STAT_MASK;
 
-    // ignore no touch & multi touch
-    if (ret != ESP_OK || touch_pnt_cnt != 1) {    
+    // Any reported touch point counts as pressed; this driver only tracks the
+    // first one. Requiring exactly one point dropped taps whenever the
+    // controller reported a second point (wide fingertip, a resting finger).
+    if (ret != ESP_OK || touch_pnt_cnt == 0) {    
         if ( touch_inputs.current_state != LV_INDEV_STATE_REL) {
             touch_inputs.current_state = LV_INDEV_STATE_REL;
 #if CONFIG_LV_FT6X36_COORDINATES_QUEUE
@@ -164,11 +180,20 @@ bool ft6x36_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     touch_inputs.last_y = swap_buf;
 #endif
 #if CONFIG_LV_FT6X36_INVERT_X
-    touch_inputs.last_x =  LV_HOR_RES - touch_inputs.last_x;
+    // -1: the mirrored range is [0, LV_HOR_RES-1], not [1, LV_HOR_RES]
+    touch_inputs.last_x =  LV_HOR_RES - 1 - touch_inputs.last_x;
 #endif
 #if CONFIG_LV_FT6X36_INVERT_Y
-    touch_inputs.last_y = LV_VER_RES - touch_inputs.last_y;
+    // -1: the mirrored range is [0, LV_VER_RES-1], not [1, LV_VER_RES]
+    touch_inputs.last_y = LV_VER_RES - 1 - touch_inputs.last_y;
 #endif
+    // Safety net: never hand LVGL a point outside the logical frame (it would
+    // just be discarded there).
+    if (touch_inputs.last_x < 0) touch_inputs.last_x = 0;
+    else if (touch_inputs.last_x > LV_HOR_RES - 1) touch_inputs.last_x = LV_HOR_RES - 1;
+    if (touch_inputs.last_y < 0) touch_inputs.last_y = 0;
+    else if (touch_inputs.last_y > LV_VER_RES - 1) touch_inputs.last_y = LV_VER_RES - 1;
+
     data->point.x = touch_inputs.last_x;
     data->point.y = touch_inputs.last_y;
     data->state = touch_inputs.current_state;

@@ -113,6 +113,17 @@ extern "C" {
 #define FT6X36_THRESHOLD_MASK          0xFF          /* Values FT6X36_TH_GROUP_REG : threshold related  */
 #define FT6X36_THRESHOLD_SHIFT         0
 
+/* Value written to FT6X36_TH_GROUP_REG at init.
+ *
+ * The controller power-on default is 0x16 (22). The lower the value, the more
+ * sensitive the panel: light taps are detected and touches close to the panel
+ * edges (where the capacitive coupling is weaker) register reliably.
+ * Tune between 0x08 (very sensitive, phantom touches are possible) and 0x16
+ * (factory default). */
+#ifndef FT6X36_TH_GROUP_VALUE
+#define FT6X36_TH_GROUP_VALUE          0x0C
+#endif
+
 #define FT6X36_TH_DIFF_REG             0x85          /* Filter function coefficients */
 
 #define FT6X36_CTRL_REG                0x86            /* Control register */

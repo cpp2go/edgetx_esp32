@@ -55,6 +55,10 @@ static void lcd_flush(lv_disp_drv_t *drv, uint16_t*color_map, const rect_t& rect
 
 void lcdInit()
 {
+    // touchPanelInit() configures the touch IRQ pin (input + pull-up). It was
+    // never called before, so touchPanelEventOccured() was sampling a pin that
+    // had not been configured and the whole touch path depended on luck.
+    touchPanelInit();
     lvgl_driver_init();
     lcdSetFlushCb(lcd_flush);
 }
