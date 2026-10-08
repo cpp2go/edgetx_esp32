@@ -41,9 +41,13 @@
  *     needs no changes.  "AT+NAME..." also renames the advertised device.
  *   - bluetoothRead() returns bytes received from the central (RX ring buffer).
  *
- * NOTE: The radio currently only implements the peripheral (slave) role.
- *   "Master" trainer mode (radio acting as BLE central scanning/connecting)
- *   is not implemented yet.
+ * Roles (mirrors the EdgeTX trainer roles):
+ *   - "Master/Bluetooth" (instructor radio)  -> BLE *central*: scans for a
+ *     NUS peripheral, connects, receives the student's channels.  The bound
+ *     peer address is stored in NVS so the link is re-established
+ *     automatically on the next power-up (no manual "Discover" needed).
+ *   - "Slave/Bluetooth"  (student radio)     -> BLE *peripheral*: advertises
+ *     and pushes its own 8 channels once connected.
  *
  * NOTE: This feature and the "BT PowerUp" module both use the same NimBLE
  *   host.  Only one may be active at a time.
@@ -78,6 +82,18 @@
 #define BT_TAG "BT_DRV"
 
 #define BT_NAME_MAX 32
+
+/*
+ * Legacy advertising data is limited to BLE_HS_ADV_MAX_SZ (31) bytes and the
+ * 128-bit NUS UUID (18 bytes) must always be advertised (the master's
+ * "Discover" matches on it), so at most
+ *   31 - 3 (flags) - 18 (UUID) - 2 (name AD header) = 8
+ * bytes are left for the local name.  Advertising a longer name would make
+ * ble_gap_adv_set_fields() fail with BLE_HS_EMSGSIZE, which would silently
+ * leave the radio with no advertising at all: the student radio would never
+ * show up in the instructor radio's device list.
+ */
+#define BT_ADV_NAME_MAX (BLE_HS_ADV_MAX_SZ - 3 - 18 - 2)
 
 /* Nordic UART Service (NUS) - de-facto BLE "serial" bridge */
 static const ble_uuid128_t bt_svc_uuid = BLE_UUID128_INIT(
@@ -127,6 +143,7 @@ int g_nimble_port_init_ok = 0;
  */
 #define BT_NVS_NS    "edgetx_bt"
 #define BT_NVS_LATCH "bt_crash"
+#define BT_NVS_PEER  "bt_peer"
 
 static bool bt_nvs_get_crash_latch(void)
 {
@@ -144,6 +161,45 @@ static void bt_nvs_set_crash_latch(bool armed)
   nvs_handle_t h;
   if (nvs_open(BT_NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
     nvs_set_i32(h, BT_NVS_LATCH, armed ? 1 : 0);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+}
+
+/*
+ * Bound peer address (central/master role).  Persisted so the master can
+ * auto-reconnect to the same radio after a power cycle instead of forcing
+ * the user to run "Discover" and pick the device again.
+ */
+static void bt_nvs_save_peer(const char *addr)
+{
+  nvs_handle_t h;
+  if (addr == NULL || addr[0] == '\0') return;
+  if (nvs_open(BT_NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    nvs_set_str(h, BT_NVS_PEER, addr);
+    nvs_commit(h);
+    nvs_close(h);
+  }
+}
+
+static void bt_nvs_load_peer(char *out, size_t out_len)
+{
+  nvs_handle_t h;
+  size_t len = out_len;
+  out[0] = '\0';
+  if (nvs_open(BT_NVS_NS, NVS_READONLY, &h) == ESP_OK) {
+    if (nvs_get_str(h, BT_NVS_PEER, out, &len) != ESP_OK) {
+      out[0] = '\0';
+    }
+    nvs_close(h);
+  }
+}
+
+static void bt_nvs_clear_peer(void)
+{
+  nvs_handle_t h;
+  if (nvs_open(BT_NVS_NS, NVS_READWRITE, &h) == ESP_OK) {
+    nvs_erase_key(h, BT_NVS_PEER);
     nvs_commit(h);
     nvs_close(h);
   }
@@ -167,6 +223,41 @@ static uint16_t bt_peer_rx_val_handle = 0; /* peer NUS RX (write target)  */
 static uint16_t bt_peer_tx_val_handle = 0; /* peer NUS TX (notify source) */
 static uint8_t bt_discover_count = 0;
 static char bt_peer_addr[BT_ADDR_STR_LEN] = "";
+
+/*
+ * Our own BLE address (filled in once the host has synced).  It is reported
+ * to the EdgeTX state machine instead of a dummy "0" so the UI can show it.
+ */
+static char bt_local_addr[BT_ADDR_STR_LEN] = "";
+
+/*
+ * Set once the EdgeTX handshake has sent AT+ROLE0/AT+ROLE1.  If the NimBLE
+ * host syncs afterwards, the address is pushed again so the UI is not left
+ * with the placeholder.
+ */
+static bool bt_handshake_role_done = false;
+
+/* Peer bound in a previous session (NVS), used for auto-reconnect. */
+static char bt_saved_peer[BT_ADDR_STR_LEN] = "";
+
+/* central: silent scan looking for bt_saved_peer */
+static bool bt_auto_connect = false;
+
+/*
+ * Set from the NimBLE host task (BLE_GAP_EVENT_DISC_COMPLETE) and consumed
+ * from bluetoothRead() (mixer task): a new discovery procedure must not be
+ * started from inside the completion callback.
+ */
+static volatile bool bt_scan_restart_pending = false;
+
+/*
+ * Manual "Discover" scan duration (ms).  It must be finite: on expiry NimBLE
+ * reports BLE_GAP_EVENT_DISC_COMPLETE, which is what terminates the scan for
+ * the state machine ("OK+DISCE").
+ */
+#define BT_DISC_DURATION_MS 15000
+/* Auto-reconnect scan duration (ms); restarted while the peer is not seen. */
+#define BT_AUTOCONN_DURATION_MS 30000
 
 /* advertised 128-bit service list (peripheral) */
 static ble_uuid128_t bt_adv_uuids[1];
@@ -204,6 +295,28 @@ static void bt_rx_push(const uint8_t *data, uint32_t len)
 static void bt_rx_push_str(const char *str)
 {
   bt_rx_push((const uint8_t *)str, strlen(str));
+}
+
+/* Drop everything still queued: used when a link comes up so that stale
+ * handshake / discovery text cannot pollute the trainer byte stream. */
+static void bt_rx_reset(void)
+{
+  portENTER_CRITICAL(&bt_rx_mux);
+  bt_rx_head = 0;
+  bt_rx_tail = 0;
+  portEXIT_CRITICAL(&bt_rx_mux);
+}
+
+/*
+ * Answer lines the EdgeTX Bluetooth state machine understands.  It parses the
+ * tail of "Central:" / "Peripheral:" as the local address, so report the real
+ * one (or "0" while it is still unknown).
+ */
+static void bt_push_role_line(void)
+{
+  bt_rx_push_str(bt_role == BT_ROLE_CENTRAL ? "Central:" : "Peripheral:");
+  bt_rx_push_str(bt_local_addr[0] ? bt_local_addr : "0");
+  bt_rx_push_str("\r\n");
 }
 
 static bool bt_rx_pop(uint8_t *byte)
@@ -300,12 +413,12 @@ static bool bt_str_to_addr(const char *str, uint8_t *addr)
   return nibbles == 12;
 }
 
-static void bt_start_scan(void)
+static int bt_start_scan(int32_t duration_ms)
 {
   struct ble_gap_disc_params disc_params;
   int rc;
 
-  if (bt_scan_active) return;
+  if (bt_scan_active) return 0;
   bt_scan_active = true;
 
   memset(&disc_params, 0, sizeof(disc_params));
@@ -313,12 +426,13 @@ static void bt_start_scan(void)
   disc_params.passive = 0;
   disc_params.limited = 0;
 
-  rc = ble_gap_disc(bt_own_addr_type, BLE_HS_FOREVER, &disc_params,
+  rc = ble_gap_disc(bt_own_addr_type, duration_ms, &disc_params,
                     bt_gap_event, NULL);
   if (rc != 0) {
     bt_scan_active = false;
     ESP_LOGW(BT_TAG, "disc start rc=%d", rc);
   }
+  return rc;
 }
 
 static void bt_central_connect(const char *addr_str)
@@ -347,6 +461,8 @@ static void bt_central_connect(const char *addr_str)
     bt_scan_active = false;
   }
   bt_disc_active = false;
+  bt_auto_connect = false;
+  bt_scan_restart_pending = false;
 
   rc = ble_hs_id_infer_auto(0, &bt_own_addr_type);
   if (rc != 0) {
@@ -425,18 +541,35 @@ static void bt_start_advertising(void)
 {
   struct ble_gap_adv_params adv_params;
   struct ble_hs_adv_fields fields;
+  size_t name_len;
   int rc;
 
   memset(&fields, 0, sizeof(fields));
   fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
   fields.name = (uint8_t *)bt_adv_name;
-  fields.name_len = (uint8_t)strlen(bt_adv_name);
-  fields.name_is_complete = 1;
+  name_len = strlen(bt_adv_name);
+  if (name_len > BT_ADV_NAME_MAX) {
+    /* name no longer fits next to the NUS UUID: advertise it shortened
+     * (BLE_HS_ADV_TYPE_INCOMP_NAME) instead of not advertising at all */
+    name_len = BT_ADV_NAME_MAX;
+  } else {
+    fields.name_is_complete = 1;
+  }
+  fields.name_len = (uint8_t)name_len;
   /* advertise the NUS service so a central scan can find us */
   bt_adv_uuids[0] = bt_svc_uuid;
   fields.uuids128 = bt_adv_uuids;
   fields.num_uuids128 = 1;
   rc = ble_gap_adv_set_fields(&fields);
+  if (rc != 0 && fields.name_len > 0) {
+    /* last resort: the UUID is what a scanner matches on, so never let the
+     * name be the reason advertising fails */
+    ESP_LOGW(BT_TAG, "adv_set_fields rc=%d, retrying without name", rc);
+    fields.name = NULL;
+    fields.name_len = 0;
+    fields.name_is_complete = 0;
+    rc = ble_gap_adv_set_fields(&fields);
+  }
   if (rc != 0) {
     ESP_LOGW(BT_TAG, "adv_set_fields rc=%d", rc);
     return;
@@ -466,12 +599,22 @@ static int bt_gap_event(struct ble_gap_event *event, void *arg)
         ESP_LOGW(BT_TAG, "connect failed, status=%d", event->connect.status);
         if (bt_role == BT_ROLE_PERIPHERAL) {
           bt_start_advertising();
+        } else if (bt_saved_peer[0]) {
+          /* keep trying to reach the bound peer */
+          bt_auto_connect = true;
+          bt_scan_restart_pending = true;
         }
         return 0;
       }
 
       bt_conn_handle = event->connect.conn_handle;
+      /* a link is up: discard leftover handshake / discovery text so it is
+       * not mistaken for trainer data */
+      bt_rx_reset();
       if (bt_role == BT_ROLE_CENTRAL) {
+        /* remember the bound peer so we can auto-reconnect after a reboot */
+        bt_nvs_save_peer(bt_peer_addr);
+        ESP_LOGI(BT_TAG, "central connected to %s (bound)", bt_peer_addr);
         /* we are the central: discover the peer's services */
         if (peer_add(bt_conn_handle) == 0) {
           peer_disc_all(bt_conn_handle, bt_central_disc_cb, NULL);
@@ -501,6 +644,11 @@ static int bt_gap_event(struct ble_gap_event *event, void *arg)
       bt_peer_tx_val_handle = 0;
       ESP_LOGI(BT_TAG, "disconnected, reason=%d", event->disconnect.reason);
       peer_delete(event->disconnect.conn.conn_handle);
+      /* Report the link loss to the EdgeTX state machine.  Without this it
+       * would stay in BLUETOOTH_STATE_CONNECTED forever: the UI would keep
+       * showing "connected" and the slave would keep pushing trainer frames
+       * into a dead link at 50 Hz. */
+      bt_rx_push_str("DisConnected\r\n");
       if (bt_role == BT_ROLE_PERIPHERAL) {
         bt_start_advertising();
       }
@@ -515,21 +663,43 @@ static int bt_gap_event(struct ble_gap_event *event, void *arg)
 
     case BLE_GAP_EVENT_DISC: {
       struct ble_hs_adv_fields fields;
+      char addr[BT_ADDR_STR_LEN];
       int i;
-      if (!bt_disc_active) return 0;
+
       if (event->disc.event_type != BLE_HCI_ADV_RPT_EVTYPE_ADV_IND &&
           event->disc.event_type != BLE_HCI_ADV_RPT_EVTYPE_SCAN_RSP) {
         return 0;
       }
+
+      bt_addr_to_str(event->disc.addr.val, addr);
+
+      /* central: silently look for the previously bound peer */
+      if (bt_auto_connect) {
+        if (bt_saved_peer[0] && strcmp(addr, bt_saved_peer) == 0) {
+          ESP_LOGI(BT_TAG, "bound peer %s found, reconnecting", addr);
+          bt_auto_connect = false;
+          /* bt_central_connect() takes the address type from the discovery
+           * cache, which auto-connect never filled: record what the
+           * controller reported, the peer may advertise with a random
+           * address that must not be connected to as a public one. */
+          bt_disc_cache_len = 1;
+          memcpy(bt_disc_cache[0].str, addr, BT_ADDR_STR_LEN);
+          memcpy(bt_disc_cache[0].val, event->disc.addr.val, 6);
+          bt_disc_cache[0].type = event->disc.addr.type;
+          bt_central_connect(addr);
+        }
+        return 0;
+      }
+
+      if (!bt_disc_active) return 0;
+
       if (ble_hs_adv_parse_fields(&fields, event->disc.data,
                                   event->disc.length_data) != 0) {
         return 0;
       }
       for (i = 0; i < fields.num_uuids128; i++) {
         if (ble_uuid_cmp(&fields.uuids128[i].u, &bt_svc_uuid.u) == 0) {
-          char addr[BT_ADDR_STR_LEN];
           int j;
-          bt_addr_to_str(event->disc.addr.val, addr);
           /* skip duplicates and cap the list */
           if (bt_discover_count >= BT_MAX_DISCOVER_DEVICES) return 0;
           for (j = 0; j < bt_disc_cache_len; j++) {
@@ -554,6 +724,14 @@ static int bt_gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISC_COMPLETE:
       bt_scan_active = false;
       bt_disc_active = false;
+      if (bt_auto_connect) {
+        /* Bound peer not seen yet: scan again.  The actual restart happens in
+         * bluetoothRead(), because starting a new procedure from inside this
+         * callback can be rejected by NimBLE. */
+        bt_scan_restart_pending = true;
+        return 0;
+      }
+      ESP_LOGI(BT_TAG, "discovery complete, %d device(s)", bt_discover_count);
       bt_rx_push_str("OK+DISCE\r\n");
       return 0;
 
@@ -610,11 +788,7 @@ static void bt_handle_at(const uint8_t *data, uint32_t len)
     }
     bt_rx_push_str("OK+NAME\r\n");
   } else if (bt_has(data, len, "AT+TXPW")) {
-    if (bt_role == BT_ROLE_CENTRAL) {
-      bt_rx_push_str("Central:0\r\n");
-    } else {
-      bt_rx_push_str("Peripheral:0\r\n");
-    }
+    bt_push_role_line();
   } else if (bt_has(data, len, "AT+ROLE")) {
     /* "AT+ROLE1" = central (master), "AT+ROLE0" = peripheral (slave) */
     bool is_central = false;
@@ -625,22 +799,62 @@ static void bt_handle_at(const uint8_t *data, uint32_t len)
         break;
       }
     }
+
+    /* Drop whatever the previous role was doing (scan / connection) so a
+     * master <-> slave switch does not leave a stale procedure behind. */
+    if (bt_scan_active) {
+      ble_gap_disc_cancel();
+      bt_scan_active = false;
+    }
+    bt_disc_active = false;
+    bt_discover_count = 0;
+    bt_disc_cache_len = 0;
+    bt_auto_connect = false;
+    bt_scan_restart_pending = false;
+    if (bt_conn_handle != BLE_HS_CONN_HANDLE_NONE) {
+      ble_gap_terminate(bt_conn_handle, BLE_ERR_REM_USER_CONN_TERM);
+      bt_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+    }
+
     if (is_central) {
       bt_role = BT_ROLE_CENTRAL;
       ble_gap_adv_stop();
-      bt_rx_push_str("Central:0\r\n");
     } else {
       bt_role = BT_ROLE_PERIPHERAL;
+    }
+
+    /* answer before (possibly) starting to advertise, so the response can
+     * never be overtaken by a "Connected:" line from an eager central */
+    bt_handshake_role_done = true;
+    bt_push_role_line();
+
+    if (is_central) {
+      /* reconnect to the peer bound in a previous session, if any; the scan
+       * is started from bluetoothRead() to stay out of this callback */
+      if (bt_saved_peer[0]) {
+        bt_auto_connect = true;
+        bt_scan_restart_pending = true;
+      }
+    } else {
       bt_start_advertising();
-      bt_rx_push_str("Peripheral:0\r\n");
     }
   } else if (bt_has(data, len, "AT+DISC?")) {
     /* master: start scanning for NUS peripherals */
+    bt_auto_connect = false;
+    bt_scan_restart_pending = false;
     bt_disc_active = true;
     bt_discover_count = 0;
+    /* A cache from a previous "Discover" must not filter what is found now,
+     * otherwise the same device could never be discovered twice. */
+    bt_disc_cache_len = 0;
     bt_rx_push_str("OK+DISCS\r\n");
-    bt_start_scan();
+    if (!bt_scan_active) {
+      bt_start_scan(BT_DISC_DURATION_MS);
+    }
   } else if (bt_has(data, len, "AT+CLEAR")) {
+    /* "Clear" in the UI: forget the bound peer as well */
+    bt_saved_peer[0] = '\0';
+    bt_nvs_clear_peer();
     bt_rx_push_str("OK+CLEAR\r\n");
   } else if (bt_has(data, len, "AT+CON")) {
     /* master: connect to a specific NUS peripheral */
@@ -708,6 +922,14 @@ static void bt_on_sync(void)
     return;
   }
 
+  /* resolve our own address so the UI can display it */
+  {
+    uint8_t own_addr[6];
+    if (ble_hs_id_copy_addr(bt_own_addr_type, own_addr, NULL) == 0) {
+      bt_addr_to_str(own_addr, bt_local_addr);
+    }
+  }
+
   rc = ble_gatts_count_cfg(bt_svc_defs);
   if (rc != 0) {
     ESP_LOGE(BT_TAG, "gatts_count_cfg failed rc=%d", rc);
@@ -732,7 +954,18 @@ static void bt_on_sync(void)
 
   ESP_LOGI(BT_TAG, "NimBLE ready: gatts started, TX val handle=0x%04x",
            bt_tx_val_handle);
-  bt_start_advertising();
+
+  /* Do NOT advertise yet unless the EdgeTX handshake already told us which
+   * role to take: advertising as a peripheral before AT+ROLE0 has been
+   * answered lets a central connect while the handshake is still consuming
+   * lines, which swallows the "Connected:" report. */
+  if (bt_handshake_role_done) {
+    /* the handshake ran before we knew the address: update the placeholder */
+    bt_push_role_line();
+    if (bt_role == BT_ROLE_PERIPHERAL) {
+      bt_start_advertising();
+    }
+  }
 }
 
 #define BT_HOST_TASK_STACK_SIZE 4096
@@ -815,6 +1048,14 @@ static void bt_host_start(void)
   ble_svc_gatt_init();
   ble_svc_gap_device_name_set(bt_adv_name);
 
+  /* peer bound in a previous session (used for auto-reconnect as central) */
+  if (bt_saved_peer[0] == '\0') {
+    bt_nvs_load_peer(bt_saved_peer, sizeof(bt_saved_peer));
+    if (bt_saved_peer[0]) {
+      ESP_LOGI(BT_TAG, "bound peer from NVS: %s", bt_saved_peer);
+    }
+  }
+
   /* peer tracking used by the central (master) role */
   if (!bt_peer_init_done) {
     bt_peer_init_done = true;
@@ -855,7 +1096,8 @@ void bluetoothInit(uint32_t baudrate, bool enable)
    * (or on a host that was skipped for crash recovery) is both wrong and
    * unsafe - it can panic the radio.  bt_on_sync() starts advertising as
    * soon as the host is up, so nothing is lost. */
-  if (bt_role == BT_ROLE_PERIPHERAL && bt_host_start_ok && bt_host_synced) {
+  if (bt_role == BT_ROLE_PERIPHERAL && bt_handshake_role_done &&
+      bt_host_start_ok && bt_host_synced) {
     bt_start_advertising();
   }
 }
@@ -871,7 +1113,9 @@ void bluetoothWrite(const void *buffer, uint32_t len)
   }
 
   if (bt_conn_handle == BLE_HS_CONN_HANDLE_NONE) {
-    ESP_LOGI(BT_TAG, "write len=%u dropped (no connection)", (unsigned)len);
+    /* Log at debug level only: the slave may retry at 50 Hz while the link
+     * is down (e.g. before the state machine notices the disconnect). */
+    ESP_LOGD(BT_TAG, "write len=%u dropped (no connection)", (unsigned)len);
     return;
   }
 
@@ -882,14 +1126,13 @@ void bluetoothWrite(const void *buffer, uint32_t len)
                            (uint16_t)len, bt_write_cb, NULL);
     }
   } else {
-    /* slave: notify our own NUS TX characteristic */
-    ESP_LOGI(BT_TAG, "write len=%u conn=%u tx_val=0x%04x",
-             (unsigned)len, bt_conn_handle, bt_tx_val_handle);
+    /* slave: notify our own NUS TX characteristic.  Trainer frames go out at
+     * 50 Hz, so this path must not log at info level. */
     if (bt_tx_val_handle != 0) {
       struct os_mbuf *om = ble_hs_mbuf_from_flat(data, (uint16_t)len);
       if (om) {
         int rc = ble_gatts_notify_custom(bt_conn_handle, bt_tx_val_handle, om);
-        ESP_LOGI(BT_TAG, "notify rc=%d", rc);
+        ESP_LOGD(BT_TAG, "notify len=%u rc=%d", (unsigned)len, rc);
       }
     }
   }
@@ -897,6 +1140,20 @@ void bluetoothWrite(const void *buffer, uint32_t len)
 
 int bluetoothRead(uint8_t *data)
 {
+  /* The auto-reconnect scan is (re)started here: bluetoothRead() is called
+   * from the mixer task (state machine), whereas BLE_GAP_EVENT_DISC_COMPLETE
+   * runs in the NimBLE host task, where starting a new procedure may be
+   * rejected. */
+  if (bt_scan_restart_pending && bt_auto_connect && !bt_scan_active) {
+    bt_scan_restart_pending = false;
+    ESP_LOGI(BT_TAG, "scanning for bound peer %s", bt_saved_peer);
+    if (bt_start_scan(BT_AUTOCONN_DURATION_MS) != 0) {
+      /* The controller may still be busy (e.g. just after a failed connect
+       * attempt): keep the request pending and retry on the next call
+       * instead of giving up on auto-reconnect for good. */
+      bt_scan_restart_pending = true;
+    }
+  }
   return bt_rx_pop(data) ? 1 : 0;
 }
 

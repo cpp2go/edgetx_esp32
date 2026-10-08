@@ -163,9 +163,7 @@ void BluetoothTrainerWindow::refresh()
   if (bluetooth.state == BLUETOOTH_STATE_CONNECTED) {
     state->setText(STR_CONNECTED);
     if (!is_master) r_addr->setText(bluetooth.distantAddr);
-  } else if (bluetooth.state != BLUETOOTH_STATE_DISCOVER_REQUESTED ||
-             bluetooth.state != BLUETOOTH_STATE_DISCOVER_SENT ||
-             !is_master) {
+  } else {
     state->setText(STR_NOT_CONNECTED);
     if (!is_master) r_addr->setText(_empty_addr);
   }

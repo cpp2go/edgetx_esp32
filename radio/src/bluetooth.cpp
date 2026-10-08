@@ -452,7 +452,14 @@ void Bluetooth::wakeup()
         sendTrainer();
         wakeupTime = now + 2; /* 20ms */
       }
-      readline(); // to deal with "ERROR"
+      // to deal with "ERROR" and to notice a lost link: the module / BLE peer
+      // reports a disconnect as a plain text line, which is otherwise never
+      // parsed on the slave side (it would keep sending into a dead link)
+      char * line = readline();
+      if (line != nullptr && !strcmp(line, "DisConnected")) {
+        state = BLUETOOTH_STATE_DISCONNECTED;
+        wakeupTime = now + 200; /* 2s */
+      }
     }
   }
   else {
@@ -535,7 +542,8 @@ void Bluetooth::wakeup()
       if (g_model.trainerData.mode == TRAINER_MODE_SLAVE_BLUETOOTH) {
         wakeupTime += 500; // it seems a 5s delay is needed before sending the 1st frame
       }
-    } else if (state == BLUETOOTH_STATE_DISCONNECTED && !line) {
+    } else if (state == BLUETOOTH_STATE_DISCONNECTED && !line &&
+               g_model.trainerData.mode != TRAINER_MODE_SLAVE_BLUETOOTH) {
       char command[32];
       strAppend(strAppend(command, "AT+CON"), distantAddr);
       writeString(command);
