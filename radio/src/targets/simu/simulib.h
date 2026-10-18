@@ -114,6 +114,9 @@ uint32_t edgetxAndroidHostAudioPending();
 // range with the firmware's offsets already applied).
 void edgetxAndroidBatterySettings(uint16_t* warn, uint16_t* batMin, uint16_t* batMax);
 
+// Protocol the model selected for the internal module (MODULE_TYPE_*, 0 = slot off).
+uint8_t edgetxAndroidInternalModuleType();
+
 // Protocol the model selected for the external module (MODULE_TYPE_*, 0 = slot off).
 uint8_t edgetxAndroidExternalModuleType();
 

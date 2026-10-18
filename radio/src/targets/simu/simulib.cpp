@@ -220,11 +220,14 @@ static bool voicePackOnCard(const char* lang)
   return entries >= 20;
 }
 
-// What the firmware has in RAM for the battery, so the host can show it next to its own
-// reading: the warning threshold (Radio Setup -> Alarms) and the range that scales the
-// percentage (Radio Setup -> Hardware). These are different settings, and only the first
-// one raises the low-voltage warning. All in 100 mV steps, the range with the firmware's
-// offsets removed.
+// Protocol selected for the internal module slot (MODULE_TYPE_*), 0 when the slot is
+// off. The host logs it next to the external slot's, so a silent link can be traced to
+// the slot the model actually drives.
+uint8_t edgetxAndroidInternalModuleType()
+{
+  return g_model.moduleData[INTERNAL_MODULE].type;
+}
+
 // Protocol selected for the external module slot (MODULE_TYPE_*), 0 when the slot is off.
 // The host logs it: only a serial protocol makes EdgeTX start the port, so "no bytes are
 // flowing" is otherwise hard to tell from a wrong baud rate.
@@ -233,6 +236,11 @@ uint8_t edgetxAndroidExternalModuleType()
   return g_model.moduleData[EXTERNAL_MODULE].type;
 }
 
+// What the firmware has in RAM for the battery, so the host can show it next to its own
+// reading: the warning threshold (Radio Setup -> Alarms) and the range that scales the
+// percentage (Radio Setup -> Hardware). These are different settings, and only the first
+// one raises the low-voltage warning. All in 100 mV steps, the range with the firmware's
+// offsets removed.
 void edgetxAndroidBatterySettings(uint16_t* warn, uint16_t* batMin, uint16_t* batMax)
 {
   if (warn)
@@ -247,17 +255,14 @@ void edgetxAndroidBatterySettings(uint16_t* warn, uint16_t* batMin, uint16_t* ba
 // English. Replace that default - and only the default - so a fresh radio comes up in
 // Chinese; a language the user picked themselves is left alone.
 // This port drives an ELRS module from the internal module slot as well (see
-// module_drivers.cpp), while the compiled-in default for a model is "slot off" - so a
-// fresh model would send nothing until the user picks a protocol. Turn CRSF on unless
-// the model already says something else.
+// module_drivers.cpp), and the firmware's default for a model is "slot off". The
+// slot's protocol is deliberately NOT forced on here: turning the internal module
+// off in Model Settings has to stay off, otherwise it comes back on the next boot
+// and the external module can never take over (the host drives only the enabled
+// slot, see module_serial.h).
 bool simuEnsureInternalModule()
 {
   bool changed = false;
-
-  if (g_model.moduleData[INTERNAL_MODULE].type == MODULE_TYPE_NONE) {
-    g_model.moduleData[INTERNAL_MODULE].type = MODULE_TYPE_CROSSFIRE;
-    changed = true;
-  }
 
   // ELRS speaks CRSF at 400 kbaud. The firmware's default for a CRSF radio is stored 1,
   // which indexes CROSSFIRE_BAUDRATES to 921600 ("921k if possible", see edgetx.cpp) -
@@ -269,7 +274,7 @@ bool simuEnsureInternalModule()
   }
 
   if (changed)
-    TRACE("module: internal slot defaults to CRSF at 400 kbaud");
+    TRACE("module: internal slot uses 400 kbaud");
   return changed;
 }
 
@@ -766,22 +771,24 @@ const etx_serial_driver_t host_drv = {
   .setBaudrateCb = nullptr,
 };
 
-// -- External RF module port -------------------------------------------------
-// A real radio hangs its RF module off a hardware UART, which this target does
-// not have.  Instead the external module port is bridged to the host: whatever
-// protocol EdgeTX is configured to speak to the module (CRSF, SBUS, DSM, ...)
-// drives this driver, its TX bytes leave through simuAuxSerialSendBuffer() and
-// bytes returned by the module enter the firmware through
-// simuAuxSerialReceive() - both on the AUX1 host port, whose RX queue is used
-// as this port's receive buffer.
-static host_serial_port_t* host_mod_port()
-{
-  return &hostSerialPorts[SP_AUX1];
-}
-
+// -- RF module ports ---------------------------------------------------------
+// A real radio hangs each RF module off a hardware UART, which this target does
+// not have.  Each module slot is bridged to its own host serial port instead,
+// so both slots can be open at the same time:
+//
+//   internal module (the built-in C3)  <-> host AUX1
+//   external module (USB-UART adapter) <-> host AUX2
+//
+// Whatever protocol EdgeTX is configured to speak to a module (CRSF, SBUS,
+// DSM, ...) drives that slot's driver, its TX bytes leave through
+// simuAuxSerialSendBuffer() and bytes returned by the module enter the
+// firmware through simuAuxSerialReceive() - each on that slot's own port
+// index.  With a single port the two protocols would be interleaved on one
+// wire as soon as both slots are on.
+template <uint8_t PortIndex>
 static void* host_mod_init(void*, const etx_serial_init* dev)
 {
-  auto* port = host_mod_port();
+  auto* port = &hostSerialPorts[PortIndex];
 
   mutex_lock(&port->rxMutex);
   port->rxQueue.clear();
@@ -825,9 +832,33 @@ static void host_mod_set_baudrate(void* ctx, uint32_t baudrate)
 }
 
 // Referenced from module_drivers.cpp, hence the explicit external linkage
-// (a namespace-scope const object is internal by default in C++).
+// (a namespace-scope const object is internal by default in C++).  Same driver
+// for both slots, bound to a different host port by host_mod_init<>().
 extern const etx_serial_driver_t hostModuleSerialDriver = {
-  .init = host_mod_init,
+  .init = host_mod_init<SP_AUX1>,
+  .deinit = host_mod_deinit,
+  .sendByte = host_mod_send_byte,
+  .sendBuffer = host_mod_send_buffer,
+  .txCompleted = host_mod_tx_completed,
+  .waitForTxCompleted = nullptr,
+  .enableRx = nullptr,
+  .getByte = host_mod_get_byte,
+  .getLastByte = nullptr,
+  .getBufferedBytes = nullptr,
+  .copyRxBuffer = nullptr,
+  .clearRxBuffer = nullptr,
+  .getBaudrate = nullptr,
+  .setBaudrate = host_mod_set_baudrate,
+  .setPolarity = nullptr,
+  .setHWOption = nullptr,
+  .setReceiveCb = nullptr,
+  .setIdleCb = nullptr,
+  .setBaudrateCb = nullptr,
+};
+
+// The external module's own host port (the module on the USB-UART adapter).
+extern const etx_serial_driver_t hostExternalModuleSerialDriver = {
+  .init = host_mod_init<SP_AUX2>,
   .deinit = host_mod_deinit,
   .sendByte = host_mod_send_byte,
   .sendBuffer = host_mod_send_buffer,

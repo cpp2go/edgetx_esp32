@@ -133,9 +133,9 @@ const etx_timer_driver_t _fakeTimerDriver = {
 #endif
 
 #if defined(HARDWARE_INTERNAL_MODULE)
-// Bridged to the host serial transport as well (defined further down for the external
-// slot): the internal module slot is where an ELRS module can be driven from when the
-// model selects CRSF for it.
+// The built-in module (the C3 on Android) is bridged to its own host serial
+// port: AUX1, see simulib.cpp.  The internal slot is where that module is
+// driven from when the model selects CRSF for it.
 extern const etx_serial_driver_t hostModuleSerialDriver;
 
 const etx_module_port_t _internal_ports[] = {
@@ -190,8 +190,9 @@ const etx_module_t _sport_module = {
 #if defined(AUX_SERIAL) && !defined(__wasm__)
 // Bridged to the host serial transport (see simulib.cpp): this lets the
 // external module run any serial protocol EdgeTX is configured for, with the
-// bytes actually leaving through the host's serial port.
-extern const etx_serial_driver_t hostModuleSerialDriver;
+// bytes actually leaving through the host's serial port.  It uses AUX2, so the
+// external module and the built-in one (AUX1) each keep their own wire.
+extern const etx_serial_driver_t hostExternalModuleSerialDriver;
 
 // Polarity.  A radio inverts these lines in hardware (an inverter GPIO, or the
 // MCU's own USART inversion); a USB serial adapter cannot be inverted from
@@ -223,19 +224,19 @@ const etx_module_port_t _external_ports[] = {
     .port = ETX_MOD_PORT_UART,
     .type = ETX_MOD_TYPE_SERIAL,
     .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
-    .drv = { .serial = &hostModuleSerialDriver },
+    .drv = { .serial = &hostExternalModuleSerialDriver },
     .hw_def = nullptr,
     .set_inverted = host_mod_set_inverted,
   },
-  // The same bridge on the S.PORT pin. That is where an external module's serial line
-  // sits on a real TX16S, and crossfireInit() asks for ETX_MOD_PORT_SPORT - without this
-  // entry the CRSF driver (ELRS modules) finds no port and never starts, which leaves the
-  // host waiting at its default baud rate with nothing to talk to.
+  // The same external-module bridge on the S.PORT pin. That is where an external module's
+  // serial line sits on a real TX16S, and crossfireInit() asks for ETX_MOD_PORT_SPORT -
+  // without this entry the CRSF driver (ELRS modules) finds no port and never starts,
+  // which leaves the host waiting at its default baud rate with nothing to talk to.
   {
     .port = ETX_MOD_PORT_SPORT,
     .type = ETX_MOD_TYPE_SERIAL,
     .dir_flags = ETX_MOD_DIR_TX_RX | ETX_MOD_FULL_DUPLEX,
-    .drv = { .serial = &hostModuleSerialDriver },
+    .drv = { .serial = &hostExternalModuleSerialDriver },
     .hw_def = nullptr,
     .set_inverted = host_mod_set_inverted,
   },
