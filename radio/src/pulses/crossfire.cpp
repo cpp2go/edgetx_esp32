@@ -343,7 +343,7 @@ static void _crsf_intmodule_frame_received(void*)
 }
 #endif
 
-#if defined(HARDWARE_EXTERNAL_MODULE)&& !defined(ESP_PLATFORM)
+#if defined(HARDWARE_EXTERNAL_MODULE) && !defined(ESP_PLATFORM)
 static void _crsf_extmodule_frame_received()
 {
   telemetryFrameTrigger_ISR(EXTERNAL_MODULE, &CrossfireDriver);
@@ -366,6 +366,13 @@ static void _soft_irq_trigger(void* param)
 #else
   stm32_exti_trigger_swi(TELEMETRY_RX_FRAME_EXTI_LINE);
 #endif
+}
+#elif defined(HARDWARE_EXTERNAL_MODULE)
+// On ESP32 the external bay is a full-duplex UART: the receive path is driven
+// by the UART idle callback instead of a dedicated EXTI line.
+static void _crsf_extmodule_frame_received(void*)
+{
+  telemetryFrameTrigger_ISR(EXTERNAL_MODULE, &CrossfireDriver);
 }
 #endif
 
@@ -397,20 +404,28 @@ static void* crossfireInit(uint8_t module)
   }
 #endif
 
-#if defined(HARDWARE_EXTERNAL_MODULE) && !defined(ESP_PLATFORM)
+#if defined(HARDWARE_EXTERNAL_MODULE)
   if (module == EXTERNAL_MODULE) {
     params.baudrate = EXT_CROSSFIRE_BAUDRATE;
+
+#if defined(ESP_PLATFORM)
+    // ESP32 radios use a full-duplex UART for the external module bay
+    mod_st = modulePortInitSerial(module, ETX_MOD_PORT_UART, &params, false);
+#else
     mod_st = modulePortInitSerial(module, ETX_MOD_PORT_SPORT, &params, false);
+#endif
 
     if (mod_st) {
       auto drv = modulePortGetSerialDrv(mod_st->rx);
       auto ctx = modulePortGetCtx(mod_st->rx);
-
       auto& rx_count = getTelemetryRxBufferCount(EXTERNAL_MODULE);
       rx_count = 0;
 
 #if !defined(SIMU)
       if (drv && ctx && drv->setIdleCb) {
+#if defined(ESP_PLATFORM)
+        drv->setIdleCb(ctx, _crsf_extmodule_frame_received, nullptr);
+#else
         drv->setIdleCb(ctx, _soft_irq_trigger, &mod_st->rx);
 #if defined(TELEMETRY_USE_CUSTOM_EXTI)
         stm32_exti_custom_enable(TELEMETRY_RX_FRAME_EXTI_LINE, 3,
@@ -419,7 +434,7 @@ static void* crossfireInit(uint8_t module)
         stm32_exti_enable(TELEMETRY_RX_FRAME_EXTI_LINE, 0,
                           _crsf_extmodule_frame_received);
 #endif
-
+#endif // ESP_PLATFORM
       }
 #endif
     }
@@ -447,7 +462,9 @@ static void crossfireDeInit(void* ctx)
     auto drv = modulePortGetSerialDrv(mod_st->rx);
     auto ctx = modulePortGetCtx(mod_st->rx);
     if (drv && ctx && drv->setIdleCb) {
-#if defined(TELEMETRY_RX_FRAME_EXTI_LINE)
+#if defined(ESP_PLATFORM)
+      drv->setIdleCb(ctx, nullptr, nullptr);
+#elif defined(TELEMETRY_RX_FRAME_EXTI_LINE)
 #if defined(TELEMETRY_USE_CUSTOM_EXTI)
       stm32_exti_custom_disable(TELEMETRY_RX_FRAME_EXTI_LINE);
 #else

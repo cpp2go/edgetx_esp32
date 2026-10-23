@@ -213,39 +213,49 @@ static void _poll_frame(void *pvParameter1, uint32_t ulParameter2)
   _poll_frame_queued[module] = false;
 
   auto mod = pulsesGetModuleDriver(module);
-  if (!mod || !mod->drv || !mod->ctx || (drv != mod->drv))
-    return;
+  if (mod && mod->drv && mod->ctx && (drv == mod->drv)) {
+    auto ctx = mod->ctx;
+    auto mod_st = (etx_module_state_t*)ctx;
+    auto serial_drv = modulePortGetSerialDrv(mod_st->rx);
+    auto serial_ctx = modulePortGetCtx(mod_st->rx);
 
-  auto ctx = mod->ctx;
-  auto mod_st = (etx_module_state_t*)ctx;
-  auto serial_drv = modulePortGetSerialDrv(mod_st->rx);
-  auto serial_ctx = modulePortGetCtx(mod_st->rx);
+    if (serial_drv && serial_ctx && serial_drv->copyRxBuffer) {
 
-  if (!serial_drv || !serial_ctx || !serial_drv->copyRxBuffer)
-    return;
+      uint8_t frame[TELEMETRY_RX_PACKET_SIZE];
 
-  uint8_t frame[TELEMETRY_RX_PACKET_SIZE];
+      int frame_len = serial_drv->copyRxBuffer(serial_ctx, frame, TELEMETRY_RX_PACKET_SIZE);
+      if (frame_len > 0) {
 
-  int frame_len = serial_drv->copyRxBuffer(serial_ctx, frame, TELEMETRY_RX_PACKET_SIZE);
-  if (frame_len > 0) {
+        LOG_TELEMETRY_WRITE_START();
+        for (int i = 0; i < frame_len; i++) {
+          telemetryMirrorSend(frame[i]);
+          LOG_TELEMETRY_WRITE_BYTE(frame[i]);
+        }
 
-    LOG_TELEMETRY_WRITE_START();
-    for (int i = 0; i < frame_len; i++) {
-      telemetryMirrorSend(frame[i]);
-      LOG_TELEMETRY_WRITE_BYTE(frame[i]);
+        uint8_t* rxBuffer = getTelemetryRxBuffer(module);
+        uint8_t& rxBufferCount = getTelemetryRxBufferCount(module);
+        drv->processFrame(ctx, frame, frame_len, rxBuffer, &rxBufferCount);
+      }
     }
-
-    uint8_t* rxBuffer = getTelemetryRxBuffer(module);
-    uint8_t& rxBufferCount = getTelemetryRxBufferCount(module);
-    drv->processFrame(ctx, frame, frame_len, rxBuffer, &rxBufferCount);
   }
 
+  // Never leave the "polling" flag set: the pulses driver skips any module
+  // update while it is true, so a leaked flag would stop the module forever
+  // (e.g. when a frame arrives while the module is being restarted).
   _telemetryIsPolling = false;
 }
 
 void telemetryFrameTrigger_ISR(uint8_t module, const etx_proto_driver_t* drv)
 {
+#if defined(ESP_PLATFORM)
+  // The ESP32 serial drivers invoke their idle callback from the UART event
+  // task (not from an ISR), so process the frame right here. Bouncing it
+  // through the FreeRTOS timer service task can stall the whole telemetry
+  // path (and leave the UART ring buffer unread) when that task is starved.
+  _poll_frame((void*)drv, module);
+#else
   async_call_isr(_poll_frame, &_poll_frame_queued[module], (void*)drv, module);
+#endif
 }
 
 inline bool isBadAntennaDetected()

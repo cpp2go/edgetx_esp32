@@ -310,6 +310,10 @@ bool modulePortSerialTxCompleted(void* ctx)
   auto st = (etx_module_state_t*)ctx;
   auto drv = modulePortGetSerialDrv(st->tx);
   auto drv_ctx = modulePortGetCtx(st->tx);
+  // Not every serial driver can report the TX state (the ESP32 UART driver
+  // sends synchronously and leaves txCompleted unset), so a missing callback
+  // means "nothing pending".
+  if (!drv || !drv->txCompleted) return true;
   return drv->txCompleted(drv_ctx);
 }
 
@@ -318,6 +322,7 @@ bool modulePortTimerTxCompleted(void* ctx)
   auto st = (etx_module_state_t*)ctx;
   auto drv = modulePortGetTimerDrv(st->tx);
   auto drv_ctx = modulePortGetCtx(st->tx);
+  if (!drv || !drv->txCompleted) return true;
   return drv->txCompleted(drv_ctx);
 }
 

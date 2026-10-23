@@ -119,6 +119,15 @@ void setModuleType(uint8_t moduleIdx, uint8_t moduleType)
   memclear(&moduleData, sizeof(ModuleData));
   moduleData.type = moduleType;
   moduleData.channelsCount = defaultModuleChannels_M8(moduleIdx);
+#if defined(ESP_PLATFORM) && defined(HARDWARE_EXTERNAL_MODULE)
+  if (moduleData.type == MODULE_TYPE_CROSSFIRE &&
+      moduleIdx == EXTERNAL_MODULE) {
+    // ESP32 has no SPORT_MAX_BAUDRATE, so the stored value is used as a direct
+    // index into CROSSFIRE_BAUDRATES: default to 400k (index 1) rather than
+    // 115200 (index 0), which is not a usable CRSF link speed.
+    moduleData.crsf.telemetryBaudrate = 1;
+  }
+#endif
   if (moduleData.type == MODULE_TYPE_SBUS)
     moduleData.sbus.refreshRate = -31;
   else if (moduleData.type == MODULE_TYPE_PPM)

@@ -415,7 +415,11 @@ static void _init_module(uint8_t module, const etx_proto_driver_t* drv)
 static void _deinit_module(uint8_t module)
 {
   auto mod = &(_module_drivers[module]);
-  if (!mod->drv) return;
+  if (!mod->drv) {
+    // no protocol running: still make sure the module is not powered left on
+    modulePortSetPower(module, false);
+    return;
+  }
 
   // scheduling OFF
   mixerSchedulerSetPeriod(module, 0);

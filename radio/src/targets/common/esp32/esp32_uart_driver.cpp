@@ -160,8 +160,12 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
     uart_param_config(port->port, &uart_config);
     uart_set_pin(port->port, hw->tx_pin, hw->rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
+    // Keep the event task below audio/mixer (prio 3/4) and close to the UI task
+    // (prio 1): it only dispatches UART events, the data itself is buffered in
+    // the (4k) ring buffer. A high priority here preempts the UI/Lua task for
+    // every received telemetry frame.
     xTaskCreate(espuart_uart_event_task, "espuart_uart_event_task", 4096,
-        (void *)port, 12, &port->rx_task);
+        (void *)port, 2, &port->rx_task);
     return (void *)port;
 }
 
@@ -182,6 +186,12 @@ void espUartWaitForTxCompleted(void* ctx)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     uart_wait_tx_done(port->port, portMAX_DELAY);
+}
+
+static bool espUartTxCompleted(void* ctx)
+{
+    esp32_uart_ctx_t *port = ctx_to_port(ctx);
+    return uart_wait_tx_done(port->port, 0) == ESP_OK;
 }
 
 static int espUartGetByte(void* ctx, uint8_t* data)
@@ -210,8 +220,17 @@ static void espUartClearRxBuffer(void* ctx)
 static void espUartSerialStop(void* ctx)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
-    vTaskDelete(port->rx_task);
+    // Drop the callback first: the port struct is reused by the next protocol
+    // that gets installed on this UART (e.g. CRSF -> MULTI), and a stale
+    // callback would push frames to the wrong protocol driver.
+    port->on_idle_cb = NULL;
+    port->on_idle_cb_param = NULL;
+    if (port->rx_task) {
+        vTaskDelete(port->rx_task);
+        port->rx_task = NULL;
+    }
     uart_driver_delete(port->port);
+    port->rx_head = port->rx_len = 0;
 }
 
 int espUartGetBufferedBytes(void* ctx) {
@@ -234,6 +253,7 @@ const etx_serial_driver_t ESPUartSerialDriver = {
     .deinit = espUartSerialStop,
     .sendByte = espUartSendByte,
     .sendBuffer = espUartSendBuffer,
+    .txCompleted = espUartTxCompleted,
     .waitForTxCompleted = espUartWaitForTxCompleted,
     .getByte = espUartGetByte,
     .getBufferedBytes = espUartGetBufferedBytes,

@@ -34,7 +34,11 @@ static bool IRAM_ATTR alarm_mixer_cb(gptimer_handle_t timer, const gptimer_alarm
             .auto_reload_on_alarm = true,
         }
     };
-    ESP_ERROR_CHECK(gptimer_set_alarm_action(mixer_timer, &alarm_config));
+    /* NEVER use ESP_ERROR_CHECK inside an ISR: on error it calls abort() /
+     * esp_restart() from interrupt context, rebooting the radio with no
+     * visible panic output (see timers_driver.cpp).  The alarm is configured
+     * with auto-reload, so ignoring the error keeps the current period. */
+    gptimer_set_alarm_action(mixer_timer, &alarm_config);
     mixerSchedulerISRTrigger();
     return pdFALSE;
 }
