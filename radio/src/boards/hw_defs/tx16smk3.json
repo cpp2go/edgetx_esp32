@@ -257,13 +257,15 @@
     },
     {
       "name": "SI",
-      "type": "2POS",
+      "type": "3POS",
       "flags": 0,
-      "inverted": true,
-      "default": "NONE",
+      "inverted": false,
+      "default": "3POS",
       "display": null,
-      "gpio": null,
-      "pin": "PCA95XX_P2",
+      "gpio_high": null,
+      "pin_high": null,
+      "gpio_low": null,
+      "pin_low": null,
       "is_cfs": false
     },
     {
