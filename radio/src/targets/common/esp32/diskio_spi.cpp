@@ -37,6 +37,26 @@ static sdspi_device_config_t dev_config = SDSPI_DEVICE_CONFIG_DEFAULT();
 static sdmmc_card_t sdcard;
 static sdmmc_card_t* card = &sdcard;
 
+// Prefer 40 MHz SPI (SDMMC_FREQ_HIGHSPEED). SDSPI_HOST_DEFAULT() is only
+// 20 MHz. Fall back to 20 MHz when a card fails high-speed init — some
+// cheap cards / long traces cannot sustain 40 MHz.
+#ifndef SDCARD_SPI_FREQ_KHZ
+#define SDCARD_SPI_FREQ_KHZ SDMMC_FREQ_HIGHSPEED
+#endif
+#ifndef SDCARD_SPI_FREQ_FALLBACK_KHZ
+#define SDCARD_SPI_FREQ_FALLBACK_KHZ SDMMC_FREQ_DEFAULT
+#endif
+
+static bool sdcard_spi_try_init(int freq_khz)
+{
+    config.max_freq_khz = freq_khz;
+    config.slot = handle;
+    if (sdmmc_card_init(&config, card) == 0) {
+        return true;
+    }
+    return false;
+}
+
 static DSTATUS sdcard_spi_initialize(BYTE lun)
 {
     if (!card_present) {
@@ -48,6 +68,8 @@ static DSTATUS sdcard_spi_initialize(BYTE lun)
                 .sclk_io_num = SDSPI_CLK,
                 .quadwp_io_num = -1,
                 .quadhd_io_num = -1,
+                // Allow multi-sector DMA bursts (default is often too small).
+                .max_transfer_sz = 16 * 512,
             };
             config.slot = SD_SPI_HOST;
             if (spi_bus_initialize((spi_host_device_t)config.slot, &bus_config, SPI_DMA_CH_AUTO) != ESP_OK) {
@@ -62,10 +84,14 @@ static DSTATUS sdcard_spi_initialize(BYTE lun)
         dev_config.host_id = (spi_host_device_t)config.slot;
         dev_config.gpio_cs = SDCARD_CS_GPIO;
         sdspi_host_init();
-        sdspi_host_init_device(&dev_config, &handle);
+        if (sdspi_host_init_device(&dev_config, &handle) != ESP_OK) {
+            sdspi_host_deinit();
+            return STA_NODISK | STA_NOINIT;
+        }
 
-        config.slot = handle;
-        if (0 == sdmmc_card_init(&config, card)) {
+        if (sdcard_spi_try_init(SDCARD_SPI_FREQ_KHZ) ||
+            (SDCARD_SPI_FREQ_KHZ != SDCARD_SPI_FREQ_FALLBACK_KHZ &&
+             sdcard_spi_try_init(SDCARD_SPI_FREQ_FALLBACK_KHZ))) {
             card_present = true;
         } else {
             sdspi_host_remove_device(handle);
