@@ -23,7 +23,6 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
-#include "esp_task.h"
 #define HASASSERT
 #include "edgetx.h"
 #include "WiFi.h"
@@ -33,8 +32,20 @@ extern "C" {
 #include "ota_server.h"
 }
 
+// Stay on MENU_TASK_CORE (CPU1) with the UI, but at a modest priority so
+// FTP/OTA cannot starve menus/Lua. ESP WiFi/lwIP keep their own high-prio tasks.
+#ifndef FTP_SERVER_TASK_CORE
+#if defined(MENU_TASK_CORE)
+#define FTP_SERVER_TASK_CORE    MENU_TASK_CORE
+#else
 #define FTP_SERVER_TASK_CORE    1
-#define OTA_SERVER_TASK_CORE    1
+#endif
+#endif
+#ifndef OTA_SERVER_TASK_CORE
+#define OTA_SERVER_TASK_CORE    FTP_SERVER_TASK_CORE
+#endif
+#define FTP_SERVER_TASK_PRIO    (tskIDLE_PRIORITY + 2)
+#define OTA_SERVER_TASK_PRIO    (tskIDLE_PRIORITY + 1)
 #define FTP_SERVER_STACK_SIZE   0x1000
 #define OTA_SERVER_STACK_SIZE   0xE00
 #define STA_CONNECT_TMO 10000
@@ -89,14 +100,19 @@ void wifiTask(void *pvParameters)
 
 static void ota_server_task(void * param)
 {
-    while(!(wifiState & WIFI_CONNECTED)){
-        if(wifiState & WIFI_IDLE ){
+    // Wait until STA/AP reports connected, or WiFi was cancelled.
+    while (!(wifiState & WIFI_CONNECTED)) {
+        if ((wifiState & WIFI_IDLE) || !wifiServers) {
             goto exit;
         }
-        vTaskDelay(100/portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
-    ota_server_start();
-exit:    
+
+    ESP_LOGI(TAG, "OTA server starting on port %d", OTA_LISTEN_PORT);
+    ota_server_start();  // blocks until update finishes, fails, or stop()
+    ESP_LOGI(TAG, "OTA server exited (state=%d)", (int)ota_server_get_state());
+
+exit:
     otaTaskHandle = NULL;
     vTaskDelete(NULL);
 }
@@ -129,14 +145,16 @@ void startWiFi( char *ssid_zchar, char *passwd_zchar, char* ftppass_zchar)
         strncpy(passwd,passwd_zchar,sizeof(g_eeGeneral.wifi_password));
         strncpy(ftp_pass,ftppass_zchar,sizeof(g_eeGeneral.ftppass));
     }
-    wifiTaskHandle = xTaskCreateStaticPinnedToCore( wifiTask, "WiFiTask", FTP_SERVER_STACK_SIZE, NULL,
-            ESP_TASK_PRIO_MAX - 4, ftp_task_stack, &wifiTaskBuffer, FTP_SERVER_TASK_CORE );
+    wifiTaskHandle = xTaskCreateStaticPinnedToCore(
+        wifiTask, "WiFiTask", FTP_SERVER_STACK_SIZE, NULL, FTP_SERVER_TASK_PRIO,
+        ftp_task_stack, &wifiTaskBuffer, FTP_SERVER_TASK_CORE);
     if( wifiTaskHandle == NULL){
         ESP_LOGE(TAG, "Failed to create task: 'WiFiTask'");
     }
     configASSERT( wifiTaskHandle );
-    otaTaskHandle = xTaskCreateStaticPinnedToCore( ota_server_task, "OTATask", OTA_SERVER_STACK_SIZE,
-            NULL, ESP_TASK_PRIO_MAX - 9, ota_task_stack, &otaTaskBuffer, OTA_SERVER_TASK_CORE );
+    otaTaskHandle = xTaskCreateStaticPinnedToCore(
+        ota_server_task, "OTATask", OTA_SERVER_STACK_SIZE, NULL,
+        OTA_SERVER_TASK_PRIO, ota_task_stack, &otaTaskBuffer, OTA_SERVER_TASK_CORE);
     if( otaTaskHandle == NULL ){
         ESP_LOGE(TAG, "Failed to create task: 'OTATask'");
     }

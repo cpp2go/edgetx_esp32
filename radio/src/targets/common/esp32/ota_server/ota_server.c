@@ -1,202 +1,437 @@
 /*
-* Copyright (C) OpenTX
-*
-* Based on code named
-*   https://github.com/yanbe/esp32-ota-server
-*
-* License GPLv2: http://www.gnu.org/licenses/gpl-2.0.html
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 as
-* published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*/
+ * Copyright (C) OpenTX / EdgeTX
+ *
+ * Based on code named
+ *   https://github.com/yanbe/esp32-ota-server
+ *
+ * License GPLv2: http://www.gnu.org/licenses/gpl-2.0.html
+ */
 
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
-#include "esp_system.h"
 #include "esp_log.h"
 #include "esp_ota_ops.h"
+#include "esp_system.h"
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
+
 #include "lwip/sockets.h"
 
 #include "ota_server.h"
 
-static const char * TAG = "OTA";
+static const char *TAG = "OTA";
 
-/*socket*/
-static int connect_socket = 0;
-static int server_socket = 0;
-static QueueHandle_t ota_mutex = NULL;
+static int connect_socket = -1;
+static int server_socket = -1;
+static SemaphoreHandle_t ota_mutex = NULL;
 static volatile enum OtaState otaState = OTA_IDLE;
 
-static int get_socket_error_code(int socket)
+enum OtaState ota_server_get_state(void)
 {
-    int result;
-    u32_t optlen = sizeof(int);
-    int err = getsockopt(socket, SOL_SOCKET, SO_ERROR, &result, &optlen);
-    if (err == -1) {
-        ESP_LOGE(TAG, "getsockopt failed:%s", strerror(err));
-        return -1;
-    }
-    return result;
+    return otaState;
 }
 
-static int show_socket_error_reason(const char *str, int socket)
+static void set_state(enum OtaState st)
 {
-    xSemaphoreTake(ota_mutex, portMAX_DELAY);
-    if(OTA_STOPPING == otaState){
+    if (ota_mutex) {
+        xSemaphoreTake(ota_mutex, portMAX_DELAY);
+        otaState = st;
         xSemaphoreGive(ota_mutex);
-        return 0;
     } else {
-        xSemaphoreGive(ota_mutex);
+        otaState = st;
     }
-    int err = get_socket_error_code(socket);
-
-    if (err != 0) {
-        ESP_LOGW(TAG, "%s socket error %d %s", str, err, strerror(err));
-    }
-
-    return err;
 }
 
-static esp_err_t create_tcp_server()
+static enum OtaState get_state(void)
 {
-    ESP_LOGI(TAG, "server socket....port=%d", OTA_LISTEN_PORT);
-    struct sockaddr_in server_addr;
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0) {
-        show_socket_error_reason("create_server", server_socket);
-        return ESP_FAIL;
+    enum OtaState st;
+    if (ota_mutex) {
+        xSemaphoreTake(ota_mutex, portMAX_DELAY);
+        st = otaState;
+        xSemaphoreGive(ota_mutex);
+    } else {
+        st = otaState;
     }
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(OTA_LISTEN_PORT);
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        show_socket_error_reason("bind_server", server_socket);
-        close(server_socket);
-        return ESP_FAIL;
-    }
-    if (listen(server_socket, 5) < 0) {
-        show_socket_error_reason("listen_server", server_socket);
-        close(server_socket);
-        return ESP_FAIL;
-    }
-    struct sockaddr_in client_addr;
-    unsigned int socklen = sizeof(client_addr);
-    connect_socket = accept(server_socket, (struct sockaddr *)&client_addr, (socklen_t *)&socklen);
-    if (connect_socket < 0) {
-        show_socket_error_reason("accept_server", connect_socket);
-        close(server_socket);
-        return ESP_FAIL;
-    }
-    /*connection established，now can send/recv*/
-    ESP_LOGI(TAG, "tcp connection established!");
-    return ESP_OK;
+    return st;
 }
 
-void ota_server_start()
-{   
-    if (ota_mutex == NULL) ota_mutex = xSemaphoreCreateMutex();
-    xSemaphoreTake(ota_mutex, portMAX_DELAY);
-    otaState = OTA_WAITING;
-    xSemaphoreGive(ota_mutex);
-    esp_err_t err = create_tcp_server();
-    if(ESP_OK != err){
+static void close_fd(int *fd)
+{
+    if (fd && *fd >= 0) {
+        shutdown(*fd, SHUT_RDWR);
+        close(*fd);
+        *fd = -1;
+    }
+}
+
+static void close_all_sockets(void)
+{
+    close_fd(&connect_socket);
+    close_fd(&server_socket);
+}
+
+static int parse_content_length(const char *hdr, size_t hdr_len, int *out_len)
+{
+    const char *key = "Content-Length:";
+    const size_t key_len = strlen(key);
+    for (size_t i = 0; i + key_len < hdr_len; i++) {
+        if (strncasecmp(&hdr[i], key, key_len) != 0) {
+            continue;
+        }
+        const char *p = &hdr[i + key_len];
+        while (*p == ' ' || *p == '\t') {
+            p++;
+        }
+        char *end = NULL;
+        long v = strtol(p, &end, 10);
+        if (end == p || v <= 0 || v > (16L * 1024L * 1024L)) {
+            return -1;
+        }
+        *out_len = (int)v;
+        return 0;
+    }
+    return -1;
+}
+
+static esp_err_t create_tcp_server(void)
+{
+    ESP_LOGI(TAG, "listening on port %d", OTA_LISTEN_PORT);
+
+    server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+    if (server_socket < 0) {
+        ESP_LOGE(TAG, "socket create failed: errno=%d", errno);
+        return ESP_FAIL;
+    }
+
+    int opt = 1;
+    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    struct sockaddr_in server_addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(OTA_LISTEN_PORT),
+        .sin_addr.s_addr = htonl(INADDR_ANY),
+    };
+
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        ESP_LOGE(TAG, "bind failed: errno=%d", errno);
+        close_all_sockets();
+        return ESP_FAIL;
+    }
+    if (listen(server_socket, 1) < 0) {
+        ESP_LOGE(TAG, "listen failed: errno=%d", errno);
+        close_all_sockets();
+        return ESP_FAIL;
+    }
+
+    // Interruptible accept: wake periodically so stop() can close the socket.
+    while (get_state() == OTA_WAITING) {
+        fd_set rfds;
+        FD_ZERO(&rfds);
+        FD_SET(server_socket, &rfds);
+        struct timeval tv = {.tv_sec = 0, .tv_usec = 200 * 1000};
+        int sel = select(server_socket + 1, &rfds, NULL, NULL, &tv);
+        if (sel < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            ESP_LOGE(TAG, "select failed: errno=%d", errno);
+            close_all_sockets();
+            return ESP_FAIL;
+        }
+        if (sel == 0) {
+            continue;
+        }
+
+        struct sockaddr_in client_addr;
+        socklen_t socklen = sizeof(client_addr);
+        connect_socket = accept(server_socket, (struct sockaddr *)&client_addr, &socklen);
+        if (connect_socket < 0) {
+            if (get_state() != OTA_WAITING) {
+                close_all_sockets();
+                return ESP_ERR_INVALID_STATE;
+            }
+            ESP_LOGE(TAG, "accept failed: errno=%d", errno);
+            close_all_sockets();
+            return ESP_FAIL;
+        }
+
+        // Stop listening for further clients while this update runs.
+        close_fd(&server_socket);
+
+        struct timeval rcv_to = {.tv_sec = 30, .tv_usec = 0};
+        setsockopt(connect_socket, SOL_SOCKET, SO_RCVTIMEO, &rcv_to, sizeof(rcv_to));
+        ESP_LOGI(TAG, "client connected");
+        return ESP_OK;
+    }
+
+    close_all_sockets();
+    return ESP_ERR_INVALID_STATE;
+}
+
+static esp_err_t recv_http_headers(char *buf, size_t buf_size, size_t *hdr_len,
+                                   size_t *body_in_buf)
+{
+    size_t total = 0;
+    *hdr_len = 0;
+    *body_in_buf = 0;
+
+    while (total + 1 < buf_size) {
+        if (get_state() == OTA_STOPPING) {
+            return ESP_ERR_INVALID_STATE;
+        }
+        int n = recv(connect_socket, buf + total, buf_size - 1 - total, 0);
+        if (n == 0) {
+            ESP_LOGE(TAG, "peer closed before headers complete");
+            return ESP_FAIL;
+        }
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                ESP_LOGE(TAG, "recv headers timed out");
+            } else {
+                ESP_LOGE(TAG, "recv headers failed: errno=%d", errno);
+            }
+            return ESP_FAIL;
+        }
+        total += (size_t)n;
+        buf[total] = '\0';
+
+        char *end = strstr(buf, "\r\n\r\n");
+        if (end) {
+            *hdr_len = (size_t)(end - buf) + 4;
+            *body_in_buf = total - *hdr_len;
+            return ESP_OK;
+        }
+    }
+
+    ESP_LOGE(TAG, "HTTP headers too large");
+    return ESP_FAIL;
+}
+
+void ota_server_start(void)
+{
+    if (ota_mutex == NULL) {
+        ota_mutex = xSemaphoreCreateMutex();
+        if (ota_mutex == NULL) {
+            ESP_LOGE(TAG, "mutex create failed");
+            return;
+        }
+    }
+
+    set_state(OTA_WAITING);
+
+    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
+    if (update_partition == NULL) {
+        ESP_LOGE(TAG, "no OTA partition (need ota_0/ota_1 + otadata in partition table)");
+        set_state(OTA_IDLE);
         return;
     }
-    xSemaphoreTake(ota_mutex, portMAX_DELAY);
-    otaState = OTA_UPDATING;
-    xSemaphoreGive(ota_mutex);
-    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
 
-    ESP_LOGI(TAG, "Writing to partition subtype %d at offset 0x%x",
-        update_partition->subtype, update_partition->address);
+    esp_err_t err = create_tcp_server();
+    if (err != ESP_OK) {
+        set_state(OTA_IDLE);
+        return;
+    }
 
-    int recv_len;
-    char ota_buff[OTA_BUFF_SIZE] = {0};
-    bool is_req_body_started = false;
+    set_state(OTA_UPDATING);
+    ESP_LOGI(TAG, "writing to '%s' subtype=%d offset=0x%lx", update_partition->label,
+             update_partition->subtype, (unsigned long)update_partition->address);
+
+    char *ota_buff = (char *)malloc(OTA_BUFF_SIZE);
+    if (!ota_buff) {
+        ESP_LOGE(TAG, "OOM for OTA buffer");
+        close_all_sockets();
+        set_state(OTA_IDLE);
+        return;
+    }
+
+    size_t hdr_len = 0;
+    size_t body_in_buf = 0;
+    err = recv_http_headers(ota_buff, OTA_BUFF_SIZE, &hdr_len, &body_in_buf);
+    if (err != ESP_OK) {
+        free(ota_buff);
+        close_all_sockets();
+        set_state(OTA_IDLE);
+        return;
+    }
+
     int content_length = -1;
-    int content_received = 0;
+    if (parse_content_length(ota_buff, hdr_len, &content_length) != 0) {
+        ESP_LOGE(TAG, "missing/invalid Content-Length");
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nMissing Content-Length\n";
+        send(connect_socket, resp, strlen(resp), 0);
+        free(ota_buff);
+        close_all_sockets();
+        set_state(OTA_IDLE);
+        return;
+    }
+    ESP_LOGI(TAG, "Content-Length=%d", content_length);
+
+    if ((size_t)content_length > update_partition->size) {
+        ESP_LOGE(TAG, "image too large (%d > %lu)", content_length,
+                 (unsigned long)update_partition->size);
+        const char *resp = "HTTP/1.0 400 Bad Request\r\n\r\nImage too large\n";
+        send(connect_socket, resp, strlen(resp), 0);
+        free(ota_buff);
+        close_all_sockets();
+        set_state(OTA_IDLE);
+        return;
+    }
 
     esp_ota_handle_t ota_handle = 0;
-    do {
-        recv_len = recv(connect_socket, ota_buff, OTA_BUFF_SIZE, 0);
-        if (recv_len > 0) {
-            if (!is_req_body_started) {
-                const char *content_length_start = "Content-Length: ";
-                char *content_length_start_p = strstr(ota_buff, content_length_start) + strlen(content_length_start);
-                sscanf(content_length_start_p, "%d", &content_length);
-                ESP_LOGI(TAG, "Detected content length: %d", content_length);
-                err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
-                if( ESP_OK != err){
-                    ESP_LOGE(TAG, "Failed to update OTA partition: %s", esp_err_to_name(err));
-                    break;
-                }
-                const char *header_end = "\r\n\r\n";
-                char *body_start_p = strstr(ota_buff, header_end) + strlen(header_end);
-                int body_part_len = recv_len - (body_start_p - ota_buff);
-                esp_ota_write(ota_handle, body_start_p, body_part_len);
-                content_received += body_part_len;
-                is_req_body_started = true;
-            } else {
-                esp_ota_write(ota_handle, ota_buff, recv_len);
-                content_received += recv_len;
-            }
-        }
-        else if (recv_len < 0) {
-            ESP_LOGE(TAG, "Error: recv data error! errno=%d", errno);
-        }
-    } while (recv_len > 0 && content_received < content_length);
-
-    ESP_LOGI(TAG, "Binary transferred finished: %d bytes", content_received);
-    if( 0 != ota_handle){
-        err = esp_ota_end(ota_handle);
-        if(ESP_OK == err){
-            err = esp_ota_set_boot_partition(update_partition);
-        }
-    } 
-    char res_buff[60];
-    int send_len;
-    if (err == ESP_OK) {
-        send_len = sprintf(res_buff, "200 OK\n\nSuccess. Next boot partition is %s\n", update_partition->label);
-    } else {
-        send_len = sprintf(res_buff, "400 Bad Request\n\nFailure. Error code: 0x%x\n", err);
-        ESP_LOGE(TAG, "Failed to update OTA partition: %s", esp_err_to_name(err));
+    err = esp_ota_begin(update_partition, content_length, &ota_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin: %s", esp_err_to_name(err));
+        const char *resp = "HTTP/1.0 500 Internal Server Error\r\n\r\nota_begin failed\n";
+        send(connect_socket, resp, strlen(resp), 0);
+        free(ota_buff);
+        close_all_sockets();
+        set_state(OTA_IDLE);
+        return;
     }
-    send(connect_socket, res_buff, send_len, 0);
-    close(connect_socket);
-    close(server_socket);
-    if (err == ESP_OK){
-        const esp_partition_t *boot_partition = esp_ota_get_boot_partition();
-        ESP_LOGI(TAG, "Next boot partition subtype %d at offset 0x%x",
-            boot_partition->subtype, boot_partition->address);
-        ESP_LOGI(TAG, "Prepare to restart system!");
-        vTaskDelay(2000/portTICK_PERIOD_MS);
-        esp_restart();
+
+    int content_received = 0;
+    if (body_in_buf > 0) {
+        err = esp_ota_write(ota_handle, ota_buff + hdr_len, body_in_buf);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "esp_ota_write(header body): %s", esp_err_to_name(err));
+            goto ota_fail;
+        }
+        content_received += (int)body_in_buf;
+    }
+
+    while (content_received < content_length) {
+        if (get_state() == OTA_STOPPING) {
+            err = ESP_ERR_INVALID_STATE;
+            goto ota_fail;
+        }
+        int remain = content_length - content_received;
+        int chunk = remain > (OTA_BUFF_SIZE - 1) ? (OTA_BUFF_SIZE - 1) : remain;
+        int n = recv(connect_socket, ota_buff, chunk, 0);
+        if (n == 0) {
+            ESP_LOGE(TAG, "peer closed early (%d/%d)", content_received, content_length);
+            err = ESP_FAIL;
+            goto ota_fail;
+        }
+        if (n < 0) {
+            ESP_LOGE(TAG, "recv body failed: errno=%d (%d/%d)", errno, content_received,
+                     content_length);
+            err = ESP_FAIL;
+            goto ota_fail;
+        }
+        err = esp_ota_write(ota_handle, ota_buff, n);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "esp_ota_write: %s", esp_err_to_name(err));
+            goto ota_fail;
+        }
+        content_received += n;
+    }
+
+    err = esp_ota_end(ota_handle);
+    ota_handle = 0;
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_end: %s", esp_err_to_name(err));
+        goto ota_fail_no_abort;
+    }
+
+    err = esp_ota_set_boot_partition(update_partition);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_set_boot_partition: %s", esp_err_to_name(err));
+        goto ota_fail_no_abort;
+    }
+
+    {
+        char res_buff[128];
+        int send_len = snprintf(res_buff, sizeof(res_buff),
+                                "HTTP/1.0 200 OK\r\n\r\nSuccess. Next boot partition is %s\n",
+                                update_partition->label);
+        if (send_len > 0) {
+            send(connect_socket, res_buff, send_len, 0);
+        }
+    }
+
+    ESP_LOGI(TAG, "OTA ok, %d bytes written to %s — restarting", content_received,
+             update_partition->label);
+    free(ota_buff);
+    close_all_sockets();
+    set_state(OTA_IDLE);
+    vTaskDelay(pdMS_TO_TICKS(1500));
+    esp_restart();
+    return;
+
+ota_fail:
+    if (ota_handle) {
+        esp_ota_abort(ota_handle);
+        ota_handle = 0;
+    }
+ota_fail_no_abort:
+{
+    char res_buff[96];
+    int send_len = snprintf(res_buff, sizeof(res_buff),
+                            "HTTP/1.0 400 Bad Request\r\n\r\nFailure. Error: %s\n",
+                            esp_err_to_name(err));
+    if (send_len > 0 && connect_socket >= 0) {
+        send(connect_socket, res_buff, send_len, 0);
     }
 }
+    free(ota_buff);
+    close_all_sockets();
+    set_state(OTA_IDLE);
+}
 
-void ota_server_stop(){
-    if(ota_mutex){
-        enum OtaState currOtaState;
-        do{
-            xSemaphoreTake(ota_mutex, portMAX_DELAY);
-            if(OTA_UPDATING != otaState){
-                ESP_LOGI(TAG, "Stopping OTA server ...");
-                otaState = OTA_STOPPING;
-                close(server_socket);
-            }
-            currOtaState=otaState;
+void ota_server_stop(void)
+{
+    if (!ota_mutex) {
+        return;
+    }
+
+    for (;;) {
+        xSemaphoreTake(ota_mutex, portMAX_DELAY);
+        enum OtaState st = otaState;
+        if (st == OTA_IDLE) {
             xSemaphoreGive(ota_mutex);
-            vTaskDelay(100/portTICK_PERIOD_MS);
-        } while(OTA_UPDATING == currOtaState);
+            return;
+        }
+        if (st == OTA_UPDATING) {
+            // Do not tear down mid-flash; wait until finish/fail/restart.
+            xSemaphoreGive(ota_mutex);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+
+        // WAITING / already STOPPING: close fds so select/accept wakes.
+        otaState = OTA_STOPPING;
+        int srv = server_socket;
+        int cli = connect_socket;
+        server_socket = -1;
+        connect_socket = -1;
+        xSemaphoreGive(ota_mutex);
+
+        if (srv >= 0) {
+            shutdown(srv, SHUT_RDWR);
+            close(srv);
+        }
+        if (cli >= 0) {
+            shutdown(cli, SHUT_RDWR);
+            close(cli);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (get_state() == OTA_IDLE) {
+            return;
+        }
+        // Orphaned STOPPING (start already exited): force idle.
+        if (get_state() == OTA_STOPPING) {
+            vTaskDelay(pdMS_TO_TICKS(200));
+            if (get_state() == OTA_STOPPING) {
+                set_state(OTA_IDLE);
+            }
+            return;
+        }
     }
 }

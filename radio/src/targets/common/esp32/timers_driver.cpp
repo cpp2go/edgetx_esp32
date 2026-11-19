@@ -76,14 +76,24 @@ static void task5ms(void * pdata) {
 #define TIM5MS_STACK_SIZE (1024 * 3)
 RTOS_TASK_HANDLE taskId5ms;
 RTOS_DEFINE_STACK(taskId5ms, task5ms_stack, TIM5MS_STACK_SIZE);
-#define TMR_5MS_CORE 1 // TODO
+// Keep the 5ms tick with mixer/realtime work on CPU0 so it does not
+// preempt menus/Lua/LVGL on CPU1 every 5ms.
+#ifndef TMR_5MS_CORE
+#if defined(MIXER_TASK_CORE)
+#define TMR_5MS_CORE MIXER_TASK_CORE
+#else
+#define TMR_5MS_CORE 0
+#endif
+#endif
+#define TMR_5MS_PRIO (tskIDLE_PRIORITY + 5)
 
 // Start TIMER at 2000000Hz
 void init2MhzTimer()
 {
     sem5ms = xSemaphoreCreateBinary();
 
-    RTOS_CREATE_TASK_EX(taskId5ms,task5ms,"5ms timer",task5ms_stack,TIM5MS_STACK_SIZE,5,TMR_5MS_CORE);  // TODO-feather priority
+    RTOS_CREATE_TASK_EX(taskId5ms, task5ms, "5ms timer", task5ms_stack,
+                        TIM5MS_STACK_SIZE, TMR_5MS_PRIO, TMR_5MS_CORE);
 
     gptimer_config_t timer_config = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,

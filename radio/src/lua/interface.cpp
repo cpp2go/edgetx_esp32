@@ -1037,7 +1037,18 @@ static bool resumeLua(bool init, bool allowLcdUsage)
   if (init) idx = 0;
 
   bool scriptWasRun = false;
+#if defined(ESP_PLATFORM) && defined(COLORLCD)
+  // Full GC every menus cycle was a large pause on ESP COLORLCD. Do a full
+  // collect every 4th background pass (~200ms) and step otherwise.
+  static uint8_t luaFullGcDiv = 0;
+  bool fullGC = false;
+  if (!allowLcdUsage) {
+    fullGC = (++luaFullGcDiv >= 4);
+    if (fullGC) luaFullGcDiv = 0;
+  }
+#else
   bool fullGC = !allowLcdUsage;
+#endif
 #if !defined(COLORLCD)
   static uint8_t luaDisplayStatistics = false;
 #endif
