@@ -21,6 +21,13 @@
 
 #include "task.h"
 
+#if defined(ESP_PLATFORM)
+#include "freertos/idf_additions.h"
+#ifndef tskNO_AFFINITY
+#define tskNO_AFFINITY ((BaseType_t)0x7FFFFFFF)
+#endif
+#endif
+
 static void _task_stub(void* p)
 {
   task_func_t func = (task_func_t)p;
@@ -28,12 +35,21 @@ static void _task_stub(void* p)
 }
 
 void task_create(task_handle_t* h, task_func_t func, const char* name,
-                 void* stack, unsigned stack_size, unsigned priority)
+                 void* stack, unsigned stack_size, unsigned priority, int core)
 {
   h->_stack_size = stack_size;
+#if defined(ESP_PLATFORM)
+  const BaseType_t xCoreID =
+      (core < 0) ? tskNO_AFFINITY : (BaseType_t)core;
+  h->_rtos_handle = xTaskCreateStaticPinnedToCore(
+      _task_stub, name, stack_size, (void*)func, priority, (StackType_t*)stack,
+      &h->_task_struct, xCoreID);
+#else
+  (void)core;
   h->_rtos_handle =
       xTaskCreateStatic(_task_stub, name, stack_size, (void*)func, priority,
                         (StackType_t*)stack, &h->_task_struct);
+#endif
 }
 
 unsigned task_get_stack_usage(task_handle_t* h)

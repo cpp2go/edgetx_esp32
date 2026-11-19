@@ -74,7 +74,13 @@ void mixerTaskInit()
   mixerSchedulerInit();
   mutex_create(&mixerMutex);
   task_create(&mixerTaskId, mixerTask, "mixer", mixerStack, MIXER_STACK_SIZE,
-              MIXER_TASK_PRIO);
+              MIXER_TASK_PRIO,
+#if defined(MIXER_TASK_CORE)
+              MIXER_TASK_CORE
+#else
+              TASK_NO_AFFINITY
+#endif
+  );
   mixerSchedulerStart();
 }
 

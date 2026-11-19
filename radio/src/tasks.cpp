@@ -168,11 +168,23 @@ void tasksStart()
 #endif
 
   task_create(&menusTaskId, menusTask, "menus", menusStack, MENUS_STACK_SIZE,
-              MENUS_TASK_PRIO);
+              MENUS_TASK_PRIO,
+#if defined(MENU_TASK_CORE)
+              MENU_TASK_CORE
+#else
+              TASK_NO_AFFINITY
+#endif
+  );
 
 #if defined(AUDIO)
   task_create(&audioTaskId, audioTask, "audio", audioStack, AUDIO_STACK_SIZE,
-              AUDIO_TASK_PRIO);
+              AUDIO_TASK_PRIO,
+#if defined(AUDIO_TASK_CORE)
+              AUDIO_TASK_CORE
+#else
+              TASK_NO_AFFINITY
+#endif
+  );
 #endif
 
   RTOS_START();

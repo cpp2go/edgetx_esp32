@@ -32,8 +32,14 @@
 
 typedef void (*task_func_t)();
 
+// core < 0 (TASK_NO_AFFINITY): no pin / ignored on non-ESP FreeRTOS.
+#ifndef TASK_NO_AFFINITY
+#define TASK_NO_AFFINITY (-1)
+#endif
+
 void task_create(task_handle_t* h, task_func_t func, const char* name,
-                 void* stack, unsigned stack_size, unsigned priority);
+                 void* stack, unsigned stack_size, unsigned priority,
+                 int core = TASK_NO_AFFINITY);
 
 unsigned task_get_stack_usage(task_handle_t* h);
 unsigned task_get_stack_size(task_handle_t* h);

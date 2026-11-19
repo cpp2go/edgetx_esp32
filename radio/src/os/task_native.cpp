@@ -103,8 +103,9 @@ static void* _task_stub(run_context* p)
 }
 
 void task_create(task_handle_t* h, task_func_t func, const char* name,
-                 void* stack, unsigned stack_size, unsigned priority)
+                 void* stack, unsigned stack_size, unsigned priority, int core)
 {
+  (void)core;
   std::lock_guard lock(_tasks_m);
   if (_stop_tasks) return;
 
