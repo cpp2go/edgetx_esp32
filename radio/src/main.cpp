@@ -442,6 +442,14 @@ void periodicTick()
 #if defined(GUI) && defined(COLORLCD)
 void guiMain(event_t evt)
 {
+  // On ESP, run LVGL/UI before background Lua. Widget scripts still execute
+  // during widget refresh inside LVGL; luaTask() here is mix/SF/GF style work
+  // that previously could consume the whole 50ms menus period and skip a frame.
+#if defined(ESP_PLATFORM)
+  LvglWrapper::instance()->run();
+  MainWindow::instance()->run();
+#endif
+
 #if defined(LUA)
   uint32_t t0 = get_tmr10ms();
   uint16_t interval = (lastLuaTime == 0 ? 0 : (t0 - lastLuaTime));
@@ -462,8 +470,10 @@ void guiMain(event_t evt)
   }
 #endif
 
+#if !defined(ESP_PLATFORM)
   LvglWrapper::instance()->run();
   MainWindow::instance()->run();
+#endif
 
   bool mainViewRequested = (mainRequestFlags & (1u << REQUEST_MAIN_VIEW));
   if (mainViewRequested) {

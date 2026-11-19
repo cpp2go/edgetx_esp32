@@ -210,7 +210,14 @@ extern uint16_t maxLuaInterval;
 extern uint16_t maxLuaDuration;
 extern uint32_t lastLuaTime;
 extern uint8_t instructionsPercent;
+// Cooperative Lua timeslice (10ms ticks). On ESP color builds the menus
+// period is also ~50ms and shares the task with LVGL, so keep Lua shorter
+// or the UI frame is starved whenever scripts are busy.
+#if defined(ESP_PLATFORM) && defined(COLORLCD)
+#define LUA_TASK_PERIOD_TICKS                2   // 20 ms
+#else
 #define LUA_TASK_PERIOD_TICKS                5   // 50 ms
+#endif
 
 struct LuaField {
   uint16_t id;
