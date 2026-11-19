@@ -5,6 +5,7 @@ static const char *TAG = "lcd-mcu";
 
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "esp_timer.h"
 #include "esp_lcd_panel_io.h"
@@ -12,6 +13,7 @@ static const char *TAG = "lcd-mcu";
 #include "esp_lcd_panel_ops.h"
 #include "driver/gpio.h"
 #include "esp_err.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "lvgl.h"
 #ifdef CONFIG_SPIRAM
@@ -104,109 +106,76 @@ static esp_lcd_panel_dev_config_t panel_config = {
 };
 
 
-static struct mcu_panel_draw_ctx_t {
-    lv_area_t area;
-    lv_color_t *color_map;
-    lv_disp_drv_t *drv;
-    int width;
-    int y;
-    lv_color_t *next_stripe;
-    int max_rows;
-    // Written from LCD DMA completion callback; read from flush waiter.
-    volatile bool flushing;
-    volatile bool done;
-} draw_ctx;
+// Signalled by the LCD DMA completion ISR, one count per finished color
+// transaction. The panel driver copies the pixels into a single shared DMA
+// buffer, so only one transaction may be in flight at a time and every stripe
+// has to be waited for from task context before the next one is queued.
+static SemaphoreHandle_t color_trans_done = NULL;
 
-static void flush_next_stripe(struct mcu_panel_draw_ctx_t *ctx)
-{
-    lv_area_t area = {.x1 = ctx->area.x1, .x2 = ctx->area.x2, .y1 = ctx->y};
-    lv_color_t *pcolor = ctx->next_stripe;
+#define COLOR_TRANS_DONE_TMO_MS 100
 
-    int h = ctx->area.y2 - ctx->y;
-    if (h > ctx->max_rows) h = ctx->max_rows;
-    if (h <= 0) {
-        ctx->done = true;
-        ctx->flushing = false;
-        if (ctx->drv) {
-            lv_disp_flush_ready(ctx->drv);
-        }
-        return;
-    }
-
-    ctx->y += h;
-    area.y2 = ctx->y;  // exclusive end for esp_lcd_panel_draw_bitmap
-    ctx->next_stripe += (ctx->width * h);
-
-    // Cache write-back for the whole dirty rect is done once in flush_cb
-    // (task context) before the first stripe is queued.
-    esp_lcd_panel_draw_bitmap(panel_handle, area.x1, area.y1, area.x2, area.y2, pcolor);
-}
-
-// Called from LCD IO completion context. Chain the next stripe without
-// spinning the UI task between DMA chunks.
 static bool mcu_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
-    struct mcu_panel_draw_ctx_t *ctx = &draw_ctx;
-    if (ctx->y >= ctx->area.y2) {
-        ctx->done = true;
-        ctx->flushing = false;
-        if (ctx->drv) {
-            lv_disp_flush_ready(ctx->drv);
-        }
-    } else {
-        flush_next_stripe(ctx);
+    // Interrupt context: only signal. Queuing the next stripe from here would
+    // call esp_lcd_panel_draw_bitmap() -> esp_lcd_panel_io_tx_param(), which
+    // drains the done queue and busy-waits on the bus (not ISR safe).
+    BaseType_t woken = pdFALSE;
+    if (color_trans_done) {
+        xSemaphoreGiveFromISR(color_trans_done, &woken);
     }
-    return false;
+    return woken == pdTRUE;
+}
+
+// A lost completion must not freeze the UI task (the menus task owns the LVGL
+// refresh): bail out and let the frame be torn instead of deadlocking.
+static bool wait_color_trans_done(void)
+{
+    if (!color_trans_done) return false;
+    return xSemaphoreTake(color_trans_done, pdMS_TO_TICKS(COLOR_TRANS_DONE_TMO_MS)) == pdTRUE;
 }
 
 void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
-    // If a previous frame is still on the wire (double-buffer path), wait
-    // without busy-spinning so audio / other CPU1 tasks can run.
-    while (draw_ctx.flushing) {
-        taskYIELD();
-    }
-
-    draw_ctx.area.x1 = area->x1;
-    draw_ctx.area.y1 = area->y1;
-    draw_ctx.area.x2 = area->x2;
-    draw_ctx.area.y2 = area->y2;
-    draw_ctx.color_map = color_map;
-    draw_ctx.drv = drv;
-
-    draw_ctx.next_stripe = color_map;
-    draw_ctx.width = draw_ctx.area.x2 - draw_ctx.area.x1;
-    if (draw_ctx.width <= 0) {
+    // x2 / y2 are exclusive here: EdgeTX passes rect_t::right() / bottom().
+    const int width = area->x2 - area->x1;
+    const int total_h = area->y2 - area->y1;
+    if (width <= 0 || total_h <= 0) {
         lv_disp_flush_ready(drv);
         return;
     }
-    draw_ctx.max_rows = DISP_BUF_SIZE / draw_ctx.width;
-    if (draw_ctx.max_rows < 1) {
-        draw_ctx.max_rows = 1;
-    }
-    draw_ctx.y = area->y1;
-    draw_ctx.done = false;
-    draw_ctx.flushing = true;
 
-    // Write back the full dirty rectangle once here (task context). Later
-    // stripes are queued from the DMA callback and must not touch the cache
-    // API from interrupt context.
-#ifdef CONFIG_SPIRAM
-    {
-        const int total_h = draw_ctx.area.y2 - draw_ctx.area.y1;
-        if (total_h > 0) {
-            Cache_WriteBack_Addr(
-                (uint32_t)color_map,
-                (uint32_t)(draw_ctx.width * total_h * sizeof(lv_color_t)));
-        }
+    int max_rows = DISP_BUF_SIZE / width;
+    if (max_rows < 1) {
+        max_rows = 1;
     }
+
+    // LVGL renders through the CPU D-cache while the I80 GDMA reads PSRAM
+    // directly, so the whole dirty rect has to be written back before the
+    // first stripe is queued.
+#ifdef CONFIG_SPIRAM
+    Cache_WriteBack_Addr((uint32_t)color_map,
+                         (uint32_t)(width * total_h * sizeof(lv_color_t)));
 #endif
 
-    // Kick the first stripe and return. Remaining stripes are chained from the
-    // DMA completion callback, which also calls lv_disp_flush_ready().
-    // LVGL wait_cb should taskYIELD() while the flush is in flight so other
-    // tasks can run; dual framebuffers let the next frame render in parallel.
-    flush_next_stripe(&draw_ctx);
+    // Drop stale counts left over by a timed out stripe.
+    while (color_trans_done && xSemaphoreTake(color_trans_done, 0) == pdTRUE) {}
+
+    lv_color_t *pcolor = color_map;
+    for (int y = area->y1; y < area->y2;) {
+        int h = area->y2 - y;
+        if (h > max_rows) h = max_rows;
+
+        esp_lcd_panel_draw_bitmap(panel_handle, area->x1, y, area->x2, y + h, pcolor);
+        y += h;
+        pcolor += width * h;
+
+        if (!wait_color_trans_done()) {
+            break;
+        }
+    }
+
+    // All pixels are on the wire: safe to hand the buffer back to LVGL.
+    lv_disp_flush_ready(drv);
 }
 
 #if defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_HX8357
@@ -217,8 +186,41 @@ extern esp_err_t esp_lcd_new_panel_ili9488(const esp_lcd_panel_io_handle_t io, c
 extern esp_err_t esp_lcd_new_panel_st7796s(const esp_lcd_panel_io_handle_t io, const esp_lcd_panel_dev_config_t *panel_dev_config, esp_lcd_panel_handle_t *ret_panel);
 #endif
 
+// The panel GRAM powers up with random content and the backlight is enabled
+// right after this init, so wipe it first: otherwise the radio shows a flash
+// of noise until LVGL pushes its first frame.
+static void panel_clear_gram(void)
+{
+    enum { CLEAR_ROWS = 16 };
+    const int width = LV_HOR_RES_MAX;
+    const int height = LV_VER_RES_MAX;
+    const size_t bytes = (size_t)width * CLEAR_ROWS * sizeof(lv_color_t);
+
+    lv_color_t *black = heap_caps_calloc(1, bytes, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    if (!black) {
+        ESP_LOGW(TAG, "no memory to clear panel GRAM");
+        return;
+    }
+
+    for (int y = 0; y < height; y += CLEAR_ROWS) {
+        int h = height - y;
+        if (h > CLEAR_ROWS) h = CLEAR_ROWS;
+        esp_lcd_panel_draw_bitmap(panel_handle, 0, y, width, y + h, black);
+        if (!wait_color_trans_done()) {
+            break;
+        }
+    }
+
+    heap_caps_free(black);
+}
+
 void disp_mcu_panel_init(void) {
     ESP_LOGI(TAG, "Initialize Intel 8080 bus");
+
+    if (!color_trans_done) {
+        color_trans_done = xSemaphoreCreateBinary();
+        ESP_ERROR_CHECK(color_trans_done == NULL ? ESP_ERR_NO_MEM : ESP_OK);
+    }
 
     ESP_ERROR_CHECK(esp_lcd_new_i80_bus(&bus_config, &i80_bus));
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i80(i80_bus, &io_config, &io_handle));
@@ -233,4 +235,6 @@ void disp_mcu_panel_init(void) {
     esp_lcd_panel_init(panel_handle);
     // the gap is LCD panel specific, even panels with the same driver IC, can have different gap value
     //esp_lcd_panel_set_gap(panel_handle, 0, 20);
+
+    panel_clear_gram();
 }

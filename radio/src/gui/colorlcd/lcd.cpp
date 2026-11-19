@@ -106,8 +106,8 @@ static void flushLcd(lv_disp_drv_t* disp_drv, const lv_area_t* area,
 
     lcd_flush_cb(disp_drv, (uint16_t*)color_p, copy_area);
 #if defined(ESP_PLATFORM)
-    // ESP I80 path completes asynchronously; lv_disp_flush_ready() is invoked
-    // from the LCD DMA completion callback in disp_mcu.c.
+    // The ESP I80 flush callback blocks until the pixels are on the wire and
+    // calls lv_disp_flush_ready() itself (disp_mcu.c).
     return;
 #endif
   }
