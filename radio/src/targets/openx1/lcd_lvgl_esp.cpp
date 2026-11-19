@@ -53,6 +53,14 @@ static void lcd_flush(lv_disp_drv_t *drv, uint16_t*color_map, const rect_t& rect
     disp_driver_flush(drv, &area, (lv_color_t *)color_map);
 }
 
+// LVGL calls this while a previous flush is still marked busy. Yield so audio
+// / other CPU1 work can run instead of spinning the menus task.
+static void lcd_wait(lv_disp_drv_t *drv)
+{
+    (void)drv;
+    taskYIELD();
+}
+
 void lcdInit()
 {
     // touchPanelInit() configures the touch IRQ pin (input + pull-up). It was
@@ -61,6 +69,7 @@ void lcdInit()
     touchPanelInit();
     lvgl_driver_init();
     lcdSetFlushCb(lcd_flush);
+    lcdSetWaitCb(lcd_wait);
 }
 
 static TouchState internalTouchState = {0};

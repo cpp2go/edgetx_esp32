@@ -112,66 +112,101 @@ static struct mcu_panel_draw_ctx_t {
     int y;
     lv_color_t *next_stripe;
     int max_rows;
-    volatile bool done;  // written by DMA-completion ISR, read in spin-loop — must be volatile
-    volatile bool next;  // written by DMA-completion ISR, read in spin-loop — must be volatile
+    // Written from LCD DMA completion callback; read from flush waiter.
+    volatile bool flushing;
+    volatile bool done;
 } draw_ctx;
 
-static void flush_next_stripe(struct mcu_panel_draw_ctx_t *ctx) {
-    lv_area_t area = {.x1= ctx->area.x1, .x2= ctx->area.x2, .y1= ctx->y};
+static void flush_next_stripe(struct mcu_panel_draw_ctx_t *ctx)
+{
+    lv_area_t area = {.x1 = ctx->area.x1, .x2 = ctx->area.x2, .y1 = ctx->y};
     lv_color_t *pcolor = ctx->next_stripe;
 
     int h = ctx->area.y2 - ctx->y;
     if (h > ctx->max_rows) h = ctx->max_rows;
+    if (h <= 0) {
+        ctx->done = true;
+        ctx->flushing = false;
+        if (ctx->drv) {
+            lv_disp_flush_ready(ctx->drv);
+        }
+        return;
+    }
 
     ctx->y += h;
     area.y2 = ctx->y;  // exclusive end for esp_lcd_panel_draw_bitmap
     ctx->next_stripe += (ctx->width * h);
-    draw_ctx.next = false;
 
-    // Flush CPU D-cache to PSRAM before GDMA reads the pixel buffer.
-    // LVGL renders into a PSRAM buffer via CPU (write-back cache); the I80 GDMA
-    // reads PSRAM directly and sees stale data without this flush → 花屏.
-#ifdef CONFIG_SPIRAM
-    Cache_WriteBack_Addr((uint32_t)pcolor, (uint32_t)(ctx->width * h * sizeof(lv_color_t)));
-#endif
-
+    // Cache write-back for the whole dirty rect is done once in flush_cb
+    // (task context) before the first stripe is queued.
     esp_lcd_panel_draw_bitmap(panel_handle, area.x1, area.y1, area.x2, area.y2, pcolor);
 }
 
+// Called from LCD IO completion context. Chain the next stripe without
+// spinning the UI task between DMA chunks.
 static bool mcu_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
     struct mcu_panel_draw_ctx_t *ctx = &draw_ctx;
     if (ctx->y >= ctx->area.y2) {
-        draw_ctx.done = true;
-        draw_ctx.next = true;
-        if (NULL != ctx->drv) {
+        ctx->done = true;
+        ctx->flushing = false;
+        if (ctx->drv) {
             lv_disp_flush_ready(ctx->drv);
         }
     } else {
-        draw_ctx.next = true;
+        flush_next_stripe(ctx);
     }
     return false;
 }
 
 void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
-    draw_ctx.area.x1=area->x1;
-    draw_ctx.area.y1=area->y1;
-    draw_ctx.area.x2=area->x2;
-    draw_ctx.area.y2=area->y2;
+    // If a previous frame is still on the wire (double-buffer path), wait
+    // without busy-spinning so audio / other CPU1 tasks can run.
+    while (draw_ctx.flushing) {
+        taskYIELD();
+    }
+
+    draw_ctx.area.x1 = area->x1;
+    draw_ctx.area.y1 = area->y1;
+    draw_ctx.area.x2 = area->x2;
+    draw_ctx.area.y2 = area->y2;
     draw_ctx.color_map = color_map;
     draw_ctx.drv = drv;
 
     draw_ctx.next_stripe = color_map;
     draw_ctx.width = draw_ctx.area.x2 - draw_ctx.area.x1;
+    if (draw_ctx.width <= 0) {
+        lv_disp_flush_ready(drv);
+        return;
+    }
     draw_ctx.max_rows = DISP_BUF_SIZE / draw_ctx.width;
+    if (draw_ctx.max_rows < 1) {
+        draw_ctx.max_rows = 1;
+    }
     draw_ctx.y = area->y1;
     draw_ctx.done = false;
+    draw_ctx.flushing = true;
 
-    do {
-        flush_next_stripe(&draw_ctx);
-        while(!draw_ctx.next);
-    } while(!draw_ctx.done);
+    // Write back the full dirty rectangle once here (task context). Later
+    // stripes are queued from the DMA callback and must not touch the cache
+    // API from interrupt context.
+#ifdef CONFIG_SPIRAM
+    {
+        const int total_h = draw_ctx.area.y2 - draw_ctx.area.y1;
+        if (total_h > 0) {
+            Cache_WriteBack_Addr(
+                (uint32_t)color_map,
+                (uint32_t)(draw_ctx.width * total_h * sizeof(lv_color_t)));
+        }
+    }
+#endif
+
+    // Kick the first stripe and return. Remaining stripes are chained from the
+    // DMA completion callback, which also calls lv_disp_flush_ready().
+    // LVGL wait_cb should taskYIELD() while the flush is in flight so other
+    // tasks can run; dual framebuffers let the next frame render in parallel.
+    flush_next_stripe(&draw_ctx);
 }
 
 #if defined CONFIG_LV_TFT_DISPLAY_CONTROLLER_HX8357

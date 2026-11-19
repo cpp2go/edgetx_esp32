@@ -3,7 +3,8 @@
 cmake_minimum_required(VERSION 3.16)
 
 add_definitions(-DLV_CONF_KCONFIG_EXTERNAL_INCLUDE="lv_conf_edgetx.h")
-add_definitions(-DESP32_SINGLE_FRAMEBUFFER)
+# Dual framebuffers in PSRAM: LVGL can render the next frame while I80 DMA
+# flushes the previous one (see async path in disp_mcu.c + lcd.cpp).
 
 set(EDGETX_ROOTDIR "${CMAKE_SOURCE_DIR}/../../../../..")
 set(EDGETX_SRCDIR "${EDGETX_ROOTDIR}/radio/src")
