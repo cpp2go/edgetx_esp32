@@ -37,14 +37,13 @@ static sdspi_device_config_t dev_config = SDSPI_DEVICE_CONFIG_DEFAULT();
 static sdmmc_card_t sdcard;
 static sdmmc_card_t* card = &sdcard;
 
-// Prefer 40 MHz SPI (SDMMC_FREQ_HIGHSPEED). SDSPI_HOST_DEFAULT() is only
-// 20 MHz. Fall back to 20 MHz when a card fails high-speed init — some
-// cheap cards / long traces cannot sustain 40 MHz.
+// SDSPI clock. SDSPI_HOST_DEFAULT() (SDMMC_FREQ_DEFAULT = 20 MHz) is what this
+// board has always run at. SDMMC_FREQ_HIGHSPEED (40 MHz) passes card init but
+// block reads then fail with CRC/timeout errors on this wiring, which shows up
+// as an unreadable SD card. Only override SDCARD_SPI_FREQ_KHZ after proving a
+// specific card/board combination is stable at high speed.
 #ifndef SDCARD_SPI_FREQ_KHZ
-#define SDCARD_SPI_FREQ_KHZ SDMMC_FREQ_HIGHSPEED
-#endif
-#ifndef SDCARD_SPI_FREQ_FALLBACK_KHZ
-#define SDCARD_SPI_FREQ_FALLBACK_KHZ SDMMC_FREQ_DEFAULT
+#define SDCARD_SPI_FREQ_KHZ SDMMC_FREQ_DEFAULT
 #endif
 
 static bool sdcard_spi_try_init(int freq_khz)
@@ -89,9 +88,7 @@ static DSTATUS sdcard_spi_initialize(BYTE lun)
             return STA_NODISK | STA_NOINIT;
         }
 
-        if (sdcard_spi_try_init(SDCARD_SPI_FREQ_KHZ) ||
-            (SDCARD_SPI_FREQ_KHZ != SDCARD_SPI_FREQ_FALLBACK_KHZ &&
-             sdcard_spi_try_init(SDCARD_SPI_FREQ_FALLBACK_KHZ))) {
+        if (sdcard_spi_try_init(SDCARD_SPI_FREQ_KHZ)) {
             card_present = true;
         } else {
             sdspi_host_remove_device(handle);
