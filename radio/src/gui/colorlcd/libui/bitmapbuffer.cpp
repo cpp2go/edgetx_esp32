@@ -19,6 +19,7 @@
 #include "bitmapbuffer.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <string>
 
 #include "bitmaps.h"
@@ -29,6 +30,12 @@
 #include "strhelpers.h"
 #if !defined(BOOT)
 #include "window.h"
+#endif
+
+#if defined(UI_FRAME_PROFILER)
+#include "ui_profiler.h"
+#else
+#define UI_PROF_DRAW_SCOPE(kind)
 #endif
 
 BitmapBuffer::BitmapBuffer(uint8_t format, uint16_t width, uint16_t height) :
@@ -165,6 +172,7 @@ void BitmapBuffer::drawBitmap(coord_t x, coord_t y, const BitmapBuffer *bmp,
                               coord_t srcx, coord_t srcy, coord_t srcw,
                               coord_t srch, float scale)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_IMAGE);
   if (!data || !bmp) return;
   APPLY_OFFSET();
   if (x >= xmax || y >= ymax) return;
@@ -315,6 +323,7 @@ void BitmapBuffer::drawHorizontalLineAbs(coord_t x, coord_t y, coord_t w,
                                          uint8_t pat, LcdFlags flags,
                                          uint8_t opacity)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_LINE);
   if (opacity == OPACITY_MAX) return;
 
   if (draw_ctx) {
@@ -354,6 +363,7 @@ void BitmapBuffer::drawVerticalLine(coord_t x, coord_t y, coord_t h,
                                     uint8_t pat, LcdFlags flags,
                                     uint8_t opacity)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_LINE);
   if (opacity == OPACITY_MAX) return;
 
   APPLY_OFFSET();
@@ -419,6 +429,7 @@ void BitmapBuffer::drawSolidFilledRect(coord_t x, coord_t y, coord_t w,
 void BitmapBuffer::drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h,
                                   uint8_t pat, LcdFlags flags, uint8_t opacity)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_RECT);
   if (opacity == OPACITY_MAX) return;
 
   APPLY_OFFSET();
@@ -442,6 +453,29 @@ void BitmapBuffer::drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h,
     y += draw_ctx->buf_area->y1;
   }
 
+  // Solid opaque fills (backgrounds, bars) are the most common large
+  // primitive; two pixels per 32-bit store into the RGB565 buffer is markedly
+  // faster than LVGL's per-pixel software path on the PSRAM frame buffer.
+  if (opacity == 0 && format == BMP_RGB565 && data) {
+    const uint16_t color = COLOR_VAL(flags);
+    const uint32_t color2 = color | ((uint32_t)color << 16);
+    for (coord_t i = y; i < y + h; i++) {
+      uint16_t* p = data + (uint32_t)i * _width + x;
+      coord_t n = w;
+      if (reinterpret_cast<uintptr_t>(p) & 2) {
+        *p++ = color;
+        --n;
+      }
+      uint32_t* p32 = reinterpret_cast<uint32_t*>(p);
+      while (n >= 2) {
+        *p32++ = color2;
+        n -= 2;
+      }
+      if (n) *reinterpret_cast<uint16_t*>(p32) = color;
+    }
+    return;
+  }
+
   lv_area_t coords = {
       (lv_coord_t)x,
       (lv_coord_t)y,
@@ -463,6 +497,7 @@ void BitmapBuffer::drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h,
 coord_t BitmapBuffer::drawSizedText(coord_t x, coord_t y, const char *s,
                                     uint8_t len, LcdFlags flags)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_TEXT);
   if (!s) return x;
 
   coord_t offsetX = this->offsetX;

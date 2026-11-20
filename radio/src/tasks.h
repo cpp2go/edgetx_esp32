@@ -50,10 +50,17 @@
 
 #if defined(FREE_RTOS)
 #define MIXER_TASK_PRIO        (tskIDLE_PRIORITY + 4)
-#define AUDIO_TASK_PRIO        (tskIDLE_PRIORITY + 3) // Note: FreeRTOSConfig.h defines software timers as priority 2
 #if defined(ESP_PLATFORM)
-// Menus/LVGL share CPU1 with audio (4ms wake). Mixer is on CPU0 — keep UI at
-// least at audio priority so flush/telem menus are not starved.
+// A fullscreen Lua widget keeps the menus task busy for ~150ms per frame, so a
+// lower-priority audio task would starve (I2S underruns => stuttering voice).
+// Audio work is short and wakes every 4ms, so it runs above the UI.
+#define AUDIO_TASK_PRIO        (tskIDLE_PRIORITY + 5)
+#else
+#define AUDIO_TASK_PRIO        (tskIDLE_PRIORITY + 3) // Note: FreeRTOSConfig.h defines software timers as priority 2
+#endif
+#if defined(ESP_PLATFORM)
+// Menus/LVGL share CPU1 with audio (4ms wake). Mixer is on CPU0 — keep UI above
+// idle/CLI but below audio.
 #define MENUS_TASK_PRIO        (tskIDLE_PRIORITY + 4)
 #else
 #define MENUS_TASK_PRIO        (tskIDLE_PRIORITY + 1)

@@ -476,7 +476,10 @@ void prefetchUiFonts()
     }
   }
 #if defined(ENABLE_FALLBACK)
-  if (fontTable != en_fontTable) {
+  // fontTable is a pointer with ALL_LANGS and an array otherwise, so compare
+  // the addresses through void* to keep both forms warning free.
+  if (static_cast<const void*>(fontTable) !=
+      static_cast<const void*>(en_fontTable)) {
     for (FontIndex idx : sizes) {
       if (en_fontTable[idx].lz4Font != nullptr) {
         decompressFont(idx, en_fontTable);

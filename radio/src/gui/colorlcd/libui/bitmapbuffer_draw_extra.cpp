@@ -28,11 +28,18 @@
 
 #include <cmath>
 
+#if defined(UI_FRAME_PROFILER)
+#include "ui_profiler.h"
+#else
+#define UI_PROF_DRAW_SCOPE(kind)
+#endif
+
 // Drawing functions used by Lua API
 
 void BitmapBuffer::invertRect(coord_t x, coord_t y, coord_t w, coord_t h,
                               LcdFlags flags)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_RECT);
   APPLY_OFFSET();
 
   if (!applyClippingRect(x, y, w, h)) return;
@@ -74,6 +81,7 @@ point_t BitmapBuffer::drawTextLines(coord_t left, coord_t top, coord_t width,
                                  coord_t height, const char *str,
                                  LcdFlags flags)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_TEXT);
   coord_t x = left;
   coord_t y = top;
   coord_t line = getFontHeightCondensed(flags & 0xFFFF);
@@ -236,6 +244,7 @@ void BitmapBuffer::drawSensorCustomValue(coord_t x, coord_t y, uint8_t sensor,
 void BitmapBuffer::drawScaledBitmap(const BitmapBuffer *bitmap, coord_t x, coord_t y,
                                     coord_t w, coord_t h)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_IMAGE);
   if (bitmap) {
     float vscale = float(h) / bitmap->height();
     float hscale = float(w) / bitmap->width();
@@ -341,6 +350,7 @@ bool BitmapBuffer::liangBarskyClipper(coord_t &x1, coord_t &y1, coord_t &x2,
 void BitmapBuffer::drawLine(coord_t x1, coord_t y1, coord_t x2, coord_t y2,
                             uint8_t pat, LcdFlags flags)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_LINE);
   // Offsets
   x1 += offsetX;
   y1 += offsetY;
@@ -434,6 +444,7 @@ void BitmapBuffer::drawFilledTriangle(coord_t x0, coord_t y0, coord_t x1,
                                       coord_t y1, coord_t x2, coord_t y2,
                                       LcdFlags flags, uint8_t opacity)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   coord_t a, b;
 
 #define SWAP(a, b)   \
@@ -501,6 +512,7 @@ void BitmapBuffer::drawFilledTriangle(coord_t x0, coord_t y0, coord_t x1,
 void BitmapBuffer::drawFilledCircle(coord_t x, coord_t y, coord_t radius,
                                     LcdFlags flags)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   APPLY_OFFSET();
 
   lv_draw_rect_dsc_t rect_dsc;
@@ -535,6 +547,7 @@ void BitmapBuffer::drawFilledCircle(coord_t x, coord_t y, coord_t radius,
 void BitmapBuffer::drawCircle(coord_t x, coord_t y, coord_t radius,
                               LcdFlags flags, coord_t thickness)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   APPLY_OFFSET();
 
   lv_draw_rect_dsc_t rect_dsc;
@@ -647,6 +660,7 @@ void BitmapBuffer::drawBitmapPatternPie(coord_t x, coord_t y,
                                         const MaskBitmap *img, LcdFlags flags,
                                         int startAngle, int endAngle)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_IMAGE);
   // TODO: can this converted to LVGL primitives?
 
   if (endAngle == startAngle) {
@@ -698,6 +712,7 @@ void BitmapBuffer::drawAnnulusSector(coord_t x, coord_t y,
                                      coord_t externalRadius, int startAngle,
                                      int endAngle, LcdFlags flags)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   APPLY_OFFSET();
 
   if (endAngle == startAngle)
@@ -768,6 +783,7 @@ void BitmapBuffer::drawBitmapPattern(coord_t x, coord_t y, const MaskBitmap *bmp
                                      LcdFlags flags, coord_t offset,
                                      coord_t width)
 {
+  UI_PROF_DRAW_SCOPE(UI_DRAW_IMAGE);
   APPLY_OFFSET();
 
   coord_t bmpw = bmp->width;

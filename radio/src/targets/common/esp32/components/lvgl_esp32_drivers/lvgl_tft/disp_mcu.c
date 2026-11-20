@@ -23,12 +23,9 @@ static const char *TAG = "lcd-mcu";
 #include "lvgl_helpers.h"
 #include "disp_mcu.h"
 
-// I80 parallel pixel clock. Source clock ~20 MHz is the ILI9488 conservative
-// recommended value; bumped to 26 MHz to widen the push-bandwidth (faster full
-// screen refresh). If the panel shows garbled pixels / column shift, this is
-// the first thing to dial back down (try 24, then 20). ESP32-S3 I80 peripheral
-// itself supports up to ~40 MHz; the ILI9488 write-cycle + board trace is the
-// real ceiling.
+// I80 parallel pixel clock. 26 MHz is the value this board is known to run
+// cleanly; 40 MHz was tried and made the panel misbehave, 32 MHz is the next
+// step worth testing before going higher.
 #define MCU_LCD_PIXEL_CLOCK_HZ (26 * 1000 * 1000)
 
 static esp_lcd_i80_bus_handle_t i80_bus = NULL;
@@ -61,7 +58,11 @@ static esp_lcd_i80_bus_config_t bus_config = {
 #else
     .bus_width = 8,
 #endif
-    .max_transfer_bytes = DISP_BUF_SIZE * sizeof(lv_color_t)
+    // Twice the largest stripe: the I80 driver sizes its DMA descriptor ring
+    // from this, and a ring that only just fits one stripe cannot mount the
+    // next transfer while the previous one is still finishing
+    // ("gdma_link_mount_buffers: lli full").
+    .max_transfer_bytes = DISP_BUF_SIZE * sizeof(lv_color_t) * 2
 };
 
 static bool mcu_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx);
@@ -149,9 +150,9 @@ void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t
         max_rows = 1;
     }
 
-    // LVGL renders through the CPU D-cache while the I80 GDMA reads PSRAM
-    // directly, so the whole dirty rect has to be written back before the
-    // first stripe is queued.
+    // LVGL renders through the CPU D-cache, but the pixels are read back by
+    // the CPU (memcpy into dmabuf), which is cache coherent, so no explicit
+    // write-back of the frame buffer is needed here.
     // Drop stale counts left over by a timed out stripe.
     while (color_trans_done && xSemaphoreTake(color_trans_done, 0) == pdTRUE) {}
 
@@ -161,6 +162,7 @@ void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t
         if (h > max_rows) h = max_rows;
 
 #ifdef CONFIG_SPIRAM
+        // The GDMA reads the frame buffer straight out of PSRAM below.
         Cache_WriteBack_Addr((uint32_t)pcolor,
                              (uint32_t)(width * h * sizeof(lv_color_t)));
 #endif

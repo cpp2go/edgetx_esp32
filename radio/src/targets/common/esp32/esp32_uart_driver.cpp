@@ -23,6 +23,7 @@
 #include "esp32_uart_driver.h"
 
 #include "esp_log.h"
+#include "freertos/task.h"
 #define TAG "UART"
 
 // Local RX batch buffer: getByte() refills this in one uart_read_bytes() call
@@ -42,6 +43,29 @@ typedef struct {
 } esp32_uart_ctx_t;
 
 static esp32_uart_ctx_t uarts[SOC_UART_HP_NUM]; // TODO-OPENX1 init
+
+// Debug counters, see espUartGetRxStats()
+static volatile uint32_t uartDbgDataEvents[SOC_UART_HP_NUM];
+static volatile uint32_t uartDbgRxBytes[SOC_UART_HP_NUM];
+
+void espUartGetRxStats(int port, uint32_t* events, uint32_t* bytes)
+{
+    if (port < 0 || port >= SOC_UART_HP_NUM) {
+        if (events) *events = 0;
+        if (bytes) *bytes = 0;
+        return;
+    }
+    if (events) *events = uartDbgDataEvents[port];
+    if (bytes) *bytes = uartDbgRxBytes[port];
+}
+
+void espUartResetRxStats()
+{
+    for (int i = 0; i < SOC_UART_HP_NUM; i += 1) {
+        uartDbgDataEvents[i] = 0;
+        uartDbgRxBytes[i] = 0;
+    }
+}
 
 static inline esp32_uart_ctx_t *ctx_to_port(void* ctx) {
     return (esp32_uart_ctx_t *)ctx;
@@ -68,6 +92,8 @@ static void espuart_uart_event_task(void *pvParameters)
             be full.*/
             case UART_DATA:
                 //ESP_LOGI(TAG, "[UART DATA]: %d", event.size);
+                uartDbgDataEvents[port->port] += 1;
+                uartDbgRxBytes[port->port] += (uint32_t)event.size;
                 if (NULL != port->on_idle_cb) {
                     port->on_idle_cb(port->on_idle_cb_param);
                 }
@@ -160,12 +186,21 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
     uart_param_config(port->port, &uart_config);
     uart_set_pin(port->port, hw->tx_pin, hw->rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-    // Keep the event task below audio/mixer (prio 3/4) and close to the UI task
-    // (prio 1): it only dispatches UART events, the data itself is buffered in
-    // the (4k) ring buffer. A high priority here preempts the UI/Lua task for
-    // every received telemetry frame.
-    xTaskCreate(espuart_uart_event_task, "espuart_uart_event_task", 4096,
-        (void *)port, 2, &port->rx_task);
+    // The event task runs the telemetry frame polling synchronously (see
+    // telemetryFrameTrigger_ISR), so it must not share the UI core: a
+    // fullscreen Lua widget keeps the menus task (CPU1) busy for >150ms per
+    // frame and would starve polling until the RX ring overflows ("no
+    // telemetry" with a perfectly good link). The mixer core sleeps most of
+    // the time, so pin the task there, at a priority that stays below the
+    // mixer/menus tasks so it never preempts them.
+    xTaskCreatePinnedToCore(espuart_uart_event_task, "espuart_uart_event_task",
+        4096, (void *)port, 2, &port->rx_task,
+#if defined(MIXER_TASK_CORE)
+        MIXER_TASK_CORE
+#else
+        tskNO_AFFINITY
+#endif
+    );
     return (void *)port;
 }
 
@@ -245,6 +280,25 @@ int espUartGetBufferedBytes(void* ctx) {
 int espUartCopyRxBuffer(void* ctx, uint8_t* buf, uint32_t len) {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     int r = uart_read_bytes(port->port, buf, len, 0);
+#if defined(UI_FRAME_PROFILER)
+    // Diagnostic for missing telemetry: dump what actually arrives on the UART
+    // so a valid CRSF stream can be told apart from noise / a wrong baudrate.
+    if (r > 0) {
+        static TickType_t lastDump[UART_NUM_MAX];
+        TickType_t now = xTaskGetTickCount();
+        if (port->port < UART_NUM_MAX &&
+            (now - lastDump[port->port]) >= pdMS_TO_TICKS(1000)) {
+            lastDump[port->port] = now;
+            char hex[3 * 24 + 1];
+            int n = r > 24 ? 24 : r;
+            for (int i = 0; i < n; i++) {
+                snprintf(hex + i * 3, 4, "%02x ", buf[i]);
+            }
+            hex[n * 3] = '\0';
+            ESP_LOGI(TAG, "uart%d rx %d bytes: %s", (int)port->port, r, hex);
+        }
+    }
+#endif
     return r;
 }
 

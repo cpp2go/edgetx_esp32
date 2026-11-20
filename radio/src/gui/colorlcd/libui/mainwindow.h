@@ -52,6 +52,12 @@ class MainWindow: public Window
 
   void setBackgroundImage(const char* fileName);
 
+  // Hides the window background (solid colour + background image) while a
+  // fullscreen widget covers the whole screen: LVGL would otherwise repaint
+  // them every frame only to have the widget draw over them again, which costs
+  // a full-screen fill + image blend per frame on slow targets.
+  void setBackgroundVisible(bool visible);
+
   void shutdown();
 
   void enableWidgetRefresh(bool state) { widgetRefreshEnable = state; }
@@ -59,6 +65,8 @@ class MainWindow: public Window
  protected:
   std::string backgroundImageFileName;
   BitmapBuffer *backgroundBitmap = nullptr;
+  lv_obj_t *backgroundCanvas = nullptr;
+  bool backgroundVisible = true;
   bool widgetRefreshEnable = true;
 
   static MainWindow * _instance;

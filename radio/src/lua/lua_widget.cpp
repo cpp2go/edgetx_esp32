@@ -30,6 +30,10 @@
 #include "view_main.h"
 #include "os/time.h"
 
+#if defined(UI_FRAME_PROFILER)
+#include "ui_profiler.h"
+#endif
+
 #define MAX_INSTRUCTIONS LUA_WIDGET_MAX_INSTRUCTIONS
 
 LuaScriptManager *luaScriptManager = nullptr;
@@ -222,7 +226,14 @@ void LuaWidget::redraw_cb(lv_event_t* e)
 
     auto save = luaScriptManager;
     luaScriptManager = widget;
+#if defined(UI_FRAME_PROFILER)
+    uiProfilerEnter(UI_PROF_LUA_DRAW);
+#endif
     widget->refresh(&buf);
+#if defined(UI_FRAME_PROFILER)
+    uiProfilerExit(UI_PROF_LUA_DRAW);
+    uiProfilerCount(UI_PROF_LUA_DRAW);
+#endif
     luaScriptManager = save;
   }
 }
@@ -532,6 +543,9 @@ void LuaWidget::refresh(BitmapBuffer* dc)
   if (lua_pcall(lsWidgets, 3, 0, 0) != 0) {
     setErrorMessage("refresh()");
   }
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerLuaInstructions(instructionsPercent);
+#endif
   // Remove LCD
   luaLcdAllowed = lla;
   luaLcdBuffer = nullptr;

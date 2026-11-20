@@ -36,6 +36,13 @@ typedef struct {
 
 extern const etx_serial_driver_t ESPUartSerialDriver;
 
+// Debug counters (used by the on-screen UI profiler): number of UART data
+// events and bytes received so far on a port. Tells "no bytes at all"
+// (wiring / baud mismatch) apart from "bytes but no frames" (protocol) when
+// telemetry is missing.
+void espUartGetRxStats(int port, uint32_t* events, uint32_t* bytes);
+void espUartResetRxStats();
+
 typedef struct {
     gpio_num_t rx_pin;
     gpio_num_t tx_pin;

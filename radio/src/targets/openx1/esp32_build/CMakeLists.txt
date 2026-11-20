@@ -23,6 +23,11 @@ set(PCB "OPENX1" CACHE STRING "Project OpenX-1")
 set(TRANSLATIONS "CN" CACHE STRING "Radio language" FORCE)
 option(BOOTLOADER "Include Bootloader" OFF)
 
+# Debug aid: uncomment the next line to get the on-screen UI timing overlay and
+# the UART RX hex dump back (see targets/openx1/ui_profiler.h).
+#add_definitions(-DUI_FRAME_PROFILER)
+unset(UI_FRAME_PROFILER CACHE)
+
 project(edgetx)
 
 target_link_libraries(${project_elf} PRIVATE radiolib_esp32 board_lib)

@@ -23,6 +23,7 @@
 
 #include "edgetx.h"
 #include "etx_lv_theme.h"
+#include "mainwindow.h"
 #include "view_main.h"
 #include "widget_settings.h"
 
@@ -213,6 +214,10 @@ void Widget::setFullscreen(bool enable)
 
   // Show or hide ViewMain widgets and decorations
   ViewMain::instance()->show(!enable);
+
+  // Nothing should be painted underneath a fullscreen widget that covers the
+  // whole screen anyway.
+  MainWindow::instance()->setBackgroundVisible(!enable);
 
   // Leave Fullscreen Mode
   if (!enable) {

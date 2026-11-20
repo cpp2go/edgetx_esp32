@@ -121,6 +121,28 @@ void MainWindow::setBackgroundImage(const char* fileName)
   }
 
   if (backgroundBitmap) {
-    lv_obj_move_background(backgroundBitmap->addCanvas(this));
+    backgroundCanvas = backgroundBitmap->addCanvas(this);
+    if (!backgroundVisible)
+      lv_obj_add_flag(backgroundCanvas, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_background(backgroundCanvas);
   }
+}
+
+void MainWindow::setBackgroundVisible(bool visible)
+{
+  if (backgroundVisible == visible) return;
+  backgroundVisible = visible;
+
+  if (backgroundCanvas) {
+    if (visible)
+      lv_obj_clear_flag(backgroundCanvas, LV_OBJ_FLAG_HIDDEN);
+    else
+      lv_obj_add_flag(backgroundCanvas, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  // Not opaque => LVGL no longer stops here, and with the background image
+  // hidden there is nothing left to draw underneath the fullscreen widget.
+  lv_obj_set_style_bg_opa(lvobj, visible ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+
+  invalidate();
 }

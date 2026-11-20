@@ -27,7 +27,9 @@
 
 #include "edgetx.h"
 #include "lua/lua_states.h"
-
+#if defined(UI_FRAME_PROFILER)
+#include "ui_profiler.h"
+#endif
 #if defined(COLORLCD)
 #include "LvglWrapper.h"
 #include "view_main.h"
@@ -446,8 +448,18 @@ void guiMain(event_t evt)
   // during widget refresh inside LVGL; luaTask() here is mix/SF/GF style work
   // that previously could consume the whole 50ms menus period and skip a frame.
 #if defined(ESP_PLATFORM)
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerEnter(UI_PROF_LVGL);
+#endif
   LvglWrapper::instance()->run();
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerExit(UI_PROF_LVGL);
+  uiProfilerEnter(UI_PROF_UI);
+#endif
   MainWindow::instance()->run();
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerExit(UI_PROF_UI);
+#endif
 #endif
 
 #if defined(LUA)
@@ -461,7 +473,13 @@ void guiMain(event_t evt)
   luaDoGc(lsWidgets, false);
 
   DEBUG_TIMER_START(debugTimerLua);
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerEnter(UI_PROF_LUA);
+#endif
   luaTask(false);
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerExit(UI_PROF_LUA);
+#endif
   DEBUG_TIMER_STOP(debugTimerLua);
 
   t0 = get_tmr10ms() - t0;
@@ -492,6 +510,10 @@ void guiMain(event_t evt)
     writeScreenshot();
     mainRequestFlags &= ~(1u << REQUEST_SCREENSHOT);
   }
+
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerFrameEnd();
+#endif
 }
 #elif defined(GUI)
 

@@ -284,13 +284,23 @@ static esp_err_t panel_ili9488_draw_bitmap(esp_lcd_panel_t *panel, int x_start, 
     }, 4);
     // transfer frame buffer
     size_t len = (x_end - x_start) * (y_end - y_start) * ili9488->fb_bits_per_pixel / 8;
-    memcpy(dmabuf, color_data, len);
+
+    // The I80 GDMA can read the pixels straight out of the PSRAM frame buffer
+    // (esp_lcd_panel_io_tx_color() writes the CPU D-cache back for us), which
+    // saves a full copy of the dirty rect per frame. Areas the bus cannot
+    // address directly (odd start column => 2-byte alignment) still bounce
+    // through dmabuf.
+    const void *tx_data = color_data;
+    if ((((uintptr_t)color_data) & 3) || (len & 3)) {
+        memcpy(dmabuf, color_data, len);
 #ifdef CONFIG_SPIRAM
-    // dmabuf may be in PSRAM (internal alloc fails after BLE init for 38400-byte buffer).
-    // memcpy writes via CPU D-cache; GDMA reads PSRAM directly → stale data without this flush.
-    Cache_WriteBack_Addr((uint32_t)dmabuf, (uint32_t)len);
+        // dmabuf may be in PSRAM (internal alloc fails after BLE init for 38400-byte buffer).
+        // memcpy writes via CPU D-cache; GDMA reads PSRAM directly → stale data without this flush.
+        Cache_WriteBack_Addr((uint32_t)dmabuf, (uint32_t)len);
 #endif
-    esp_lcd_panel_io_tx_color(io, ILI9488_CMD_MEMORY_WRITE, dmabuf, len);
+        tx_data = dmabuf;
+    }
+    esp_lcd_panel_io_tx_color(io, ILI9488_CMD_MEMORY_WRITE, tx_data, len);
 
     return ESP_OK;
 }
