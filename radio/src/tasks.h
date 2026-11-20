@@ -52,9 +52,9 @@
 #define MIXER_TASK_PRIO        (tskIDLE_PRIORITY + 4)
 #define AUDIO_TASK_PRIO        (tskIDLE_PRIORITY + 3) // Note: FreeRTOSConfig.h defines software timers as priority 2
 #if defined(ESP_PLATFORM)
-// On ESP, menus (Lua/LVGL) share CPU1 with network/app tasks; keep it
-// above idle/CLI but still below audio and mixer.
-#define MENUS_TASK_PRIO        (tskIDLE_PRIORITY + 2)
+// Menus/LVGL share CPU1 with audio (4ms wake). Mixer is on CPU0 — keep UI at
+// least at audio priority so flush/telem menus are not starved.
+#define MENUS_TASK_PRIO        (tskIDLE_PRIORITY + 4)
 #else
 #define MENUS_TASK_PRIO        (tskIDLE_PRIORITY + 1)
 #endif

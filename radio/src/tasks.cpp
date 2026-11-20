@@ -51,7 +51,12 @@ TASK_DEFINE_STACK(audioStack, AUDIO_STACK_SIZE);
 
 mutex_handle_t audioMutex;
 
+#if defined(ESP_PLATFORM) && defined(COLORLCD)
+// LVGL default refresh is 30ms (sdkconfig); 50ms capped the UI at ~20 FPS.
+#define MENU_TASK_PERIOD (33)
+#else
 #define MENU_TASK_PERIOD (50)  // 50ms
+#endif
 
 #if defined(COLORLCD) && defined(CLI)
 bool perMainEnabled = true;

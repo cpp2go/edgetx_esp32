@@ -214,9 +214,15 @@ extern uint8_t instructionsPercent;
 // period is also ~50ms and shares the task with LVGL, so keep Lua shorter
 // or the UI frame is starved whenever scripts are busy.
 #if defined(ESP_PLATFORM) && defined(COLORLCD)
-#define LUA_TASK_PERIOD_TICKS                2   // 20 ms
+#define LUA_TASK_PERIOD_TICKS                3   // 30 ms — balance UI refresh vs script throughput
 #else
 #define LUA_TASK_PERIOD_TICKS                5   // 50 ms
+#endif
+
+#if defined(ESP_PLATFORM) && defined(COLORLCD)
+#define LUA_WIDGET_MAX_INSTRUCTIONS          (20000 / 50)
+#else
+#define LUA_WIDGET_MAX_INSTRUCTIONS          (20000 / 100)
 #endif
 
 struct LuaField {

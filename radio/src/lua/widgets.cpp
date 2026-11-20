@@ -34,7 +34,7 @@
 
 #include "lua_states.h"
 
-#define MAX_INSTRUCTIONS       (20000/100)
+#define MAX_INSTRUCTIONS       LUA_WIDGET_MAX_INSTRUCTIONS
 #define LUA_WARNING_INFO_LEN    64
 
 lua_State * lsWidgets = NULL;

@@ -152,11 +152,6 @@ void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t
     // LVGL renders through the CPU D-cache while the I80 GDMA reads PSRAM
     // directly, so the whole dirty rect has to be written back before the
     // first stripe is queued.
-#ifdef CONFIG_SPIRAM
-    Cache_WriteBack_Addr((uint32_t)color_map,
-                         (uint32_t)(width * total_h * sizeof(lv_color_t)));
-#endif
-
     // Drop stale counts left over by a timed out stripe.
     while (color_trans_done && xSemaphoreTake(color_trans_done, 0) == pdTRUE) {}
 
@@ -165,6 +160,10 @@ void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t
         int h = area->y2 - y;
         if (h > max_rows) h = max_rows;
 
+#ifdef CONFIG_SPIRAM
+        Cache_WriteBack_Addr((uint32_t)pcolor,
+                             (uint32_t)(width * h * sizeof(lv_color_t)));
+#endif
         esp_lcd_panel_draw_bitmap(panel_handle, area->x1, y, area->x2, y + h, pcolor);
         y += h;
         pcolor += width * h;

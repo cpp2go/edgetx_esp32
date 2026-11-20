@@ -246,6 +246,9 @@ void setLanguageFont(int idx)
       }
     }
     setAllFonts();
+#if defined(ESP_PLATFORM) && !defined(BOOT)
+    prefetchUiFonts();
+#endif
   }
 }
 
@@ -459,6 +462,30 @@ static const int8_t FontHeightCorrection[FONTS_COUNT] = {
     -2,  // XXL
     -2,  // LXL
 };
+
+#if defined(ESP_PLATFORM) && !defined(BOOT)
+void prefetchUiFonts()
+{
+  static const FontIndex sizes[] = {
+      FONT_BOLD_INDEX, FONT_XXS_INDEX, FONT_XS_INDEX, FONT_L_INDEX,
+      FONT_XL_INDEX,
+  };
+  for (FontIndex idx : sizes) {
+    if (fontTable[idx].lz4Font != nullptr) {
+      decompressFont(idx, fontTable);
+    }
+  }
+#if defined(ENABLE_FALLBACK)
+  if (fontTable != en_fontTable) {
+    for (FontIndex idx : sizes) {
+      if (en_fontTable[idx].lz4Font != nullptr) {
+        decompressFont(idx, en_fontTable);
+      }
+    }
+  }
+#endif
+}
+#endif
 
 const lv_font_t* getFont(LcdFlags flags)
 {

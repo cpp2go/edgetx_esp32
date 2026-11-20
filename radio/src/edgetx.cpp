@@ -55,6 +55,7 @@
 #endif
 
 #if defined(COLORLCD)
+  #include "fonts.h"
   #include "layout.h"
   #include "radio_calibration.h"
   #include "startup_shutdown.h"
@@ -1532,6 +1533,12 @@ void edgeTxInit()
   }
 #else
   storageReadAll();
+#endif
+
+#if defined(ESP_PLATFORM) && defined(COLORLCD)
+  // Decompress common LZ4 font sizes before Lua/widgets run (CN build has no
+  // setLanguageFont() at boot).
+  prefetchUiFonts();
 #endif
 
   initSerialPorts();

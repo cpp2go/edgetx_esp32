@@ -30,7 +30,7 @@
 #include "view_main.h"
 #include "os/time.h"
 
-#define MAX_INSTRUCTIONS (20000 / 100)
+#define MAX_INSTRUCTIONS LUA_WIDGET_MAX_INSTRUCTIONS
 
 LuaScriptManager *luaScriptManager = nullptr;
 

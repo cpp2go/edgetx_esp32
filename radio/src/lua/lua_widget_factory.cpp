@@ -26,7 +26,7 @@
 #include "lua_states.h"
 #include "strhelpers.h"
 
-#define MAX_INSTRUCTIONS       (20000/100)
+#define MAX_INSTRUCTIONS       LUA_WIDGET_MAX_INSTRUCTIONS
 
 LuaWidgetFactory::LuaWidgetFactory(const char* name, WidgetOption* widgetOptions, int optionDefinitionsReference,
                                    int createFunction, int updateFunction, int refreshFunction,

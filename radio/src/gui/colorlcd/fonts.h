@@ -44,3 +44,8 @@ const lv_font_t* getFont(LcdFlags flags);
 uint8_t getFontHeight(LcdFlags flags);
 uint8_t getFontHeightCondensed(LcdFlags flags);
 int getTextWidth(const char* s, int len = 0, LcdFlags flags = 0);
+
+#if defined(ESP_PLATFORM) && !defined(BOOT)
+// Decompress UI/Lua font sizes once at boot so first script draw does not hitch.
+void prefetchUiFonts();
+#endif
