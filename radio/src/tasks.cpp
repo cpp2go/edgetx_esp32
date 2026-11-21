@@ -41,6 +41,73 @@
 #include "startup_shutdown.h"
 #endif
 
+#include "targets/openx1/diag_stats.h"
+
+#if defined(OPENX1_DIAG_STATS)
+#include "esp_timer.h"
+#include "esp_log.h"
+
+diag_stat_t diagStats[DIAG_ID_COUNT] = {};
+uint32_t diagLcdPixels;
+uint32_t diagLcdMaxPixels;
+int32_t diagLcdMaxW;
+int32_t diagLcdMaxH;
+
+static const char* const diagNames[DIAG_ID_COUNT] = {
+    "key10ms", "perMain", "audio", "lcdflush"};
+
+void diagEnter(DiagId id)
+{
+  int64_t now = esp_timer_get_time();
+  diagStats[id].enterUs = now;
+  if (diagStats[id].lastUs) {
+    uint32_t gap = (uint32_t)((now - diagStats[id].lastUs) / 1000);
+    if (gap > diagStats[id].maxGapMs) diagStats[id].maxGapMs = gap;
+  }
+  diagStats[id].lastUs = now;
+  diagStats[id].count++;
+}
+
+void diagExit(DiagId id)
+{
+  uint32_t dur = (uint32_t)((esp_timer_get_time() - diagStats[id].enterUs) / 1000);
+  if (dur > diagStats[id].maxDurMs) diagStats[id].maxDurMs = dur;
+}
+
+void diagReport()
+{
+  static int64_t reportAt = 0;
+  int64_t now = esp_timer_get_time();
+  if (!reportAt) {
+    reportAt = now;
+    return;
+  }
+  if (now - reportAt < 1000000) return;
+  reportAt = now;
+
+  char buf[192];
+  int n = 0;
+  for (int i = 0; i < DIAG_ID_COUNT && n < (int)sizeof(buf) - 48; i++) {
+    n += snprintf(buf + n, sizeof(buf) - n, " %s:%u/%ums/%ums",
+                  diagNames[i], (unsigned)diagStats[i].count,
+                  (unsigned)diagStats[i].maxGapMs,
+                  (unsigned)diagStats[i].maxDurMs);
+    diagStats[i].maxGapMs = diagStats[i].maxDurMs = 0;
+    diagStats[i].count = 0;
+  }
+  // Flushed pixels: total over the second and the largest single update, to
+  // tell a full-screen redraw from a small partial one.
+  n += snprintf(buf + n, sizeof(buf) - n, " px=%uK max=%ux%u",
+                (unsigned)(diagLcdPixels / 1000), (int)diagLcdMaxW,
+                (int)diagLcdMaxH);
+  diagLcdPixels = 0;
+  diagLcdMaxPixels = 0;
+  diagLcdMaxW = diagLcdMaxH = 0;
+
+  ESP_LOGI("DIAG", "n/gap/dur%s", buf);
+}
+#endif
+
 task_handle_t menusTaskId;
 TASK_DEFINE_STACK(menusStack, MENUS_STACK_SIZE);
 
@@ -93,6 +160,7 @@ static void menusTask()
 #endif
     time_point_t next_tick = time_point_now();
     DEBUG_TIMER_START(debugTimerPerMain);
+    diagEnter(DIAG_PERMAIN);
 #if defined(COLORLCD) && defined(CLI)
     if (perMainEnabled) {
       perMain();
@@ -100,6 +168,7 @@ static void menusTask()
 #else
     perMain();
 #endif
+    diagExit(DIAG_PERMAIN);
     DEBUG_TIMER_STOP(debugTimerPerMain);
 
     sleep_until(&next_tick, MENU_TASK_PERIOD);
@@ -132,7 +201,10 @@ static void audioTask()
   while (task_running()) {
     DEBUG_TIMER_SAMPLE(debugTimerAudioIterval);
     DEBUG_TIMER_START(debugTimerAudioDuration);
+    diagEnter(DIAG_AUDIO);
     audioQueue.wakeup();
+    diagExit(DIAG_AUDIO);
+    diagReport();
 #if defined(PDM_CLOCK)
     // Drive microphone recording (if any) at the audio-task cadence.
     // Much shorter than the UI tick interval, so the PDM ring buffer

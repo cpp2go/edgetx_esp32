@@ -21,6 +21,7 @@
 #include "edgetx.h"
 #include "driver/gptimer.h"
 #include "esp_log.h"
+#include "targets/openx1/diag_stats.h"
 
 static gptimer_handle_t MyTim2Mhz = NULL;
 static SemaphoreHandle_t sem5ms;
@@ -67,7 +68,9 @@ static void task5ms(void * pdata) {
 
       if (pre_scale == 2) {
         pre_scale = 0;
+        diagEnter(DIAG_PER10MS);
         per10ms();
+        diagExit(DIAG_PER10MS);
       }
     }
   }

@@ -34,6 +34,10 @@ unset(UI_FRAME_PROFILER CACHE)
 # per frame, so a standard two-wire bay is unaffected.
 add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
 
+# Temporary: log longest task gaps/durations once per second on the serial
+# console (see targets/openx1/diag_stats.h). Comment out for release builds.
+add_definitions(-DOPENX1_DIAG_STATS)
+
 project(edgetx)
 
 target_link_libraries(${project_elf} PRIVATE radiolib_esp32 board_lib)
