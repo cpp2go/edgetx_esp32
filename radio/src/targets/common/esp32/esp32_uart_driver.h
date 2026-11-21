@@ -33,8 +33,9 @@ typedef struct {
     size_t fifoSize;
     size_t queueSize;
     // Module bay wired as a single shared signal wire: the UART receives its
-    // own transmissions back (echo). The driver drops exactly as many bytes as
-    // it sent before handing received data to the protocol layer.
+    // own transmissions back (echo). Such bytes are dropped, but only while
+    // they still match the frame that was just sent, so a normal two-wire bay
+    // (no echo) loses nothing.
     bool single_wire;
 } etx_esp32_uart_hw_def_t;
 

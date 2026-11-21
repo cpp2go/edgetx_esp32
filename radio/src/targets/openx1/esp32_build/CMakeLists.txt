@@ -30,8 +30,8 @@ unset(UI_FRAME_PROFILER CACHE)
 
 # Module bay wired with a single shared signal wire (module control and module
 # telemetry on one lead, as on modules that only expose a single data pin):
-# the UART drops the bytes it receives back while transmitting.
-# Comment out for a standard two-wire bay.
+# the UART drops received bytes that match what it just transmitted. Verified
+# per frame, so a standard two-wire bay is unaffected.
 add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
 
 project(edgetx)

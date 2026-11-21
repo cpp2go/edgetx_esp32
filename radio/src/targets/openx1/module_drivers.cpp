@@ -71,7 +71,9 @@ static const etx_esp32_uart_hw_def_t extmod_uart_hw_def = {
 #if defined(EXTMOD_SINGLE_WIRE_TX)
     // Module bay wired as a single shared signal wire (module control and
     // telemetry on the same lead): everything we send is looped back into our
-    // own receiver, see espUartDropEcho() in the UART driver.
+    // own receiver and has to be dropped, see espUartRxIsEcho() in the UART
+    // driver. The echo is verified byte by byte, so a two-wire bay keeps
+    // working without reflashing.
     .single_wire = true,
 #endif
 };
