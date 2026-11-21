@@ -37,6 +37,8 @@ typedef struct {
     void *on_idle_cb_param;
     QueueHandle_t uart_queue;
     TaskHandle_t rx_task;
+    bool single_wire;
+    uint32_t echo_drop;  // bytes we sent and still expect to receive back
     uint8_t  rx_buf[ESP_UART_RX_BATCH];
     uint16_t rx_head;   // index of next byte to dispatch
     uint16_t rx_len;    // valid bytes currently in rx_buf
@@ -168,6 +170,8 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
     esp32_uart_ctx_t *port = &uarts[(int)hw->uart_port];
     port->port = hw->uart_port;
     port->rx_head = port->rx_len = 0;
+    port->echo_drop = 0;
+    port->single_wire = hw->single_wire;
 
     uart_config_t uart_config = {
         .baud_rate = (int)params->baudrate,
@@ -209,12 +213,29 @@ void espUartSendByte(void* ctx, uint8_t byte)
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     uint8_t data = byte;
     uart_write_bytes(port->port, &data, 1);
+    if (port->single_wire) port->echo_drop += 1;
 }
 
 void espUartSendBuffer(void* ctx, const uint8_t * data, uint32_t size)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     uart_write_bytes(port->port, data, size);
+    if (port->single_wire) port->echo_drop += size;
+}
+
+// Single-wire bay: the receiver hears everything the transmitter sends. Drop
+// exactly as many bytes from the RX stream as were sent, otherwise the echoed
+// handset frames get interleaved with the module's frames and break the CRSF
+// reassembly/CRC checks.
+static void espUartDropEcho(esp32_uart_ctx_t* port)
+{
+    uint8_t tmp[32];
+    while (port->echo_drop) {
+        uint32_t n = port->echo_drop > sizeof(tmp) ? sizeof(tmp) : port->echo_drop;
+        int r = uart_read_bytes(port->port, tmp, n, 0);
+        if (r <= 0) break;
+        port->echo_drop -= (uint32_t)r;
+    }
 }
 
 void espUartWaitForTxCompleted(void* ctx)
@@ -232,6 +253,7 @@ static bool espUartTxCompleted(void* ctx)
 static int espUartGetByte(void* ctx, uint8_t* data)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
+    if (port->single_wire && port->echo_drop) espUartDropEcho(port);
     if (port->rx_head >= port->rx_len) {
         int r = uart_read_bytes(port->port, port->rx_buf, ESP_UART_RX_BATCH, 0);
         if (r <= 0) {
@@ -279,6 +301,7 @@ int espUartGetBufferedBytes(void* ctx) {
 
 int espUartCopyRxBuffer(void* ctx, uint8_t* buf, uint32_t len) {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
+    if (port->single_wire && port->echo_drop) espUartDropEcho(port);
     int r = uart_read_bytes(port->port, buf, len, 0);
 #if defined(UI_FRAME_PROFILER)
     // Diagnostic for missing telemetry: dump what actually arrives on the UART

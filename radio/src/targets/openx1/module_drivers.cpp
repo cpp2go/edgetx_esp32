@@ -32,7 +32,7 @@ static const etx_esp32_uart_hw_def_t intmod_uart_hw_def = {
     .rx_pin = INTMOD_ESP_UART_RX,
     .tx_pin = INTMOD_ESP_UART_TX,
     .fifoSize = 4096,
-    .queueSize = 10
+    .queueSize = 10,
 };
 
 const etx_module_port_t _internal_ports[] = {
@@ -67,7 +67,13 @@ static const etx_esp32_uart_hw_def_t extmod_uart_hw_def = {
     .rx_pin = EXTMOD_UART_RX,
     .tx_pin = EXTMOD_UART_TX,
     .fifoSize = 4096,
-    .queueSize = 10
+    .queueSize = 10,
+#if defined(EXTMOD_SINGLE_WIRE_TX)
+    // Module bay wired as a single shared signal wire (module control and
+    // telemetry on the same lead): everything we send is looped back into our
+    // own receiver, see espUartDropEcho() in the UART driver.
+    .single_wire = true,
+#endif
 };
 
 /**

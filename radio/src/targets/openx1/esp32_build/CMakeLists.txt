@@ -28,6 +28,12 @@ option(BOOTLOADER "Include Bootloader" OFF)
 #add_definitions(-DUI_FRAME_PROFILER)
 unset(UI_FRAME_PROFILER CACHE)
 
+# Module bay wired with a single shared signal wire (module control and module
+# telemetry on one lead, as on modules that only expose a single data pin):
+# the UART drops the bytes it receives back while transmitting.
+# Comment out for a standard two-wire bay.
+add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
+
 project(edgetx)
 
 target_link_libraries(${project_elf} PRIVATE radiolib_esp32 board_lib)

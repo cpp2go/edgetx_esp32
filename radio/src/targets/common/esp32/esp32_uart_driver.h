@@ -32,6 +32,10 @@ typedef struct {
     gpio_num_t tx_pin;
     size_t fifoSize;
     size_t queueSize;
+    // Module bay wired as a single shared signal wire: the UART receives its
+    // own transmissions back (echo). The driver drops exactly as many bytes as
+    // it sent before handing received data to the protocol layer.
+    bool single_wire;
 } etx_esp32_uart_hw_def_t;
 
 extern const etx_serial_driver_t ESPUartSerialDriver;
