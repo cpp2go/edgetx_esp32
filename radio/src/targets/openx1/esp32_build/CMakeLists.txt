@@ -34,9 +34,10 @@ unset(UI_FRAME_PROFILER CACHE)
 # per frame, so a standard two-wire bay is unaffected.
 add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
 
-# Temporary: log longest task gaps/durations once per second on the serial
-# console (see targets/openx1/diag_stats.h). Comment out for release builds.
-add_definitions(-DOPENX1_DIAG_STATS)
+# Runtime task statistics (see targets/openx1/diag_stats.h): logs the longest
+# gap/duration of the key polling, UI frame, audio task and panel flush once per
+# second on the console. Uncomment when investigating lag/tearing/audio issues.
+#add_definitions(-DOPENX1_DIAG_STATS)
 
 project(edgetx)
 
