@@ -4,6 +4,7 @@
 static const char *TAG = "lcd-mcu";
 
 #include <stdio.h>
+#include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -113,6 +114,10 @@ static esp_lcd_panel_dev_config_t panel_config = {
 // has to be waited for from task context before the next one is queued.
 static SemaphoreHandle_t color_trans_done = NULL;
 
+// Bounce buffer for partial updates whose rows are strided in the frame buffer
+// (see disp_mcu_flush_region).
+static lv_color_t* mcu_bounce = NULL;
+
 #define COLOR_TRANS_DONE_TMO_MS 100
 
 static bool mcu_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
@@ -133,6 +138,82 @@ static bool wait_color_trans_done(void)
 {
     if (!color_trans_done) return false;
     return xSemaphoreTake(color_trans_done, pdMS_TO_TICKS(COLOR_TRANS_DONE_TMO_MS)) == pdTRUE;
+}
+
+void disp_mcu_flush_region(const void* fb, int x1, int y1, int x2, int y2)
+{
+    if (!panel_handle || !fb) return;
+
+    const int W = LV_HOR_RES_MAX;
+    if (x1 < 0) x1 = 0;
+    if (y1 < 0) y1 = 0;
+    if (x2 > W) x2 = W;
+    if (y2 > LV_VER_RES_MAX) y2 = LV_VER_RES_MAX;
+    if (x1 >= x2 || y1 >= y2) return;
+
+    // Drop stale counts left over by a timed out stripe.
+    while (color_trans_done && xSemaphoreTake(color_trans_done, 0) == pdTRUE) {}
+
+    const lv_color_t* fbuf = (const lv_color_t*)fb;
+
+    if (x1 == 0 && x2 == W) {
+        // Full-width band: consecutive rows are contiguous in the frame buffer.
+        int max_rows = DISP_BUF_SIZE / W;
+        if (max_rows < 1) max_rows = 1;
+        const lv_color_t* pcolor = fbuf + (size_t)y1 * W;
+        for (int y = y1; y < y2;) {
+            int h = y2 - y;
+            if (h > max_rows) h = max_rows;
+            esp_lcd_panel_draw_bitmap(panel_handle, x1, y, x2, y + h, pcolor);
+            y += h;
+            pcolor += (size_t)W * h;
+            if (!wait_color_trans_done()) return;
+        }
+        return;
+    }
+
+    // Arbitrary rectangle: the frame buffer rows are strided, so gather them
+    // into a bounce buffer and send one contiguous band per transaction. Doing
+    // one transaction per row instead costs ~75us each, which turned a narrow
+    // full-height update (5x320) into 24ms of panel bus.
+    if (!mcu_bounce) {
+        mcu_bounce = (lv_color_t*)heap_caps_malloc(
+            DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!mcu_bounce) {
+            mcu_bounce = (lv_color_t*)heap_caps_malloc(
+                DISP_BUF_SIZE * sizeof(lv_color_t), MALLOC_CAP_8BIT);
+        }
+        if (!mcu_bounce) {
+            ESP_LOGW(TAG, "no bounce buffer for partial flush");
+            return;
+        }
+    }
+
+    const int w = x2 - x1;
+    int max_rows = DISP_BUF_SIZE / w;
+    if (max_rows < 1) max_rows = 1;
+
+    for (int y = y1; y < y2;) {
+        int h = y2 - y;
+        if (h > max_rows) h = max_rows;
+
+        const lv_color_t* src = fbuf + (size_t)y * W + x1;
+        lv_color_t* dst = mcu_bounce;
+        for (int r = 0; r < h; r++) {
+            memcpy(dst, src, (size_t)w * sizeof(lv_color_t));
+            dst += w;
+            src += W;
+        }
+#ifdef CONFIG_SPIRAM
+        // The bounce buffer is in PSRAM: the GDMA reads it directly, so the
+        // CPU D-cache has to be written back first.
+        Cache_WriteBack_Addr((uint32_t)mcu_bounce,
+                             (uint32_t)((size_t)w * h * sizeof(lv_color_t)));
+#endif
+        esp_lcd_panel_draw_bitmap(panel_handle, x1, y, x2, y + h, mcu_bounce);
+        y += h;
+        if (!wait_color_trans_done()) return;
+    }
 }
 
 void lcd_mcu_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)

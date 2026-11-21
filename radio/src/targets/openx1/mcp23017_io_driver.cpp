@@ -59,11 +59,19 @@ uint32_t readKeys()
 {
     uint32_t result = 0;
 
-    for (int i = 0; i < 4; i++) {
-        esp_err_t ret = i2c_register_read(MCP_HANDLE(i), MCP_REG_ADDR(MCP23XXX_GPIO, i), &pShadowInput[i], 1);
+    // GPIOA/GPIOB are consecutive registers, so each expander can be read with
+    // a single transaction. The bus is shared with the analog ADC task, the
+    // touch controller and the top LCD: a poll that blocks here is a key press
+    // or an encoder step missed, so also retry once instead of keeping stale
+    // data for another 10ms.
+    for (int dev = 0; dev < 2; dev++) {
+        uint8_t* shadow = &pShadowInput[dev * 2];
+        esp_err_t ret = i2c_register_read(mcp[dev], MCP_REG_ADDR(MCP23XXX_GPIO, 0), shadow, 2);
         if (ret != ESP_OK) {
-            TRACE_ERROR("readKeys I2C[%d] err=%d", i, (int)ret);
-            // Keep previous ShadowInput byte; recover on next poll
+            ret = i2c_register_read(mcp[dev], MCP_REG_ADDR(MCP23XXX_GPIO, 0), shadow, 2);
+            if (ret != ESP_OK) {
+                TRACE_ERROR("readKeys I2C[%d] err=%d", dev, (int)ret);
+            }
         }
     }
 

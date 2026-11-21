@@ -20,6 +20,7 @@
 
 #include "edgetx.h"
 #include "fonts.h"
+#include "targets/openx1/diag_stats.h"
 
 #if defined(UI_FRAME_PROFILER)
 #include "ui_profiler.h"
@@ -60,7 +61,19 @@ static void lcd_flush(lv_disp_drv_t *drv, uint16_t*color_map, const rect_t& rect
 #if defined(UI_FRAME_PROFILER)
     uiProfilerEnter(UI_PROF_FLUSH);
 #endif
-    disp_driver_flush(drv, &area, (lv_color_t *)color_map);
+    diagEnter(DIAG_LCD_FLUSH);
+    diagLcdArea(rect.w, rect.h);
+    if (rect.x == 0 && rect.y == 0 && rect.w == LCD_W && rect.h == LCD_H) {
+        // Whole screen: let the panel driver stream the frame buffer directly.
+        disp_driver_flush(drv, &area, (lv_color_t *)color_map);
+    } else {
+        // Partial update: color_map is the frame buffer origin, so only this
+        // band is clocked out (rows are strided by the screen width).
+        disp_mcu_flush_region(color_map, rect.left(), rect.top(),
+                              rect.right(), rect.bottom());
+        lv_disp_flush_ready(drv);
+    }
+    diagExit(DIAG_LCD_FLUSH);
 #if defined(UI_FRAME_PROFILER)
     uiProfilerExit(UI_PROF_FLUSH);
 #endif

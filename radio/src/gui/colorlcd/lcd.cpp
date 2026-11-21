@@ -72,9 +72,54 @@ void lcdSetFlushCb(void (*cb)(lv_disp_drv_t*, uint16_t*, const rect_t&))
 
 static lv_disp_drv_t* refr_disp = nullptr;
 
+#if defined(ESP_PLATFORM)
+// In direct mode LVGL draws each invalid area in place and then calls the flush
+// callback with the *whole screen* (refr_area() in lv_refr.c), so the flush
+// callback alone cannot tell what changed. The invalid areas themselves are
+// still available while the refresh runs, so on the last call of a frame push
+// only those: a key press then costs a few hundred microseconds of panel bus
+// instead of a full screen (12ms), which is both faster and tear-free.
+static void pushInvalidAreas(lv_disp_drv_t* disp_drv, uint16_t* color_p)
+{
+  auto disp = _lv_refr_get_disp_refreshing();
+  if (!disp) {
+    rect_t full = {0, 0, LCD_W, LCD_H};
+    lcd_flush_cb(disp_drv, color_p, full);
+    return;
+  }
+
+  uint32_t total = 0;
+  int count = 0;
+  for (uint16_t i = 0; i < disp->inv_p; i++) {
+    if (disp->inv_area_joined[i]) continue;
+    total += lv_area_get_size(&disp->inv_areas[i]);
+    count++;
+  }
+
+  // Nothing (or nearly the whole screen) changed: the single full-screen
+  // transfer is the cheapest option.
+  if (count == 0 || total * 5 > (uint32_t)LCD_W * LCD_H * 3) {
+    rect_t full = {0, 0, LCD_W, LCD_H};
+    lcd_flush_cb(disp_drv, color_p, full);
+    return;
+  }
+
+  for (uint16_t i = 0; i < disp->inv_p; i++) {
+    if (disp->inv_area_joined[i]) continue;
+    const lv_area_t* a = &disp->inv_areas[i];
+    rect_t r = {a->x1, a->y1, a->x2 - a->x1 + 1, a->y2 - a->y1 + 1};
+    lcd_flush_cb(disp_drv, color_p, r);
+  }
+}
+#endif
+
 static void flushLcd(lv_disp_drv_t* disp_drv, const lv_area_t* area,
                      lv_color_t* color_p)
 {
+  // LVGL direct mode: the frame buffer *is* the screen, so LVGL draws each
+  // invalid area in place and calls this callback with buf_area == the whole
+  // screen (see refr_area() in lv_refr.c). Pushing every call would send the
+  // full screen 2..4 times per frame (measured: 12ms of DMA each) for nothing.
 #if !defined(LCD_VERTICAL_INVERT) || defined(RADIO_F16)
 #if defined(RADIO_F16)
   if (hardwareOptions.pcbrev > 0)
@@ -101,14 +146,16 @@ static void flushLcd(lv_disp_drv_t* disp_drv, const lv_area_t* area,
   if (lcd_flush_cb) {
     refr_disp = disp_drv;
 
+#if defined(ESP_PLATFORM)
+    pushInvalidAreas(disp_drv, (uint16_t*)color_p);
+    // The ESP I80 flush callback blocks until the pixels are on the wire and
+    // calls lv_disp_flush_ready() itself (disp_mcu.c).
+    return;
+#else
     rect_t copy_area = {area->x1, area->y1, area->x2 - area->x1 + 1,
                         area->y2 - area->y1 + 1};
 
     lcd_flush_cb(disp_drv, (uint16_t*)color_p, copy_area);
-#if defined(ESP_PLATFORM)
-    // The ESP I80 flush callback blocks until the pixels are on the wire and
-    // calls lv_disp_flush_ready() itself (disp_mcu.c).
-    return;
 #endif
   }
 

@@ -110,34 +110,23 @@ void audioSetCurrentBuffer(const AudioBuffer *buffer)
   }
 }
 
-static bool channel_enabled = true;
-
 void audioConsumeCurrentBuffer()
 {
   if (!currentBuffer) {
     audioSetCurrentBuffer(audioQueue.buffersFifo.getNextFilledBuffer());
   }
 
-  static size_t last = 0U;
-  if ((NULL == currentBuffer) && (0U != last)) {
-    // end of transfer?
-    last = 0U;
-    i2s_channel_disable(tx_chan);
-    channel_enabled = false;
-  }
-
+  // The I2S channel is deliberately kept running between sounds: disabling it
+  // in the middle of the DMA cuts the tail of the last buffer and restarting it
+  // clicks on the next sound (audible as crackling while operating the radio,
+  // since every key press/voice prompt starts and stops a stream). Silence is
+  // covered by auto_clear_after_cb on underrun.
   while (currentBuffer && currentSize) {
-    if (!channel_enabled) {
-      channel_enabled = true;
-      i2s_channel_enable(tx_chan);
-    }
-
     size_t written = 0U;
     i2s_channel_write(tx_chan, currentBuffer, currentSize, &written, 1000);
-    last = written;
 
-    if (written > currentSize) 
-        written = currentSize;
+    if (written > currentSize)
+      written = currentSize;
 
     currentBuffer += written;
     currentSize -= written;

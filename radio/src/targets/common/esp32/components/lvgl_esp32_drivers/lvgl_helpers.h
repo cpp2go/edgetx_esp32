@@ -106,6 +106,11 @@ bool lvgl_spi_driver_init(int host, int miso_pin, int mosi_pin, int sclk_pin,
 
 void disp_mcu_panel_init(void);
 
+/* Push a sub-rectangle of the fully rendered frame buffer to the panel (LVGL
+ * direct mode: the frame buffer is LCD_W x LCD_H, rows are strided, and LVGL
+ * only hands the invalid areas in its own bookkeeping). */
+void disp_mcu_flush_region(const void* fb, int x1, int y1, int x2, int y2);
+
 /**********************
  *      MACROS
  **********************/

@@ -51,6 +51,14 @@ static bool ads1015_hal_adc_init() {
     return true; 
 }
 
+// Alert thresholds only matter for the ALERT/RDY pin, which is not wired:
+// program them once instead of on every single conversion.
+static void ads1015_setup_thresholds(i2c_master_dev_handle_t ads)
+{
+  i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_HITHRESH, 0x8000);
+  i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_LOWTHRESH, 0x0000);
+}
+
 static esp_err_t startADCReading(i2c_master_dev_handle_t ads, uint16_t mux)
 {
   uint16_t config =
@@ -66,31 +74,8 @@ static esp_err_t startADCReading(i2c_master_dev_handle_t ads, uint16_t mux)
   config |= ADS1X15_REG_CONFIG_OS_SINGLE;
 
   esp_err_t ret = i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_CONFIG, config);
-  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC config err=%d", (int)ret); return ret; }
-
-  ret = i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_HITHRESH, 0x8000);
-  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC hithresh err=%d", (int)ret); return ret; }
-
-  ret = i2c_register_write_uint16(ads, ADS1X15_REG_POINTER_LOWTHRESH, 0x0000);
-  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC lowthresh err=%d", (int)ret); }
+  if (ret != ESP_OK) { TRACE_ERROR("ADS startADC config err=%d", (int)ret); }
   return ret;
-}
-
-static int16_t getLastConversionResults(i2c_master_dev_handle_t ads)
-{
-  uint16_t res = 0;
-  esp_err_t ret = i2c_register_read_uint16(ads, ADS1X15_REG_POINTER_CONVERT, &res);
-  if (ret != ESP_OK) { TRACE_ERROR("ADS getResult err=%d", (int)ret); return 0; }
-
-  if (m_bitShift == 0) {
-    return (int16_t)res;
-  }
-
-  res = res >> m_bitShift;
-  if (res > 0x07FF) {
-    res |= 0xF000;
-  }
-  return (int16_t)res;
 }
 
 static bool conversionComplete(i2c_master_dev_handle_t ads)
@@ -101,18 +86,31 @@ static bool conversionComplete(i2c_master_dev_handle_t ads)
   return (result & 0x8000) != 0;
 }
 
-static int16_t readADC(i2c_master_dev_handle_t ads, uint16_t mux)
+static bool readADC(i2c_master_dev_handle_t ads, uint16_t mux, int16_t* out)
 {
-  if (startADCReading(ads, mux) != ESP_OK) return 0;
+  if (startADCReading(ads, mux) != ESP_OK) return false;
 
-  // Wait for conversion with timeout (~10ms at 3300 SPS)
-  int timeout = 200;
-  while (!conversionComplete(ads) && --timeout > 0)
-    ;
+  // One conversion takes 0.625ms at 1600 SPS: wait for it instead of polling
+  // the status register back to back. This bus also carries the key expander,
+  // the touch controller and the top LCD, and the polling loop used to keep it
+  // busy for most of the sweep (so keys/encoder polls were delayed).
+  RTOS_WAIT_MS(1);
+  for (int i = 0; i < 3 && !conversionComplete(ads); i++) {
+    RTOS_WAIT_MS(1);
+  }
 
-  if (timeout <= 0) { TRACE_ERROR("ADS conversionComplete timeout"); return 0; }
+  uint16_t res = 0;
+  esp_err_t ret = i2c_register_read_uint16(ads, ADS1X15_REG_POINTER_CONVERT, &res);
+  if (ret != ESP_OK) { TRACE_ERROR("ADS getResult err=%d", (int)ret); return false; }
 
-  return getLastConversionResults(ads);
+  if (m_bitShift != 0) {
+    res = res >> m_bitShift;
+    if (res > 0x07FF) {
+      res |= 0xF000;
+    }
+  }
+  *out = (int16_t)res;
+  return true;
 }
 
 float computeVolts(int16_t counts) {
@@ -163,7 +161,6 @@ static void task_adc(void* pdata)
   s_task_handle = xTaskGetCurrentTaskHandle();
   int channel_cnt = sizeof(ads_channels) / sizeof(ads_channels[0]);
   int index = 0;
-  int16_t adcval = 0;
   while (1) {
     if (0xFFFF == ads_channels[index].mux) {
       // OpenX1 has no separate RTC battery — mirror main VBAT channel.
@@ -171,17 +168,20 @@ static void task_adc(void* pdata)
       uint16_t vbat = getAnalogValue(offset);
       setAnalogValue(ads_channels[index].etx_adc_channel, vbat);
     } else {
-
-      adcval = readADC(ads[ads_channels[index].ads_index], ads_channels[index].mux);
-
-      setAnalogValue(ads_channels[index].etx_adc_channel, adcval);
-
-      //TRACE("=X==== %d %d => %d %f", index, ads_channels[index].etx_adc_channel, adcval, computeVolts(adcval));
+      int16_t adcval;
+      if (readADC(ads[ads_channels[index].ads_index], ads_channels[index].mux, &adcval)) {
+        setAnalogValue(ads_channels[index].etx_adc_channel, adcval);
+      }
+      // On an I2C error keep the previous sample: writing 0 would make the
+      // stick jump to an end for one sweep.
     }
+
     index++;
     if (index >= channel_cnt) {
+      // One 1ms conversion wait per channel already paces the sweep at ~9ms
+      // (the old code additionally slept MS_BETWEEN_CHANNEL=30ms after each
+      // sweep, so every stick axis was only updated ~28 times per second).
       index = 0;
-      RTOS_WAIT_MS(MS_BETWEEN_CHANNEL);
     }
   }
 }
@@ -205,6 +205,7 @@ void ads1015_adc_init(void)
 
   for (int i = 0; i < NUM_OF_ADS; i++) {
     ESP_ERROR_CHECK(i2c_master_bus_add_device(ads_i2c_bus_handle, &i2c_dev_conf[i], &ads[i]));
+    ads1015_setup_thresholds(ads[i]);
   }
 
   adcInit(&ads1015_hal_adc_driver);

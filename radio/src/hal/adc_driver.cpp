@@ -263,6 +263,11 @@ uint16_t* getAnalogValues()
 
 // used by diaganas
 uint32_t s_anaFilt[MAX_ANALOG_INPUTS];
+// Last raw sample the filter was advanced with. The analog values are filled
+// asynchronously by a background task (I2C ADC on ESP32) while getADC() runs at
+// the mixer rate, so the same sample is usually seen several times; re-filtering
+// it would whittle the filter down to ~1 sample and let the ADC jitter through.
+static uint32_t s_anaLast[MAX_ANALOG_INPUTS];
 
 #define ANALOG_MULTIPLIER (1 << ANALOG_SCALE)
 #define ANA_FILT(chan)    (s_anaFilt[chan] / (JITTER_ALPHA * ANALOG_MULTIPLIER))
@@ -286,11 +291,14 @@ void anaSetFiltered(uint8_t chan, uint16_t val)
 {
   val += RESX;
   s_anaFilt[chan] = val * (JITTER_ALPHA * ANALOG_MULTIPLIER);
+  s_anaLast[chan] = val;
 }
 
 void anaResetFiltered()
 {
   memset(s_anaFilt, 0, sizeof(s_anaFilt));
+  // force the next sample to advance the filter
+  memset(s_anaLast, 0xFF, sizeof(s_anaLast));
 }
 
 #if defined(JITTER_MEASURE)
@@ -452,7 +460,10 @@ void getADC()
     }
 
     // 3rd: apply filtering
-    s_anaFilt[x] = apply_low_pass_filter(v, s_anaFilt[x], x < max_mains);
+    if (v != s_anaLast[x]) {
+      s_anaLast[x] = v;
+      s_anaFilt[x] = apply_low_pass_filter(v, s_anaFilt[x], x < max_mains);
+    }
 
     if (is_multipos) {
       const auto* calib = (const StepsCalibData*)&g_eeGeneral.calib[x];
