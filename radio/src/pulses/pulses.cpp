@@ -21,6 +21,9 @@
 
 // #include "hal.h"
 #include "edgetx.h"
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#endif
 
 #include "mixer_scheduler.h"
 #include "heartbeat_driver.h"
@@ -409,11 +412,18 @@ static void _init_module(uint8_t module, const etx_proto_driver_t* drv)
   
   // power ON
   modulePortSetPower(module, true);
+  telemetrySuspendModulePolling(module, false);
   TRACE("Module #%d init succeeded", module);
 }
 
 static void _deinit_module(uint8_t module)
 {
+  // The port is about to go away: let any poll that is already running finish
+  // and stop new ones from starting, otherwise the poller (on ESP32: the UART
+  // event task, woken by every received frame) keeps _telemetryIsPolling set
+  // and the whole module update is deferred again and again.
+  telemetrySuspendModulePolling(module, true);
+
   auto mod = &(_module_drivers[module]);
   if (!mod->drv) {
     // no protocol running: still make sure the module is not powered left on
@@ -536,9 +546,11 @@ void pulsesStopModule(uint8_t module)
 {
   if (module >= MAX_MODULES) return;
 
-  while(_telemetryIsPolling) {
-    // In case the telemetry timer is currently polling the port,
-    // we give the timer task a chance to run and finish the polling.
+  // Stop the poller first, then wait (bounded) for a poll that is already
+  // running to finish. Without the suspend the poller can be re-entered from
+  // the UART event task on every received frame and this loop never ends.
+  telemetrySuspendModulePolling(module, true);
+  for (uint8_t i = 0; i < 100 && _telemetryIsPolling; i++) {
     sleep_ms(1);
   }
   _deinit_module(module);
@@ -575,6 +587,16 @@ void pulsesSendNextFrame(uint8_t module)
     if (_telemetryIsPolling) {
       // In case the telemetry timer is currently polling the port,
       // we just yield in the hope it will be different next time.
+#if defined(ESP_PLATFORM)
+      // A poll that never gets a chance to finish would block every module
+      // (de)init forever, which the user sees as "disabling the module does
+      // nothing for a while". Report the first few occurrences.
+      static uint8_t logged[NUM_MODULES] = {};
+      if (module < NUM_MODULES && logged[module] < 5) {
+        logged[module]++;
+        ESP_LOGW("MODPWR", "module %d update deferred (telemetry polling)", module);
+      }
+#endif
       return;
     }
 

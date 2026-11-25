@@ -204,13 +204,29 @@ void telemetryStop()
 
 static volatile bool _poll_frame_queued[NUM_MODULES] = {false};
 
+// While a module is being stopped or restarted, the port it owns is about to be
+// de-initialised: the idle callback must not jump in and start polling again.
+// Without this the poll (which on ESP32 runs in the UART event task, i.e. on
+// every received frame) can keep _telemetryIsPolling set, and both the module
+// power-off path (pulsesStopModule waits for the flag) and pulsesSendNextFrame
+// (bails out while it is set) get stuck until the next gap - which is what made
+// turning a module on or off take seconds.
+static volatile bool _poll_suspended[NUM_MODULES] = {false};
+
+void telemetrySuspendModulePolling(uint8_t module, bool suspend)
+{
+  if (module < NUM_MODULES) _poll_suspended[module] = suspend;
+}
+
 static void _poll_frame(void *pvParameter1, uint32_t ulParameter2)
 {
-  _telemetryIsPolling = true;
-
   auto drv = (const etx_proto_driver_t*)pvParameter1;
   auto module = (uint8_t)ulParameter2;
   _poll_frame_queued[module] = false;
+
+  if (module < NUM_MODULES && _poll_suspended[module]) return;
+
+  _telemetryIsPolling = true;
 
   auto mod = pulsesGetModuleDriver(module);
   if (mod && mod->drv && mod->ctx && (drv == mod->drv)) {
@@ -303,6 +319,7 @@ void telemetryWakeup()
 {
   _telemetryIsPolling = true;
   for (uint8_t i = 0; i < MAX_MODULES; i++) {
+    if (_poll_suspended[i]) continue;
     auto mod = pulsesGetModuleDriver(i);
     if (!mod) continue;
     pollTelemetry(i, mod->drv, mod->ctx);

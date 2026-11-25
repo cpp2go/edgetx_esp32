@@ -40,6 +40,7 @@ typedef struct {
     QueueHandle_t uart_queue;
     TaskHandle_t rx_task;
     bool single_wire;
+    bool echo_confirmed;  // the frame we sent really came back: single wire bay
     // Echo verification: the last transmitted frame (single-wire bays receive
     // their own transmissions back). Received bytes are only discarded while
     // they still match this frame byte for byte.
@@ -185,6 +186,7 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
     port->echo_len = port->echo_pos = 0;
     port->echo_deadline = 0;
     port->single_wire = hw->single_wire;
+    port->echo_confirmed = false;
     port->baudrate = params->baudrate ? params->baudrate : 115200;
 
     uart_config_t uart_config = {
@@ -241,9 +243,7 @@ static void espUartArmEcho(esp32_uart_ctx_t *port, const uint8_t *data, uint32_t
     memcpy(port->echo_buf, data, size);
     port->echo_len = (uint16_t)size;
     port->echo_pos = 0;
-    // The echo comes back while the frame is still on the wire, so give it the
-    // transmission time plus a generous margin for task latency. Anything later
-    // is module data that merely happens to start like our frame.
+    // Only used once the echo has been seen: see espUartRxIsEcho().
     int64_t tx_us = (int64_t)size * 10 * 1000000 / port->baudrate;
     port->echo_deadline = esp_timer_get_time() + tx_us + 20000;
 }
@@ -255,9 +255,30 @@ void espUartSendBuffer(void* ctx, const uint8_t * data, uint32_t size)
     uart_write_bytes(port->port, data, size);
 }
 
-// Single-wire bay: the transmitter hears its own frames. Discard received
-// bytes only while they still match the frame we just sent, so a two-wire bay
-// (no echo at all - the very first received byte differs) keeps every byte.
+// Before any echo has been observed the stream is never held back: a full
+// duplex (two-wire) bay answers our frames with bytes that may well start like
+// them (CRSF uses the same 0xC8 header in both directions), and buffering those
+// "just in case" added a visible delay to every single reply - that is what made
+// the module queries and the module on/off so slow. Watching without holding
+// costs nothing and still proves the wiring as soon as one frame comes back
+// identical.
+static inline void espUartWatchEcho(esp32_uart_ctx_t *port, uint8_t byte)
+{
+    if (port->echo_pos >= port->echo_len) return;
+
+    if (byte == port->echo_buf[port->echo_pos]) {
+        if (++port->echo_pos == port->echo_len) {
+            // Our own frame came back byte for byte: single wire bay.
+            port->echo_confirmed = true;
+            port->echo_pos = port->echo_len = 0;
+        }
+    } else {
+        port->echo_pos = port->echo_len = 0;
+    }
+}
+
+// Single-wire bay (echo confirmed): discard received bytes while they still
+// match the frame we just sent, so a two-wire bay is never touched.
 static inline bool espUartRxIsEcho(esp32_uart_ctx_t *port, uint8_t byte)
 {
     if (port->echo_pos >= port->echo_len) return false;
@@ -303,11 +324,18 @@ static int espUartRxRead(esp32_uart_ctx_t *port, uint8_t *out, uint32_t maxlen)
     }
     if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
 
-    if (!port->single_wire) {
-        // No echo to filter: one batched read, as before.
+    if (!port->single_wire || !port->echo_confirmed) {
+        // Nothing to filter (yet): one batched read, as before. While the echo
+        // has not been proven we only *watch* the stream for an exact copy of
+        // the frame we just sent - see espUartWatchEcho().
         if (n < maxlen) {
             int r = uart_read_bytes(port->port, out + n, maxlen - n, 0);
-            if (r > 0) n += (uint32_t)r;
+            if (r > 0) {
+                if (port->single_wire) {
+                    for (int i = 0; i < r; i++) espUartWatchEcho(port, out[n + i]);
+                }
+                n += (uint32_t)r;
+            }
         }
         return (int)n;
     }

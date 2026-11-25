@@ -86,6 +86,11 @@ struct etx_proto_driver_t;
 // processing for that module.
 void telemetryFrameTrigger_ISR(uint8_t module, const etx_proto_driver_t* drv);
 
+// Stop/resume polling a module's port. Must be used around de-init/init so that
+// the (frequent) polling entry points cannot keep the port busy and block the
+// module power changes.
+void telemetrySuspendModulePolling(uint8_t module, bool suspend);
+
 #define TELEMETRY_AVERAGE_COUNT        3
 
 enum {

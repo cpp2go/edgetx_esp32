@@ -46,6 +46,7 @@ const etx_module_port_t _internal_ports[] = {
 };
 
 static void _set_internal_module_power(uint8_t on) {
+    ESP_LOGI("MODPWR", "internal module power %s", on ? "ON" : "OFF");
     if (on) {
         INTERNAL_MODULE_ON();
     } else {
@@ -146,6 +147,8 @@ const etx_module_port_t _external_ports[] = {
 };
 
 static void _set_external_module_power(uint8_t on) {
+    ESP_LOGI("MODPWR", "external module power %s (type=%d)", on ? "ON" : "OFF",
+             (int)g_model.moduleData[EXTERNAL_MODULE].type);
     if ((MODULE_TYPE_ESPNOW != g_model.moduleData[EXTERNAL_MODULE].type) &&
             (MODULE_TYPE_BT_POWERUP != g_model.moduleData[EXTERNAL_MODULE].type)) {
         if (on) {

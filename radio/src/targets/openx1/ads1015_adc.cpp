@@ -156,6 +156,10 @@ static const etx_hal_adc_driver_t ads1015_hal_adc_driver = {
     .wait_completion = ads1015_hal_adc_wait_completion,
 };
 
+// Idle time between two full channel sweeps (see task_adc). Keeps the shared
+// I2C bus free enough for the key polls and the module power writes.
+#define ADS_SWEEP_IDLE_MS 8
+
 static void task_adc(void* pdata)
 {
   s_task_handle = xTaskGetCurrentTaskHandle();
@@ -178,10 +182,13 @@ static void task_adc(void* pdata)
 
     index++;
     if (index >= channel_cnt) {
-      // One 1ms conversion wait per channel already paces the sweep at ~9ms
-      // (the old code additionally slept MS_BETWEEN_CHANNEL=30ms after each
-      // sweep, so every stick axis was only updated ~28 times per second).
+      // One 1ms conversion wait per channel paces the sweep at ~9ms, but this
+      // bus is shared with the key expanders, the touch controller and the top
+      // LCD: sweeping flat out put ~50% load on it, which cost key polls and
+      // module power writes (they have no way to wait). A little idle keeps
+      // every axis around 60Hz, twice what this board used to do.
       index = 0;
+      RTOS_WAIT_MS(ADS_SWEEP_IDLE_MS);
     }
   }
 }

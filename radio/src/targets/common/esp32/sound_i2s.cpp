@@ -19,6 +19,7 @@
  */
 
 #include <driver/i2s_std.h>
+#include "esp_timer.h"
 
 #include "edgetx.h"
 
@@ -95,6 +96,14 @@ void setSampleRate(uint32_t frequency)
 static uint8_t *currentBuffer = nullptr;
 static uint32_t currentSize = 0;
 
+// Stop the I2S clock after this much silence (us). Long enough to span the gaps
+// between fragments of one sound, short enough that an idle radio has no bit
+// clock running across the board.
+#define I2S_IDLE_OFF_US (300 * 1000)
+
+static bool channel_enabled = true;
+static int64_t lastDataUs = 0;
+
 void audioSetCurrentBuffer(const AudioBuffer *buffer)
 {
   if (buffer) {
@@ -116,24 +125,42 @@ void audioConsumeCurrentBuffer()
     audioSetCurrentBuffer(audioQueue.buffersFifo.getNextFilledBuffer());
   }
 
-  // The I2S channel is deliberately kept running between sounds: disabling it
-  // in the middle of the DMA cuts the tail of the last buffer and restarting it
-  // clicks on the next sound (audible as crackling while operating the radio,
-  // since every key press/voice prompt starts and stops a stream). Silence is
-  // covered by auto_clear_after_cb on underrun.
-  while (currentBuffer && currentSize) {
-    size_t written = 0U;
-    i2s_channel_write(tx_chan, currentBuffer, currentSize, &written, 1000);
+  const int64_t now = esp_timer_get_time();
+  if (!lastDataUs) lastDataUs = now;
 
-    if (written > currentSize)
-      written = currentSize;
-
-    currentBuffer += written;
-    currentSize -= written;
-    if (currentSize == 0) {
-      audioQueue.buffersFifo.freeNextFilledBuffer();
-      currentBuffer = nullptr;
-      currentSize = 0;
+  if (currentBuffer && currentSize) {
+    // Data to play: make sure the clock runs.
+    if (!channel_enabled) {
+      channel_enabled = true;
+      i2s_channel_enable(tx_chan);
     }
+    lastDataUs = now;
+
+    while (currentBuffer && currentSize) {
+      size_t written = 0U;
+      i2s_channel_write(tx_chan, currentBuffer, currentSize, &written, 1000);
+
+      if (written > currentSize)
+        written = currentSize;
+
+      currentBuffer += written;
+      currentSize -= written;
+      if (currentSize == 0) {
+        audioQueue.buffersFifo.freeNextFilledBuffer();
+        currentBuffer = nullptr;
+        currentSize = 0;
+      }
+    }
+    return;
+  }
+
+  // Silence. The channel is kept running across the gaps between fragments
+  // (disabling it mid DMA cuts the tail of the last buffer and clicks on the
+  // next sound), but the clock is stopped once nothing has played for a while:
+  // the I2S lines run next to the LCD bus, and a permanently running bit clock
+  // there shows up as a flickering panel.
+  if (channel_enabled && (now - lastDataUs) > I2S_IDLE_OFF_US) {
+    channel_enabled = false;
+    i2s_channel_disable(tx_chan);
   }
 }

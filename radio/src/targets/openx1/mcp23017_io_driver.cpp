@@ -21,12 +21,17 @@
 #include "edgetx.h"
 #include "i2c_driver.h"
 #include "mcp23xxx.h"
+#include "esp_log.h"
 
 #include "mcp_pins.h"
 #include "mcp23017_keys.inc"
 
 extern i2c_master_bus_handle_t gpioext_i2c_bus_handle;
 static i2c_master_dev_handle_t mcp[2] = {NULL, NULL};
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+static SemaphoreHandle_t mcpOutMutex = NULL;
 
 static uint32_t ShadowOutput = 0U;
 static uint8_t *pShadowData = (uint8_t *)&ShadowOutput;
@@ -39,20 +44,36 @@ void rotaryEncoderCheck(uint32_t result);
 
 static void mcp_set_gpio(uint32_t pin, uint32_t level)
  {
+    const uint32_t port = MCP_PORT(pin);
+
+    // Module power, LEDs and PWR_EN all live in the same output byte (G1B) and
+    // are toggled from several tasks (pulses/mixer, UI, power off). Without
+    // serialising the read-modify-write a concurrent caller can write back a
+    // byte that still has the old level, so "module off" silently comes back on
+    // / never takes effect. A failed I2C write has the same effect, so retry.
+    if (mcpOutMutex) xSemaphoreTake(mcpOutMutex, portMAX_DELAY);
+
     if (0 == level)
     {
-        ShadowOutput &= ~(1 << pin);
+        ShadowOutput &= ~(1u << pin);
     }
     else
     {
-        ShadowOutput |= (1 << pin);
+        ShadowOutput |= (1u << pin);
     }
-    uint32_t port = MCP_PORT(pin);
+    const uint8_t value = pShadowData[port];
 
-    esp_err_t ret = i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), pShadowData[port]);
-    if (ret != ESP_OK) {
-        TRACE_ERROR("mcp_set_gpio pin=%d err=%d", (int)pin, (int)ret);
+    if (mcpOutMutex) xSemaphoreGive(mcpOutMutex);
+
+    esp_err_t ret = ESP_FAIL;
+    for (int attempt = 0; attempt < 3; attempt++) {
+        ret = i2c_register_write_byte(MCP_HANDLE(port), MCP_REG_ADDR(MCP23XXX_GPIO, port), value);
+        if (ret == ESP_OK) return;
     }
+    // A lost write means a module stays powered (or an LED stays on) until some
+    // unrelated call happens to rewrite the same output byte.
+    ESP_LOGW("MCP", "gpio write failed pin=%d port=%d val=%02x err=%d",
+             (int)pin, (int)port, (unsigned)value, (int)ret);
 }
 
 uint32_t readKeys()
@@ -100,6 +121,8 @@ uint32_t readTrims()
 
 void keysInit()
 {
+    if (!mcpOutMutex) mcpOutMutex = xSemaphoreCreateMutex();
+
     i2c_device_config_t i2c_dev0_conf = {
         .device_address = MCP23XXX_ADDR,
         .scl_speed_hz = 400000,
