@@ -20,7 +20,8 @@
 
 std::list<Layer> Layer::stack;
 
-Layer::Layer(Window* w, lv_group_t* g, lv_group_t* pg) : window(w), group(g), prevGroup(pg) {}
+Layer::Layer(Window* w, lv_group_t* g, lv_group_t* pg)
+    : window(w), group(g), prevGroup(pg) {}
 Layer::~Layer() { lv_group_del(group); }
 
 void _assign_lv_group(lv_group_t* g)
@@ -34,6 +35,48 @@ void _assign_lv_group(lv_group_t* g)
     indev = lv_indev_get_next(indev);
   }
 }
+
+// An encoder only drives whatever object the active group has focused. When a
+// layer is popped (e.g. after a Lua script exits) the group that comes back can
+// be left without focus - the page still works with the keys (they fall back to
+// Layer::back() dispatch) but the encoder does nothing until the layer is
+// entered again. Fix whatever group each input device is actually bound to.
+//
+// ESP32 only: the other targets have run this code for years without it, so
+// their behaviour is left untouched.
+#if defined(ESP_PLATFORM)
+static void _fix_group_focus(lv_group_t* g)
+{
+  if (g && !lv_group_get_focused(g) && lv_group_get_obj_count(g)) {
+    lv_group_focus_next(g);
+  }
+}
+
+static void _ensure_group_focus(lv_group_t* g)
+{
+  _fix_group_focus(g);
+
+  lv_indev_t* indev = lv_indev_get_next(NULL);
+  while (indev) {
+    if (indev->group && indev->group != g) _fix_group_focus(indev->group);
+    indev = lv_indev_get_next(indev);
+  }
+}
+
+// Returning from a sub-layer always ends edit mode: a layer (a standalone Lua
+// script sets it on its own group) leaves editing on, and with editing on the
+// encoder edits the focused value instead of moving the focus - on a plain list
+// page that looks exactly like a dead encoder.
+static void _restore_group(lv_group_t* g)
+{
+  if (!g) return;
+
+  lv_group_set_editing(g, false);
+  _ensure_group_focus(g);
+}
+#else
+static inline void _restore_group(lv_group_t*) {}
+#endif
 
 void Layer::push(Window* w)
 {
@@ -56,8 +99,10 @@ void Layer::pop(Window* w)
     lv_group_t* prevGroup = stack.back().prevGroup;
     if (prevGroup) {
       _assign_lv_group(prevGroup);
+      _restore_group(prevGroup);
     } else if (!stack.empty()) {
       _assign_lv_group(stack.back().group);
+      _restore_group(stack.back().group);
     } else {
       lv_group_set_default(NULL);
     }

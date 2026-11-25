@@ -32,6 +32,7 @@ class LvglWrapper
 {
   static LvglWrapper *_instance;
   static void pollInputs();
+  static void ensureGroupFocus();
 
   LvglWrapper();
   ~LvglWrapper() {}

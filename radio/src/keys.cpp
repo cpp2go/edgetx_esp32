@@ -65,11 +65,20 @@
 // Key events are produced by the key polling task (every 10ms) but consumed
 // once per UI frame, which can take >100ms with a fullscreen Lua widget. A
 // single-slot event would be overwritten in that window and the key press lost.
+// Set to 0 to get the original single-slot behaviour back (A/B switch).
+#ifndef KEY_EVENT_QUEUE
+#define KEY_EVENT_QUEUE 1
+#endif
+
+#if KEY_EVENT_QUEUE
 #define EVENT_QUEUE_LEN 8
 
 static event_t s_evtQueue[EVENT_QUEUE_LEN];
 static volatile uint8_t s_evtHead = 0;
 static volatile uint8_t s_evtTail = 0;
+#else
+static event_t s_evt;
+#endif
 
 // Trim events keep a single slot (they are consumed together with the keys)
 event_t s_trim_evt;
@@ -217,11 +226,16 @@ bool consumeKeysLockToggleEvent() { return false; }
  */
 bool isEvent()
 {
+#if KEY_EVENT_QUEUE
   return s_evtHead != s_evtTail;
+#else
+  return s_evt != 0;
+#endif
 }
 
 void pushEvent(event_t evt)
 {
+#if KEY_EVENT_QUEUE
   if (!evt) {
     // "discard pending events" (see waitKeysReleased())
     s_evtHead = s_evtTail = 0;
@@ -233,15 +247,24 @@ void pushEvent(event_t evt)
 
   s_evtQueue[s_evtTail] = evt;
   s_evtTail = next;
+#else
+  s_evt = evt;
+#endif
 }
 
 event_t getEvent()
 {
+#if KEY_EVENT_QUEUE
   if (s_evtHead == s_evtTail) return 0;
 
   event_t event = s_evtQueue[s_evtHead];
   s_evtHead = (uint8_t)((s_evtHead + 1) % EVENT_QUEUE_LEN);
   return event;
+#else
+  auto event = s_evt;
+  s_evt = 0;
+  return event;
+#endif
 }
 
 void pushTrimEvent(event_t evt)

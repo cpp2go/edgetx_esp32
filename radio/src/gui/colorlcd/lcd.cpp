@@ -72,6 +72,15 @@ void lcdSetFlushCb(void (*cb)(lv_disp_drv_t*, uint16_t*, const rect_t&))
 
 static lv_disp_drv_t* refr_disp = nullptr;
 
+// Compile-time A/B switch for the panel refresh path:
+//   1 = push only the areas LVGL actually redrew (less panel traffic)
+//   0 = push the whole screen once per frame (the behaviour before that
+//       optimisation, simplest possible)
+// Used to A/B a tearing / flicker report on real hardware.
+#ifndef LCD_FLUSH_DIRTY_AREAS
+#define LCD_FLUSH_DIRTY_AREAS 1
+#endif
+
 #if defined(ESP_PLATFORM)
 // In direct mode LVGL draws each invalid area in place and then calls the flush
 // callback with the *whole screen* (refr_area() in lv_refr.c), so the flush
@@ -81,6 +90,11 @@ static lv_disp_drv_t* refr_disp = nullptr;
 // instead of a full screen (12ms), which is both faster and tear-free.
 static void pushInvalidAreas(lv_disp_drv_t* disp_drv, uint16_t* color_p)
 {
+#if !LCD_FLUSH_DIRTY_AREAS
+  rect_t full = {0, 0, LCD_W, LCD_H};
+  lcd_flush_cb(disp_drv, color_p, full);
+  return;
+#else
   auto disp = _lv_refr_get_disp_refreshing();
   if (!disp) {
     rect_t full = {0, 0, LCD_W, LCD_H};
@@ -110,6 +124,7 @@ static void pushInvalidAreas(lv_disp_drv_t* disp_drv, uint16_t* color_p)
     rect_t r = {a->x1, a->y1, a->x2 - a->x1 + 1, a->y2 - a->y1 + 1};
     lcd_flush_cb(disp_drv, color_p, r);
   }
+#endif  // LCD_FLUSH_DIRTY_AREAS
 }
 #endif
 

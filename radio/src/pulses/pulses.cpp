@@ -382,6 +382,9 @@ uint8_t getRequiredProtocol(uint8_t module)
 static module_init_cb_t _on_module_init = nullptr;
 static module_deinit_cb_t _on_module_deinit = nullptr;
 
+// Timing aid (see pulsesSendNextFrame): cleared when a module is initialised.
+static bool _first_tx_logged[NUM_MODULES] = {};
+
 void pulsesSetModuleInitCb(module_init_cb_t cb)
 {
   _on_module_init = cb;
@@ -396,7 +399,6 @@ static void _init_module(uint8_t module, const etx_proto_driver_t* drv)
 {
   auto mod = &(_module_drivers[module]);
   void* ctx = drv->init(module);
-
   // TODO: module init failed somehow, we should handle this better...
   if (!ctx) {
     TRACE("Module #%d init failed", module);
@@ -413,6 +415,7 @@ static void _init_module(uint8_t module, const etx_proto_driver_t* drv)
   // power ON
   modulePortSetPower(module, true);
   telemetrySuspendModulePolling(module, false);
+  _first_tx_logged[module] = false;
   TRACE("Module #%d init succeeded", module);
 }
 
@@ -626,6 +629,14 @@ void pulsesSendNextFrame(uint8_t module)
     uint8_t nChannels = 16;  // TODO: MAX_CHANNELS - channelsStart
 
     auto buffer = _module_buffers[module]._buffer;
+#if defined(ESP_PLATFORM)
+    // Timing aid: how long after the module was powered up does the first frame
+    // actually go out (and how long until it answers)?
+    if (!_first_tx_logged[module]) {
+      _first_tx_logged[module] = true;
+      ESP_LOGI("MODPWR", "module %u first frame sent", (unsigned)module);
+    }
+#endif
     drv->sendPulses(ctx, buffer, channels, nChannels);
   }
 }

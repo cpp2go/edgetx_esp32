@@ -30,6 +30,13 @@
 #include "edgetx.h" // reusableBuffer
 #include "os/time.h"
 
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#define MPM_LOG(...) ESP_LOGI("MPM", __VA_ARGS__)
+#else
+#define MPM_LOG(...)
+#endif
+
 #include <algorithm>
 
 static timer_handle_t _protoScanTimers[NUM_MODULES] = {TIMER_INITIALIZER};
@@ -214,6 +221,8 @@ bool MultiRfProtocols::triggerScan()
     moduleState[moduleIdx].mode = MODULE_MODE_GET_HARDWARE_INFO;
     scanStart = lastScan = time_get_ms();
 
+    MPM_LOG("scan start (module %u)", (unsigned)moduleIdx);
+
     auto scanTimer = &_protoScanTimers[moduleIdx];
     if (!timer_is_created(scanTimer)) {
       timer_create(scanTimer, MultiRfProtocols::timerCb, "mpm",
@@ -278,6 +287,8 @@ bool MultiRfProtocols::scanReply(const uint8_t* packet, uint8_t len)
           setModuleMode(moduleIdx, MODULE_MODE_NORMAL);
           auto scanTimer = &_protoScanTimers[moduleIdx];
           timer_stop(scanTimer);
+          MPM_LOG("scan done: %u protos in %ums", (unsigned)protoList.size(),
+                  (unsigned)(time_get_ms() - scanStart));
           break;
         }
       } else {
@@ -291,6 +302,8 @@ bool MultiRfProtocols::scanReply(const uint8_t* packet, uint8_t len)
 
         if (time_get_ms() - lastScan >= timeout) {
           TRACE("proto scan timeout!");
+          MPM_LOG("scan timeout after %ums (%u protos), using builtin list",
+                  (unsigned)(time_get_ms() - scanStart), (unsigned)protoList.size());
           scanState = ScanInvalid;
         }
       }

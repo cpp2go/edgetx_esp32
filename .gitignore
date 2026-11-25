@@ -19,3 +19,9 @@ compile_commands.json
 CMakeUserPresets.json
 /site/
 .devcontainer/devcontainer-lock.json
+
+# ESP-IDF / build helpers
+managed_components/
+sdkconfig.old
+/.venv/
+

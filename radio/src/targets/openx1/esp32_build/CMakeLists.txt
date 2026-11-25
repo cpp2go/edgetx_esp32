@@ -34,6 +34,19 @@ unset(UI_FRAME_PROFILER CACHE)
 # per frame, so a standard two-wire bay is unaffected.
 add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
 
+# A/B of the panel refresh path (see lcd.cpp): 0 pushes the whole screen once per
+# frame, 1 pushes only the areas LVGL redrew. Uncomment to build the simple
+# variant for comparison on hardware.
+#add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
+
+# A/B of the key event handling (see keys.cpp): 0 is the original single-slot
+# behaviour, 1 the event queue.
+#add_definitions(-DKEY_EVENT_QUEUE=0)
+
+# Conservative build used to get back to a known behaviour:
+add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
+add_definitions(-DKEY_EVENT_QUEUE=0)
+
 # Runtime task statistics (see targets/openx1/diag_stats.h): logs the longest
 # gap/duration of the key polling, UI frame, audio task and panel flush once per
 # second on the console. Uncomment when investigating lag/tearing/audio issues.

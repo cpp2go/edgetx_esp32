@@ -20,6 +20,12 @@
  */
 
 #include "edgetx.h"
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#define MPM_LOG(...) ESP_LOGI("MPM", __VA_ARGS__)
+#else
+#define MPM_LOG(...)
+#endif
 #include "multi.h"
 #include "os/async.h"
 #include "os/timer.h"
@@ -242,6 +248,16 @@ static void _poll_frame(void *pvParameter1, uint32_t ulParameter2)
       int frame_len = serial_drv->copyRxBuffer(serial_ctx, frame, TELEMETRY_RX_PACKET_SIZE);
       if (frame_len > 0) {
 
+#if defined(ESP_PLATFORM)
+        // Timing aid: how long after power-up does the module answer at all?
+        static bool first_rx_logged[NUM_MODULES] = {};
+        if (module < NUM_MODULES && !first_rx_logged[module]) {
+          first_rx_logged[module] = true;
+          ESP_LOGI("MODPWR", "module %u first telemetry frame (%d bytes)",
+                   (unsigned)module, frame_len);
+        }
+#endif
+
         LOG_TELEMETRY_WRITE_START();
         for (int i = 0; i < frame_len; i++) {
           telemetryMirrorSend(frame[i]);
@@ -250,7 +266,16 @@ static void _poll_frame(void *pvParameter1, uint32_t ulParameter2)
 
         uint8_t* rxBuffer = getTelemetryRxBuffer(module);
         uint8_t& rxBufferCount = getTelemetryRxBufferCount(module);
-        drv->processFrame(ctx, frame, frame_len, rxBuffer, &rxBufferCount);
+        if (drv->processFrame) {
+          drv->processFrame(ctx, frame, frame_len, rxBuffer, &rxBufferCount);
+        } else if (drv->processData) {
+          // Byte oriented protocols (MULTI, PPM style) have no processFrame:
+          // hand the buffered bytes to their parser instead of dropping them
+          // (or calling a null pointer).
+          for (int i = 0; i < frame_len; i++) {
+            drv->processData(ctx, frame[i], rxBuffer, &rxBufferCount);
+          }
+        }
       }
     }
   }

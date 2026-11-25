@@ -22,6 +22,9 @@
 #include "edgetx.h"
 #include "hal/rotary_encoder.h"
 #include "os/time.h"
+#if defined(ESP_PLATFORM)
+#include "esp_log.h"
+#endif
 
 #include "LvglWrapper.h"
 #include "etx_lv_theme.h"
@@ -366,7 +369,29 @@ void LvglWrapper::run()
   lv_tick_inc(tick - last_tick);
   last_tick = tick;
 #endif
+  ensureGroupFocus();
   lv_timer_handler();
+}
+
+// Safety net for the whole UI: an encoder only drives the object focused in the
+// active group. Several paths can leave that group without focus (a window being
+// deleted without popping its layer, a Lua script exiting, a dialog closing...),
+// and then the encoder silently does nothing on that page while the keys still
+// work. Re-focus the first member instead of waiting for the page to be
+// re-entered. ESP32 only, see _restore_group() in layer.cpp.
+void LvglWrapper::ensureGroupFocus()
+{
+#if defined(ESP_PLATFORM)
+  lv_indev_t* indev = lv_indev_get_next(NULL);
+
+  while (indev) {
+    lv_group_t* g = indev->group;
+    if (g && !lv_group_get_focused(g) && lv_group_get_obj_count(g)) {
+      lv_group_focus_next(g);
+    }
+    indev = lv_indev_get_next(indev);
+  }
+#endif
 }
 
 void LvglWrapper::runNested()
