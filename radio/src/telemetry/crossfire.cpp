@@ -23,6 +23,11 @@
 #include "edgetx.h"
 #include "math.h"
 
+#if defined(OPENX1_XF_TRACE)
+#include "esp_log.h"
+#include "esp_timer.h"
+#endif
+
 #include "trainer.h"
 
 // clang-format off
@@ -413,6 +418,10 @@ void processCrossfireTelemetryFrame(uint8_t module, uint8_t* rxBuffer,
 
 #if defined(LUA)
     default:
+#if defined(OPENX1_XF_TRACE)
+      ESP_LOGI("XF", "rx t=%llu id=%02x len=%u", esp_timer_get_time() / 1000,
+               (unsigned)id, (unsigned)crsfPayloadLen);
+#endif
       if (id == DEVICE_INFO_ID && rxBuffer[4]== MODULE_ADDRESS) {
         uint8_t nameSize = rxBuffer[1] - 18;
         strncpy((char *)&crossfireModuleStatus[module].name, (const char *)&rxBuffer[5], CRSF_NAME_MAXSIZE);

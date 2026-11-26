@@ -47,14 +47,23 @@ add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
 add_definitions(-DKEY_EVENT_QUEUE=0)
 
 # A standalone Lua script is iterated once per UI frame, which on this target is
-# bounded by the panel push. Set to the number of extra iterations per frame so a
-# script can talk to the module faster than the panel refreshes (see guiMain()).
-add_definitions(-DOPENX1_LUA_FAST_ITER=2)
+# several times longer than a module round trip. These set how many extra turns
+# the script gets per frame and how far apart they are: 4 x 5ms lets a script
+# that talks to the module (ELRS parameter reads answer in ~5ms) run several
+# requests per frame instead of one.
+add_definitions(-DOPENX1_LUA_FAST_ITER=4)
+add_definitions(-DOPENX1_LUA_FAST_GAP_MS=5)
 
 # Runtime task statistics (see targets/openx1/diag_stats.h): logs the longest
 # gap/duration of the key polling, UI frame, audio task and panel flush once per
 # second on the console. Uncomment when investigating lag/tearing/audio issues.
 #add_definitions(-DOPENX1_DIAG_STATS)
+
+# Temporary: log every CRSF frame we queue for Lua and every CRSF frame we send,
+# with a millisecond timestamp (see pulses/crossfire.cpp and
+# telemetry/crossfire.cpp). Used to see whether a Lua script is limited by our
+# request rate or by the module's replies.
+add_definitions(-DOPENX1_XF_TRACE)
 
 project(edgetx)
 

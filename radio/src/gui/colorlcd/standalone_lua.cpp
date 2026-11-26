@@ -262,6 +262,7 @@ void StandaloneLuaWindow::iterateScript()
     }
     luaL_unref(lsStandalone, LUA_REGISTRYINDEX, initFunction);
     initFunction = LUA_REFNIL;
+    invalidate();
     return;
   }
 

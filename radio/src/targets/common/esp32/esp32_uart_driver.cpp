@@ -416,9 +416,10 @@ int espUartGetBufferedBytes(void* ctx) {
 int espUartCopyRxBuffer(void* ctx, uint8_t* buf, uint32_t len) {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     int r = espUartRxRead(port, buf, len);
-#if defined(UI_FRAME_PROFILER)
+#if defined(OPENX1_UART_DUMP)
     // Diagnostic for missing telemetry: dump what actually arrives on the UART
     // so a valid CRSF stream can be told apart from noise / a wrong baudrate.
+    // Rate limited to one sample per port per second.
     if (r > 0) {
         static TickType_t lastDump[UART_NUM_MAX];
         TickType_t now = xTaskGetTickCount();

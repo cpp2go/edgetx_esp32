@@ -25,6 +25,7 @@
 #if defined(UI_FRAME_PROFILER)
 #include "ui_profiler.h"
 #include "esp32_uart_driver.h"
+#include "esp_log.h"
 #endif
 
 extern "C" {
@@ -176,6 +177,7 @@ static void profTenth(uint32_t us, uint32_t& whole, uint32_t& tenth)
 
 static void uiProfilerRender()
 {
+#if defined(UI_PROFILER_ONSCREEN)
     if (!profLabel) {
         profLabel = lv_label_create(lv_layer_sys());
         if (!profLabel) return;
@@ -188,6 +190,7 @@ static void uiProfilerRender()
         lv_obj_add_flag(profLabel, LV_OBJ_FLAG_IGNORE_LAYOUT);
         lv_obj_clear_flag(profLabel, LV_OBJ_FLAG_CLICKABLE);
     }
+#endif
 
     const uint32_t f = profFrames ? profFrames : 1;
     uint32_t periodUs = profPeriodTotal / f;
@@ -215,6 +218,7 @@ static void uiProfilerRender()
     profLastUartEvents = uartEv;
     profLastUartBytes = uartBytes;
 
+#if defined(UI_PROFILER_ONSCREEN)
     lv_label_set_text_fmt(profLabel,
                           "FPS %u  tick %u.%ums\n"
                           "LVGL %u.%u  FL %u.%u\n"
@@ -237,6 +241,14 @@ static void uiProfilerRender()
                           (unsigned)linT, (unsigned)uiW, (unsigned)uiT,
                           (unsigned)profLuaPercent, (unsigned)dEv,
                           (unsigned)dBytes, (unsigned)profLuaRuns);
+#endif
+
+    ESP_LOGI("UIPROF",
+             "fps=%u period=%u.%ums lvgl=%u.%u flush=%u.%u ui=%u.%u lua=%u/s",
+             (unsigned)fps, (unsigned)(periodUs / 1000),
+             (unsigned)((periodUs % 1000) / 100), (unsigned)lvglW,
+             (unsigned)lvglT, (unsigned)flW, (unsigned)flT, (unsigned)uiW,
+             (unsigned)uiT, (unsigned)profLuaRuns);
 }
 
 void uiProfilerFrameEnd()

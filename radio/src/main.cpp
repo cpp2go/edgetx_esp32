@@ -41,6 +41,10 @@
 #endif
 #endif
 
+#if defined(ESP_PLATFORM) && !defined(SIMU)
+#include "os/sleep.h"
+#endif
+
 #if defined(CLI)
 #include "cli.h"
 #endif
@@ -462,13 +466,18 @@ void guiMain(event_t evt)
   MainWindow::instance()->run();
 #if defined(OPENX1_LUA_FAST_ITER) && defined(LUA)
   // A standalone script's run() is otherwise called once per UI frame, and a
-  // frame here is bounded by the panel push. Iterate the script a few more
-  // times per frame so it can talk to the module faster: it draws into its own
-  // RAM buffer, which the panel still picks up once per frame.
+  // frame here is several times longer than a module round trip (a CRSF
+  // parameter read is answered in ~5ms): the script would sit idle for the rest
+  // of the frame after every request. Give it a few extra turns per frame,
+  // spaced far enough apart for the reply to have arrived, so it can talk to
+  // the module at its own pace instead of one request per frame.
   for (uint8_t i = 0; i < OPENX1_LUA_FAST_ITER; i++) {
+    auto luaWin = StandaloneLuaWindow::instance();
+    if (!luaWin) break;
+    sleep_ms(OPENX1_LUA_FAST_GAP_MS);
     // The script may have closed itself (or started another one) during the
     // previous iteration.
-    auto luaWin = StandaloneLuaWindow::instance();
+    luaWin = StandaloneLuaWindow::instance();
     if (!luaWin) break;
     luaWin->iterateScript();
   }

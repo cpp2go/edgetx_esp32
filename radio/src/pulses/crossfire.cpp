@@ -32,6 +32,11 @@
 #include "crossfire.h"
 #include "telemetry/crossfire.h"
 
+#if defined(OPENX1_XF_TRACE)
+#include "esp_log.h"
+#include "esp_timer.h"
+#endif
+
 #define CROSSFIRE_CH_BITS           11
 #define CROSSFIRE_CENTER            0x3E0
 #if defined(PPM_CENTER_ADJUSTABLE)
@@ -140,6 +145,10 @@ static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf,
 #if defined(LUA)
   if (outputTelemetryBuffer.destination == endpoint) {
     auto len = outputTelemetryBuffer.size;
+#if defined(OPENX1_XF_TRACE)
+    ESP_LOGI("XF", "tx t=%llu len=%u id=%02x", esp_timer_get_time() / 1000,
+             (unsigned)len, (unsigned)outputTelemetryBuffer.data[2]);
+#endif
     memcpy(p_buf, outputTelemetryBuffer.data, len);
     outputTelemetryBuffer.reset();
     p_buf += len;
