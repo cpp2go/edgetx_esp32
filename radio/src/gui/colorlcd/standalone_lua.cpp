@@ -25,6 +25,10 @@
 #include "dma2d.h"
 #include "lua/lua_event.h"
 
+#if defined(UI_FRAME_PROFILER)
+#include "ui_profiler.h"
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
@@ -242,6 +246,14 @@ void StandaloneLuaWindow::deleteLater(bool detach, bool trash)
 void StandaloneLuaWindow::checkEvents()
 {
   Window::checkEvents();
+  iterateScript();
+}
+
+void StandaloneLuaWindow::iterateScript()
+{
+#if defined(UI_FRAME_PROFILER)
+  uiProfilerLuaIteration();
+#endif
 
   if (initFunction != LUA_REFNIL) {
     lua_rawgeti(lsStandalone, LUA_REGISTRYINDEX, initFunction);

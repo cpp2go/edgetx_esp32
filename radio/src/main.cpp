@@ -36,6 +36,9 @@
 #include "startup_shutdown.h"
 #include "theme_manager.h"
 #include "etx_lv_theme.h"
+#if defined(LUA)
+#include "standalone_lua.h"
+#endif
 #endif
 
 #if defined(CLI)
@@ -457,6 +460,19 @@ void guiMain(event_t evt)
   uiProfilerEnter(UI_PROF_UI);
 #endif
   MainWindow::instance()->run();
+#if defined(OPENX1_LUA_FAST_ITER) && defined(LUA)
+  // A standalone script's run() is otherwise called once per UI frame, and a
+  // frame here is bounded by the panel push. Iterate the script a few more
+  // times per frame so it can talk to the module faster: it draws into its own
+  // RAM buffer, which the panel still picks up once per frame.
+  for (uint8_t i = 0; i < OPENX1_LUA_FAST_ITER; i++) {
+    // The script may have closed itself (or started another one) during the
+    // previous iteration.
+    auto luaWin = StandaloneLuaWindow::instance();
+    if (!luaWin) break;
+    luaWin->iterateScript();
+  }
+#endif
 #if defined(UI_FRAME_PROFILER)
   uiProfilerExit(UI_PROF_UI);
 #endif

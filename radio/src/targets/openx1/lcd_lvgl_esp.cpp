@@ -114,6 +114,15 @@ static uint32_t profLastUartEvents;
 static uint32_t profLastUartBytes;
 static lv_obj_t* profLabel;
 
+// Standalone Lua script iterations per second: the script's run() is driven by
+// the UI frame, so this is what a script talking to the module is limited by.
+static uint32_t profLuaRuns;
+
+void uiProfilerLuaIteration()
+{
+    profLuaRuns++;
+}
+
 void uiProfilerEnter(unsigned int stage)
 {
     if (stage < UI_PROF_STAGE_COUNT) profStageStart[stage] = esp_timer_get_time();
@@ -213,7 +222,7 @@ static void uiProfilerRender()
                           "TXT %u.%u n%u  RCT %u.%u\n"
                           "IMG %u.%u n%u  SHP %u.%u\n"
                           "LIN %u.%u  UI %u.%u  L%% %u\n"
-                          "EXT ev%u by%u",
+                          "EXT ev%u by%u  LUA %u/s",
                           (unsigned)fps, (unsigned)(periodUs / 1000),
                           (unsigned)((periodUs % 1000) / 100),
                           (unsigned)lvglW, (unsigned)lvglT, (unsigned)flW,
@@ -227,7 +236,7 @@ static void uiProfilerRender()
                           (unsigned)shpW, (unsigned)shpT, (unsigned)linW,
                           (unsigned)linT, (unsigned)uiW, (unsigned)uiT,
                           (unsigned)profLuaPercent, (unsigned)dEv,
-                          (unsigned)dBytes);
+                          (unsigned)dBytes, (unsigned)profLuaRuns);
 }
 
 void uiProfilerFrameEnd()
@@ -250,6 +259,7 @@ void uiProfilerFrameEnd()
     profWindowStart = now;
     profFrames = 0;
     profPeriodTotal = 0;
+    profLuaRuns = 0;
     for (int i = 0; i < UI_PROF_STAGE_COUNT; i += 1) {
         profStageTotal[i] = 0;
         profStageCount[i] = 0;

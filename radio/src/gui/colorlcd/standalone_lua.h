@@ -42,6 +42,12 @@ public:
   void attach();
   void deleteLater(bool detach = true, bool trash = true) override;
 
+  // Runs the script's run() once without touching the display: the script draws
+  // into its own RAM buffer and the panel is refreshed from there at the normal
+  // frame rate. Lets a script iterate faster than the panel when frames are the
+  // bottleneck (ESP32 panel push, see guiMain()).
+  void iterateScript();
+
 #if defined(DEBUG_WINDOWS)
   std::string getName() const override { return "StandaloneLuaWindow"; }
 #endif

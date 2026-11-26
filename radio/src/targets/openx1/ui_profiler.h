@@ -44,6 +44,10 @@ void uiProfilerCount(unsigned int stage);
 void uiProfilerLuaInstructions(unsigned int percent);
 void uiProfilerFrameEnd();
 
+// Standalone Lua scripts: how often run() actually gets called per second (the
+// overlay shows it, so a slow script can be told apart from a slow module).
+void uiProfilerLuaIteration();
+
 void uiProfilerDrawEnter(unsigned int kind);
 void uiProfilerDrawExit(unsigned int kind);
 

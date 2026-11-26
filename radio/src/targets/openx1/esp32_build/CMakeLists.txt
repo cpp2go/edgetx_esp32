@@ -1,4 +1,4 @@
-# The following lines of boilerplate have to be in your project's
+﻿# The following lines of boilerplate have to be in your project's
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
@@ -34,18 +34,22 @@ unset(UI_FRAME_PROFILER CACHE)
 # per frame, so a standard two-wire bay is unaffected.
 add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
 
+# On-screen timing overlay (see targets/openx1/ui_profiler.h): frame rate, panel
+# flush cost, and how often a standalone Lua script gets to run.
+add_definitions(-DUI_FRAME_PROFILER)
+
 # A/B of the panel refresh path (see lcd.cpp): 0 pushes the whole screen once per
-# frame, 1 pushes only the areas LVGL redrew. Uncomment to build the simple
-# variant for comparison on hardware.
-#add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
+# frame, 1 pushes only the areas LVGL redrew.
+add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
 
 # A/B of the key event handling (see keys.cpp): 0 is the original single-slot
 # behaviour, 1 the event queue.
-#add_definitions(-DKEY_EVENT_QUEUE=0)
-
-# Conservative build used to get back to a known behaviour:
-add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
 add_definitions(-DKEY_EVENT_QUEUE=0)
+
+# A standalone Lua script is iterated once per UI frame, which on this target is
+# bounded by the panel push. Set to the number of extra iterations per frame so a
+# script can talk to the module faster than the panel refreshes (see guiMain()).
+add_definitions(-DOPENX1_LUA_FAST_ITER=2)
 
 # Runtime task statistics (see targets/openx1/diag_stats.h): logs the longest
 # gap/duration of the key polling, UI frame, audio task and panel flush once per
