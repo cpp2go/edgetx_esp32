@@ -89,6 +89,10 @@ protected:
   // GFX
   BitmapBuffer *lcdBuffer = nullptr;
 
+  // Push the area the script drew since the last iteration; nothing is pushed
+  // when it drew nothing.
+  void invalidateLcdBuffer();
+
   // pop-ups
   void popupPaint(BitmapBuffer* dc, coord_t x, coord_t y, coord_t w, coord_t h,
                   const char* text, const char* info);

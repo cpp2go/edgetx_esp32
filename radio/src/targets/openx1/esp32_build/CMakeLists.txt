@@ -45,11 +45,18 @@ add_definitions(-DKEY_EVENT_QUEUE=0)
 
 # A standalone Lua script is iterated once per UI frame, which on this target is
 # several times longer than a module round trip. These set how many extra turns
-# the script gets per frame and how far apart they are: 4 x 5ms lets a script
-# that talks to the module (ELRS parameter reads answer in ~5ms) run several
-# requests per frame instead of one.
-add_definitions(-DOPENX1_LUA_FAST_ITER=4)
-add_definitions(-DOPENX1_LUA_FAST_GAP_MS=5)
+# the script gets per frame and how far apart they are, so a script that talks to
+# the module (ELRS parameter reads answer in ~5ms) can run several requests per
+# frame instead of one.
+#
+# Disabled: the extra turns are spent unconditionally (the menus task cannot tell
+# whether the script is waiting for the module), so every frame of every
+# standalone script pays 4 x 5ms = 20ms of sleep plus 4 more run() calls on top of
+# a 33ms frame period - the UI drops to well under 20 FPS and a drawing script
+# does 5x the work with only the last iteration visible. Re-enable once the extra
+# turns are gated on actual module traffic and bounded by a frame time budget.
+#add_definitions(-DOPENX1_LUA_FAST_ITER=4)
+#add_definitions(-DOPENX1_LUA_FAST_GAP_MS=5)
 
 # Runtime task statistics (see targets/openx1/diag_stats.h): logs the longest
 # gap/duration of the key polling, UI frame, audio task and panel flush once per

@@ -44,6 +44,8 @@ void BitmapBuffer::invertRect(coord_t x, coord_t y, coord_t w, coord_t h,
 
   if (!applyClippingRect(x, y, w, h)) return;
 
+  markDirty(x, y, w, h);
+
   // No 'opacity' here, only 'color'
   pixel_t color = COLOR_VAL(flags);
   RGB_SPLIT(color, red, green, blue);
@@ -359,6 +361,10 @@ void BitmapBuffer::drawLine(coord_t x1, coord_t y1, coord_t x2, coord_t y2,
 
   if (!liangBarskyClipper(x1, y1, x2, y2)) return;
 
+  markDirty(x1 < x2 ? x1 : x2, y1 < y2 ? y1 : y2,
+            (x1 < x2 ? x2 - x1 : x1 - x2) + 1,
+            (y1 < y2 ? y2 - y1 : y1 - y2) + 1);
+
   // TODO; Replace with LVGL line draw - currently does not support dotted line drawing
   //       except for vertical and horizontal.
 
@@ -445,6 +451,20 @@ void BitmapBuffer::drawFilledTriangle(coord_t x0, coord_t y0, coord_t x1,
                                       LcdFlags flags, uint8_t opacity)
 {
   UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
+
+  {
+    coord_t minx = x0, maxx = x0, miny = y0, maxy = y0;
+    if (x1 < minx) minx = x1;
+    if (x2 < minx) minx = x2;
+    if (x1 > maxx) maxx = x1;
+    if (x2 > maxx) maxx = x2;
+    if (y1 < miny) miny = y1;
+    if (y2 < miny) miny = y2;
+    if (y1 > maxy) maxy = y1;
+    if (y2 > maxy) maxy = y2;
+    markDirty(minx, miny, maxx - minx + 1, maxy - miny + 1);
+  }
+
   coord_t a, b;
 
 #define SWAP(a, b)   \
@@ -515,6 +535,8 @@ void BitmapBuffer::drawFilledCircle(coord_t x, coord_t y, coord_t radius,
   UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   APPLY_OFFSET();
 
+  markDirty(x - radius, y - radius, radius * 2 + 1, radius * 2 + 1);
+
   lv_draw_rect_dsc_t rect_dsc;
   lv_draw_rect_dsc_init(&rect_dsc);
   rect_dsc.bg_opa = LV_OPA_COVER;
@@ -549,6 +571,8 @@ void BitmapBuffer::drawCircle(coord_t x, coord_t y, coord_t radius,
 {
   UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   APPLY_OFFSET();
+
+  markDirty(x - radius, y - radius, radius * 2 + 1, radius * 2 + 1);
 
   lv_draw_rect_dsc_t rect_dsc;
   lv_draw_rect_dsc_init(&rect_dsc);
@@ -667,6 +691,8 @@ void BitmapBuffer::drawBitmapPatternPie(coord_t x, coord_t y,
     endAngle += 1;
   }
 
+  markDirty(x, y, img->width, img->height);
+
   Slope startSlope(startAngle);
   Slope endSlope(endAngle);
 
@@ -714,6 +740,9 @@ void BitmapBuffer::drawAnnulusSector(coord_t x, coord_t y,
 {
   UI_PROF_DRAW_SCOPE(UI_DRAW_SHAPE);
   APPLY_OFFSET();
+
+  markDirty(x - externalRadius, y - externalRadius, externalRadius * 2 + 1,
+            externalRadius * 2 + 1);
 
   if (endAngle == startAngle)
     endAngle += 1;
@@ -817,6 +846,8 @@ void BitmapBuffer::drawBitmapPattern(coord_t x, coord_t y, const MaskBitmap *bmp
   if (srcw <= 0 || srch <= 0) {
     return;
   }
+
+  markDirty(x, y, srcw, srch);
 
   DMACopyAlphaMask(data, _width, _height, x, y, bmp->data, bmpw, bmph, srcx,
                    srcy, srcw, srch, COLOR_VAL(flags));

@@ -471,6 +471,9 @@ void guiMain(event_t evt)
   // of the frame after every request. Give it a few extra turns per frame,
   // spaced far enough apart for the reply to have arrived, so it can talk to
   // the module at its own pace instead of one request per frame.
+  // Currently disabled in targets/openx1/esp32_build/CMakeLists.txt: the turns
+  // are unconditional, so they cost every script 20ms of sleep and four more
+  // run() calls per 33ms frame.
   for (uint8_t i = 0; i < OPENX1_LUA_FAST_ITER; i++) {
     auto luaWin = StandaloneLuaWindow::instance();
     if (!luaWin) break;

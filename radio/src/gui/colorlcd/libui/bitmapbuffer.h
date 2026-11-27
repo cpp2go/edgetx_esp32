@@ -70,6 +70,7 @@ class BitmapBuffer
     if (!applyClippingRect(x, y, w, h)) return;
 
     drawPixelAbs(x, y, value);
+    markDirty(x, y, 1, 1);
   }
 
   void drawAlphaPixel(pixel_t* p, uint8_t opacity, uint16_t color);
@@ -84,6 +85,7 @@ class BitmapBuffer
 
     pixel_t* p = getPixelPtrAbs(x, y);
     drawAlphaPixel(p, opacity, value);
+    markDirty(x, y, 1, 1);
   }
 
   void drawHorizontalLine(coord_t x, coord_t y, coord_t w, uint8_t pat = SOLID,
@@ -150,8 +152,22 @@ class BitmapBuffer
 
 #if !defined(BOOT)
   lv_obj_t* addCanvas(Window* parent, lv_img_cf_t fmt = LV_IMG_CF_TRUE_COLOR);
+  // Same, but the canvas object is only a drawing target: it is hidden, so the
+  // invalidation each lv_canvas_draw_*() does after every primitive (the whole
+  // canvas, i.e. the whole screen here) is dropped, and `parent` shows the
+  // buffer through a plain image instead. The caller is then responsible for
+  // invalidating what changed - see the dirty rect below.
+  lv_obj_t* addOffscreenCanvas(Window* parent, lv_img_cf_t fmt = LV_IMG_CF_TRUE_COLOR);
   void removeCanvas();
+  // The object that shows the buffer (see addOffscreenCanvas), or nullptr.
+  lv_obj_t* getCanvasImg() const { return canvasImg; }
 #endif
+
+  // Area touched since the last resetDirty(). Used by off-screen Lua canvases to
+  // invalidate only what the script actually drew instead of the whole screen.
+  void markDirty(coord_t x, coord_t y, coord_t w, coord_t h);
+  void resetDirty();
+  bool getDirtyRect(coord_t& x, coord_t& y, coord_t& w, coord_t& h) const;
 
   // Lua API functions
   void setClippingRect(coord_t xmin, coord_t xmax, coord_t ymin, coord_t ymax);
@@ -253,6 +269,12 @@ class BitmapBuffer
 #endif
 #if !defined(BOOT)
   lv_obj_t* canvas = nullptr;
+  lv_obj_t* canvasImg = nullptr;
 #endif
   lv_draw_ctx_t* draw_ctx = nullptr;
+  // Empty when dirtyX2 < dirtyX1 / dirtyY2 < dirtyY1
+  coord_t dirtyX1 = INT16_MAX;
+  coord_t dirtyY1 = INT16_MAX;
+  coord_t dirtyX2 = -1;
+  coord_t dirtyY2 = -1;
 };

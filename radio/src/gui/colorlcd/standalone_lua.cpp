@@ -153,7 +153,7 @@ StandaloneLuaWindow::StandaloneLuaWindow(bool useLvgl, int initFn, int runFn) :
     lv_label_set_text(lbl, STR_LOADING);
   } else {
     lcdBuffer = new BitmapBuffer(BMP_RGB565, LCD_W, LCD_H);
-    lcdBuffer->addCanvas(this);
+    lcdBuffer->addOffscreenCanvas(this);
 
     lcdBuffer->clear();
     lcdBuffer->drawText(LCD_W / 2, LCD_H / 2 - EdgeTxStyles::STD_FONT_HEIGHT, STR_LOADING,
@@ -223,7 +223,12 @@ void StandaloneLuaWindow::deleteLater(bool detach, bool trash)
 
   luaClose(&lsStandalone);
 
-  if (lcdBuffer) delete lcdBuffer;
+  if (lcdBuffer) {
+    // Drop the LVGL objects first: the image points into the buffer that is
+    // released next.
+    lcdBuffer->removeCanvas();
+    delete lcdBuffer;
+  }
   lcdBuffer = nullptr;
 
   luaScriptManager = nullptr;
@@ -260,6 +265,9 @@ void StandaloneLuaWindow::iterateScript()
 #if defined(UI_FRAME_PROFILER)
   uiProfilerLuaIteration();
 #endif
+
+  // Track what this iteration draws, so only that reaches the panel.
+  if (lcdBuffer) lcdBuffer->resetDirty();
 
   if (initFunction != LUA_REFNIL) {
     lua_rawgeti(lsStandalone, LUA_REGISTRYINDEX, initFunction);
@@ -314,6 +322,8 @@ void StandaloneLuaWindow::iterateScript()
                 luaShowError();
               }
               UNPROTECT_LUA();
+            } else if (lcdBuffer) {
+              invalidateLcdBuffer();
             } else {
               invalidate();
             }
@@ -334,6 +344,24 @@ void StandaloneLuaWindow::iterateScript()
   // Kill global LUA LCD buffer
   luaLcdBuffer = nullptr;
   luaLcdAllowed = false;
+}
+
+void StandaloneLuaWindow::invalidateLcdBuffer()
+{
+  if (!lcdBuffer) return;
+
+  coord_t x, y, w, h;
+  if (!lcdBuffer->getDirtyRect(x, y, w, h)) return;
+
+  // Invalidate through the image that shows the buffer, translated to screen
+  // coordinates, so it stays correct whatever the window's padding is.
+  lv_obj_t* img = lcdBuffer->getCanvasImg();
+  if (!img) return;
+
+  lv_area_t c;
+  lv_obj_get_coords(img, &c);
+  lv_area_t a = {c.x1 + x, c.y1 + y, c.x1 + x + w - 1, c.y1 + y + h - 1};
+  lv_obj_invalidate_area(img, &a);
 }
 
 void StandaloneLuaWindow::onClicked() { Keyboard::hide(false); LuaScriptManager::onClickedEvent(); }

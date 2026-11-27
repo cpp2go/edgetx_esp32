@@ -88,14 +88,90 @@ lv_obj_t* BitmapBuffer::addCanvas(Window* parent, lv_img_cf_t fmt)
   return canvas;
 }
 
+lv_obj_t* BitmapBuffer::addOffscreenCanvas(Window* parent, lv_img_cf_t fmt)
+{
+  removeCanvas();
+  // The canvas still has a parent so it belongs to a display, but it is hidden:
+  // lv_canvas_draw_*() invalidates the whole canvas object after every single
+  // primitive, and here the canvas covers the screen, so a visible one would
+  // force a full screen redraw + full panel push for each primitive.
+  canvas = lv_canvas_create(parent ? parent->getLvObj() : nullptr);
+  if (!canvas) return nullptr;
+  lv_canvas_set_buffer(canvas, data, _width, _height, fmt);
+  lv_obj_add_flag(canvas, LV_OBJ_FLAG_HIDDEN);
+
+  if (!parent) return canvas;
+
+  canvasImg = lv_img_create(parent->getLvObj());
+  if (canvasImg) {
+    lv_img_set_src(canvasImg, lv_canvas_get_img(canvas));
+    // Same placement the canvas used to have, so the buffer coordinates the
+    // caller invalidates map 1:1 to the screen.
+    lv_obj_center(canvasImg);
+    lv_obj_clear_flag(canvasImg, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_clear_flag(canvasImg, LV_OBJ_FLAG_SCROLLABLE);
+  }
+  return canvasImg;
+}
+
 void BitmapBuffer::removeCanvas()
 {
+  if (canvasImg) {
+    lv_obj_del(canvasImg);
+    canvasImg = nullptr;
+  }
   if (canvas) {
     lv_obj_del(canvas);
     canvas = nullptr;
   }
 }
 #endif
+
+void BitmapBuffer::markDirty(coord_t x, coord_t y, coord_t w, coord_t h)
+{
+  if (w < 0) {
+    x += w;
+    w = -w;
+  }
+  if (h < 0) {
+    y += h;
+    h = -h;
+  }
+  if (x < 0) {
+    w += x;
+    x = 0;
+  }
+  if (y < 0) {
+    h += y;
+    y = 0;
+  }
+  if (x + w > _width) w = _width - x;
+  if (y + h > _height) h = _height - y;
+  if (w <= 0 || h <= 0) return;
+
+  if (x < dirtyX1) dirtyX1 = x;
+  if (y < dirtyY1) dirtyY1 = y;
+  if (x + w - 1 > dirtyX2) dirtyX2 = x + w - 1;
+  if (y + h - 1 > dirtyY2) dirtyY2 = y + h - 1;
+}
+
+void BitmapBuffer::resetDirty()
+{
+  dirtyX1 = dirtyY1 = INT16_MAX;
+  dirtyX2 = dirtyY2 = -1;
+}
+
+bool BitmapBuffer::getDirtyRect(coord_t& x, coord_t& y, coord_t& w,
+                                coord_t& h) const
+{
+  if (dirtyX2 < dirtyX1 || dirtyY2 < dirtyY1) return false;
+
+  x = dirtyX1;
+  y = dirtyY1;
+  w = dirtyX2 - dirtyX1 + 1;
+  h = dirtyY2 - dirtyY1 + 1;
+  return true;
+}
 
 void BitmapBuffer::setData(uint16_t *d)
 {
@@ -184,6 +260,9 @@ void BitmapBuffer::drawBitmap(coord_t x, coord_t y, const BitmapBuffer *bmp,
   if (srch == 0) srch = bmph;
   if (srcx + srcw > bmpw) srcw = bmpw - srcx;
   if (srcy + srch > bmph) srch = bmph - srcy;
+
+  markDirty(x, y, (scale == 0) ? srcw : coord_t(srcw * scale) + 1,
+            (scale == 0) ? srch : coord_t(srch * scale) + 1);
 
   if (scale == 0) {
     if (x < xmin) {
@@ -316,6 +395,7 @@ void BitmapBuffer::drawHorizontalLine(coord_t x, coord_t y, coord_t w,
   coord_t h = 1;
   if (!applyClippingRect(x, y, w, h)) return;
 
+  markDirty(x, y, w, h);
   drawHorizontalLineAbs(x, y, w, pat, flags, opacity);
 }
 
@@ -370,6 +450,8 @@ void BitmapBuffer::drawVerticalLine(coord_t x, coord_t y, coord_t h,
 
   coord_t w = 1;
   if (!applyClippingRect(x, y, w, h)) return;
+
+  markDirty(x, y, w, h);
 
   if (draw_ctx) {
     x += draw_ctx->buf_area->x1;
@@ -434,6 +516,8 @@ void BitmapBuffer::drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h,
 
   APPLY_OFFSET();
   if (!applyClippingRect(x, y, w, h)) return;
+
+  markDirty(x, y, w, h);
 
   if (SOLID != pat) {
     // If we have a pattern, draw line by line
@@ -559,6 +643,9 @@ coord_t BitmapBuffer::drawSizedText(coord_t x, coord_t y, const char *s,
     coords.x1 -= p.x / 2;
     coords.x2 -= p.x / 2;
   }
+
+  markDirty(coords.x1, coords.y1, coords.x2 - coords.x1 + 1,
+            coords.y2 - coords.y1 + 1);
 
   if (draw_ctx) {
     lv_draw_label(draw_ctx, &label_draw_dsc, &coords, buffer, nullptr);
