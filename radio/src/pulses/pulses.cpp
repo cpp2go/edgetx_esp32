@@ -21,9 +21,6 @@
 
 // #include "hal.h"
 #include "edgetx.h"
-#if defined(ESP_PLATFORM)
-#include "esp_log.h"
-#endif
 
 #include "mixer_scheduler.h"
 #include "heartbeat_driver.h"
@@ -382,9 +379,6 @@ uint8_t getRequiredProtocol(uint8_t module)
 static module_init_cb_t _on_module_init = nullptr;
 static module_deinit_cb_t _on_module_deinit = nullptr;
 
-// Timing aid (see pulsesSendNextFrame): cleared when a module is initialised.
-static bool _first_tx_logged[NUM_MODULES] = {};
-
 void pulsesSetModuleInitCb(module_init_cb_t cb)
 {
   _on_module_init = cb;
@@ -415,7 +409,6 @@ static void _init_module(uint8_t module, const etx_proto_driver_t* drv)
   // power ON
   modulePortSetPower(module, true);
   telemetrySuspendModulePolling(module, false);
-  _first_tx_logged[module] = false;
   TRACE("Module #%d init succeeded", module);
 }
 
@@ -590,16 +583,6 @@ void pulsesSendNextFrame(uint8_t module)
     if (_telemetryIsPolling) {
       // In case the telemetry timer is currently polling the port,
       // we just yield in the hope it will be different next time.
-#if defined(ESP_PLATFORM)
-      // A poll that never gets a chance to finish would block every module
-      // (de)init forever, which the user sees as "disabling the module does
-      // nothing for a while". Report the first few occurrences.
-      static uint8_t logged[NUM_MODULES] = {};
-      if (module < NUM_MODULES && logged[module] < 5) {
-        logged[module]++;
-        ESP_LOGW("MODPWR", "module %d update deferred (telemetry polling)", module);
-      }
-#endif
       return;
     }
 
@@ -629,14 +612,6 @@ void pulsesSendNextFrame(uint8_t module)
     uint8_t nChannels = 16;  // TODO: MAX_CHANNELS - channelsStart
 
     auto buffer = _module_buffers[module]._buffer;
-#if defined(ESP_PLATFORM)
-    // Timing aid: how long after the module was powered up does the first frame
-    // actually go out (and how long until it answers)?
-    if (!_first_tx_logged[module]) {
-      _first_tx_logged[module] = true;
-      ESP_LOGI("MODPWR", "module %u first frame sent", (unsigned)module);
-    }
-#endif
     drv->sendPulses(ctx, buffer, channels, nChannels);
   }
 }

@@ -248,16 +248,6 @@ static void _poll_frame(void *pvParameter1, uint32_t ulParameter2)
       int frame_len = serial_drv->copyRxBuffer(serial_ctx, frame, TELEMETRY_RX_PACKET_SIZE);
       if (frame_len > 0) {
 
-#if defined(ESP_PLATFORM)
-        // Timing aid: how long after power-up does the module answer at all?
-        static bool first_rx_logged[NUM_MODULES] = {};
-        if (module < NUM_MODULES && !first_rx_logged[module]) {
-          first_rx_logged[module] = true;
-          ESP_LOGI("MODPWR", "module %u first telemetry frame (%d bytes)",
-                   (unsigned)module, frame_len);
-        }
-#endif
-
         LOG_TELEMETRY_WRITE_START();
         for (int i = 0; i < frame_len; i++) {
           telemetryMirrorSend(frame[i]);
