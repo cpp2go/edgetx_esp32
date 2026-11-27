@@ -28,8 +28,8 @@ option(BOOTLOADER "Include Bootloader" OFF)
 #add_definitions(-DUI_FRAME_PROFILER)
 unset(UI_FRAME_PROFILER CACHE)
 
-# Single-wire (S.Port) module bay is now a run-time setting: Radio > Hardware >
-# External RF > S.Port (g_eeGeneral.extModSPort), off by default.
+# Single-wire (S.Port) module bay is a run-time setting: Model Setup > External
+# RF > S.Port (g_eeGeneral.extModSPort), off by default.
 
 # On-screen timing overlay (see targets/openx1/ui_profiler.h): frame rate, panel
 # flush cost, and how often a standalone Lua script gets to run.

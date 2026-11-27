@@ -32,14 +32,10 @@ typedef struct {
     gpio_num_t tx_pin;
     size_t fifoSize;
     size_t queueSize;
-    // Module bay wired as a single shared signal wire: the UART receives its
-    // own transmissions back (echo). Such bytes are dropped, but only while
-    // they still match the frame that was just sent, so a normal two-wire bay
-    // (no echo) loses nothing.
-    bool single_wire;
     // Optional run-time switch, evaluated every time the port is started (so a
-    // module restart picks up a changed setting). Single wire mode is active
-    // when either single_wire or this callback says so.
+    // module restart picks up a changed setting). When it returns true the bay
+    // is wired as a single shared signal wire and the UART runs in hardware
+    // half duplex mode, so it does not receive its own transmissions.
     bool (*single_wire_cb)(void);
 } etx_esp32_uart_hw_def_t;
 

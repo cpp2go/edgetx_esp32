@@ -1026,7 +1026,8 @@ PACK(struct RadioData {
   char ftppass[20];
   // External module bay wired as a single shared S.Port signal wire (radio TX
   // to the module's S.Port pin through a resistor, radio RX on the same pin):
-  // 0 = separate TX/RX wires (default), 1 = single wire, own echo is filtered.
+  // 0 = separate TX/RX wires (default), 1 = single wire (UART runs in hardware
+  // half duplex mode, see esp32_uart_driver.cpp).
   uint8_t extModSPort;
 #endif
 
