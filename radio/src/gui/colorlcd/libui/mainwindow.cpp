@@ -95,6 +95,7 @@ void MainWindow::shutdown()
   clear();
   emptyTrash();
 
+  backgroundCanvas = nullptr;
   backgroundBitmap = nullptr;
 }
 
@@ -104,6 +105,8 @@ void MainWindow::setBackgroundImage(const char* fileName)
   if (backgroundBitmap != nullptr) {
     backgroundBitmap->removeCanvas();
     delete backgroundBitmap;
+    backgroundBitmap = nullptr;
+    backgroundCanvas = nullptr;
   }
 
   if (fileName == nullptr) fileName = "";

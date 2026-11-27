@@ -28,19 +28,16 @@ option(BOOTLOADER "Include Bootloader" OFF)
 #add_definitions(-DUI_FRAME_PROFILER)
 unset(UI_FRAME_PROFILER CACHE)
 
-# Module bay wired with a single shared signal wire (module control and module
-# telemetry on one lead, as on modules that only expose a single data pin):
-# the UART drops received bytes that match what it just transmitted. Verified
-# per frame, so a standard two-wire bay is unaffected.
-add_definitions(-DEXTMOD_SINGLE_WIRE_TX)
+# Single-wire (S.Port) module bay is now a run-time setting: Radio > Hardware >
+# External RF > S.Port (g_eeGeneral.extModSPort), off by default.
 
 # On-screen timing overlay (see targets/openx1/ui_profiler.h): frame rate, panel
 # flush cost, and how often a standalone Lua script gets to run.
-add_definitions(-DUI_FRAME_PROFILER)
+#add_definitions(-DUI_FRAME_PROFILER)
 
 # A/B of the panel refresh path (see lcd.cpp): 0 pushes the whole screen once per
 # frame, 1 pushes only the areas LVGL redrew.
-add_definitions(-DLCD_FLUSH_DIRTY_AREAS=0)
+add_definitions(-DLCD_FLUSH_DIRTY_AREAS=1)
 
 # A/B of the key event handling (see keys.cpp): 0 is the original single-slot
 # behaviour, 1 the event queue.
@@ -63,7 +60,7 @@ add_definitions(-DOPENX1_LUA_FAST_GAP_MS=5)
 # with a millisecond timestamp (see pulses/crossfire.cpp and
 # telemetry/crossfire.cpp). Used to see whether a Lua script is limited by our
 # request rate or by the module's replies.
-add_definitions(-DOPENX1_XF_TRACE)
+#add_definitions(-DOPENX1_XF_TRACE)
 
 project(edgetx)
 

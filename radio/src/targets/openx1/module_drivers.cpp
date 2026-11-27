@@ -63,20 +63,24 @@ static const etx_module_t _internal_module = {
 #endif
 
 #if defined(HARDWARE_EXTERNAL_MODULE)
+// Radio > Hardware > External RF > "S.Port": the module bay is wired as a single
+// shared signal wire (radio TX through a resistor to the module's S.Port pin,
+// radio RX on the same pin). Everything we send is then looped back into our own
+// receiver and has to be dropped, see espUartRxIsEcho() in the UART driver.
+// Off (the default) leaves a normal two-wire bay completely untouched.
+static bool extmod_single_wire(void)
+{
+    return g_eeGeneral.extModSPort != 0;
+}
+
 static const etx_esp32_uart_hw_def_t extmod_uart_hw_def = {
     .uart_port = EXTMOD_UART_PORT,
     .rx_pin = EXTMOD_UART_RX,
     .tx_pin = EXTMOD_UART_TX,
     .fifoSize = 4096,
-    .queueSize = 10,
-#if defined(EXTMOD_SINGLE_WIRE_TX)
-    // Module bay wired as a single shared signal wire (module control and
-    // telemetry on the same lead): everything we send is looped back into our
-    // own receiver and has to be dropped, see espUartRxIsEcho() in the UART
-    // driver. The echo is verified byte by byte, so a two-wire bay keeps
-    // working without reflashing.
-    .single_wire = true,
-#endif
+    .queueSize = 32,
+    .single_wire = false,
+    .single_wire_cb = extmod_single_wire,
 };
 
 /**

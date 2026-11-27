@@ -784,6 +784,30 @@ ModulePage::ModulePage(uint8_t moduleIdx) : Page(ICON_MODEL_SETUP)
   });
 
   auto subTypeChoice = new ModuleSubTypeChoice(box, moduleIdx);
+
+#if defined(PCB_OPENX1)
+  if (moduleIdx == EXTERNAL_MODULE) {
+    // Module wired through the radio's S.Port line: TX (via a resistor) and RX
+    // share the one signal wire, so the radio hears its own frames and has to
+    // drop them. Kept separate from the normal two-wire wiring, which stays
+    // untouched while this is off. A wiring property, so it is a radio setting
+    // and not stored per model.
+    auto sportLine = body->newLine(grid);
+    new StaticText(sportLine, rect_t{}, "S.Port");
+    auto sportBox = new Window(sportLine, rect_t{});
+    sportBox->padAll(PAD_TINY);
+    sportBox->setFlexLayout(LV_FLEX_FLOW_ROW, PAD_SMALL, LV_SIZE_CONTENT);
+    new ToggleSwitch(
+        sportBox, rect_t{}, [=]() -> uint8_t { return g_eeGeneral.extModSPort; },
+        [=](uint8_t newValue) {
+          g_eeGeneral.extModSPort = newValue ? 1 : 0;
+          storageDirty(EE_GENERAL);
+          // The UART re-reads the setting when the module is (re)started.
+          restartModule(EXTERNAL_MODULE);
+        });
+  }
+#endif
+
   auto moduleWindow = new ModuleWindow(body, moduleIdx);
 
   subTypeChoice->setModuleWindow(moduleWindow);

@@ -40,10 +40,9 @@ typedef struct {
     QueueHandle_t uart_queue;
     TaskHandle_t rx_task;
     bool single_wire;
-    bool echo_confirmed;  // the frame we sent really came back: single wire bay
-    // Echo verification: the last transmitted frame (single-wire bays receive
-    // their own transmissions back). Received bytes are only discarded while
-    // they still match this frame byte for byte.
+    // Echo verification: the last transmitted frame (single-wire S.Port bay
+    // receives its own transmissions back). Received bytes are only discarded
+    // while they still match this frame byte for byte.
     uint8_t  echo_buf[ESP_UART_ECHO_MAX];
     uint16_t echo_len;
     uint16_t echo_pos;
@@ -55,6 +54,8 @@ typedef struct {
     uint8_t  pend_buf[ESP_UART_PEND_MAX];
     uint16_t pend_head;
     uint16_t pend_len;
+    // Protects echo_* and pend_* shared between mixer TX and UART RX tasks.
+    portMUX_TYPE echo_lock;
 } esp32_uart_ctx_t;
 
 static esp32_uart_ctx_t uarts[SOC_UART_HP_NUM]; // TODO-OPENX1 init
@@ -115,20 +116,23 @@ static void espuart_uart_event_task(void *pvParameters)
                 break;
             //Event of HW FIFO overflow detected
             case UART_FIFO_OVF:
-                ESP_LOGI(TAG, "hw fifo overflow");
-                // If fifo overflow happened, you should consider adding flow control for your application.
-                // The ISR has already reset the rx FIFO,
-                // As an example, we directly flush the rx buffer here in order to read more data.
+                ESP_LOGW(TAG, "hw fifo overflow");
                 uart_flush_input(port->port);
                 xQueueReset(port->uart_queue);
+                taskENTER_CRITICAL(&port->echo_lock);
+                port->pend_head = port->pend_len = 0;
+                port->echo_pos = port->echo_len = 0;
+                taskEXIT_CRITICAL(&port->echo_lock);
                 break;
             //Event of UART ring buffer full
             case UART_BUFFER_FULL:
-                ESP_LOGI(TAG, "ring buffer full");
-                // If buffer full happened, you should consider increasing your buffer size
-                // As an example, we directly flush the rx buffer here in order to read more data.
+                ESP_LOGW(TAG, "ring buffer full");
                 uart_flush_input(port->port);
                 xQueueReset(port->uart_queue);
+                taskENTER_CRITICAL(&port->echo_lock);
+                port->pend_head = port->pend_len = 0;
+                port->echo_pos = port->echo_len = 0;
+                taskEXIT_CRITICAL(&port->echo_lock);
                 break;
             //Event of UART RX break detected
             case UART_BREAK:
@@ -139,11 +143,9 @@ static void espuart_uart_event_task(void *pvParameters)
                 break;
             //Event of UART parity check error
             case UART_PARITY_ERR:
-                ESP_LOGI(TAG, "uart parity error");
                 break;
             //Event of UART frame error
             case UART_FRAME_ERR:
-                ESP_LOGI(TAG, "uart frame error");
                 break;
             //UART_PATTERN_DET
             case UART_PATTERN_DET:
@@ -181,12 +183,13 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
 {
     etx_esp32_uart_hw_def_t *hw = (etx_esp32_uart_hw_def_t *)hw_def;
     esp32_uart_ctx_t *port = &uarts[(int)hw->uart_port];
+    portMUX_INITIALIZE(&port->echo_lock);
     port->port = hw->uart_port;
     port->pend_head = port->pend_len = 0;
     port->echo_len = port->echo_pos = 0;
     port->echo_deadline = 0;
-    port->single_wire = hw->single_wire;
-    port->echo_confirmed = false;
+    port->single_wire = hw->single_wire ||
+                        (hw->single_wire_cb && hw->single_wire_cb());
     port->baudrate = params->baudrate ? params->baudrate : 115200;
 
     uart_config_t uart_config = {
@@ -231,59 +234,42 @@ void espUartSendByte(void* ctx, uint8_t byte)
     uart_write_bytes(port->port, &data, 1);
 }
 
-// Remember what was just transmitted so the echo can be recognised. Only
-// buffer-sent frames are tracked: byte-wise protocols (PPM-style serial) have
-// no frame boundaries to compare against.
+// Remember what was just transmitted so the echo can be recognised (single-wire
+// S.Port mode only). Only buffer-sent frames are tracked.
 static void espUartArmEcho(esp32_uart_ctx_t *port, const uint8_t *data, uint32_t size)
 {
-    if (!port->single_wire || size == 0 || size > ESP_UART_ECHO_MAX) {
+    if (size == 0 || size > ESP_UART_ECHO_MAX) {
+        taskENTER_CRITICAL(&port->echo_lock);
         port->echo_len = port->echo_pos = 0;
+        taskEXIT_CRITICAL(&port->echo_lock);
         return;
     }
+    int64_t tx_us = (int64_t)size * 10 * 1000000 / port->baudrate;
+    int64_t deadline = esp_timer_get_time() + tx_us + 3000;
+    taskENTER_CRITICAL(&port->echo_lock);
     memcpy(port->echo_buf, data, size);
     port->echo_len = (uint16_t)size;
     port->echo_pos = 0;
-    // Only used once the echo has been seen: see espUartRxIsEcho().
-    int64_t tx_us = (int64_t)size * 10 * 1000000 / port->baudrate;
-    port->echo_deadline = esp_timer_get_time() + tx_us + 20000;
+    port->echo_deadline = deadline;
+    taskEXIT_CRITICAL(&port->echo_lock);
 }
 
 void espUartSendBuffer(void* ctx, const uint8_t * data, uint32_t size)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
-    espUartArmEcho(port, data, size);
+    if (port->single_wire) {
+        espUartArmEcho(port, data, size);
+    }
     uart_write_bytes(port->port, data, size);
 }
 
-// Before any echo has been observed the stream is never held back: a full
-// duplex (two-wire) bay answers our frames with bytes that may well start like
-// them (CRSF uses the same 0xC8 header in both directions), and buffering those
-// "just in case" added a visible delay to every single reply - that is what made
-// the module queries and the module on/off so slow. Watching without holding
-// costs nothing and still proves the wiring as soon as one frame comes back
-// identical.
-static inline void espUartWatchEcho(esp32_uart_ctx_t *port, uint8_t byte)
+// Single-wire S.Port mode: discard received bytes while they still match the
+// frame we just sent. Caller must hold port->echo_lock.
+static inline bool espUartRxIsEchoLocked(esp32_uart_ctx_t *port, uint8_t byte, int64_t now)
 {
-    if (port->echo_pos >= port->echo_len) return;
+    if (port->echo_len == 0 || port->echo_pos >= port->echo_len) return false;
 
-    if (byte == port->echo_buf[port->echo_pos]) {
-        if (++port->echo_pos == port->echo_len) {
-            // Our own frame came back byte for byte: single wire bay.
-            port->echo_confirmed = true;
-            port->echo_pos = port->echo_len = 0;
-        }
-    } else {
-        port->echo_pos = port->echo_len = 0;
-    }
-}
-
-// Single-wire bay (echo confirmed): discard received bytes while they still
-// match the frame we just sent, so a two-wire bay is never touched.
-static inline bool espUartRxIsEcho(esp32_uart_ctx_t *port, uint8_t byte)
-{
-    if (port->echo_pos >= port->echo_len) return false;
-
-    if (esp_timer_get_time() > port->echo_deadline) {
+    if (now > port->echo_deadline) {
         // Too late to be our own transmission -> release what was held.
         port->echo_pos = port->echo_len = 0;
         return false;
@@ -292,7 +278,7 @@ static inline bool espUartRxIsEcho(esp32_uart_ctx_t *port, uint8_t byte)
     if (byte == port->echo_buf[port->echo_pos]) {
         if (port->pend_len >= ESP_UART_PEND_MAX) {
             // Cannot hold any more: keep the data instead of losing it.
-            port->echo_pos = port->echo_len = 0;
+            port->echo_pos = 0;
             return false;
         }
         // Hold the match back instead of dropping it right away: if the frame
@@ -301,61 +287,113 @@ static inline bool espUartRxIsEcho(esp32_uart_ctx_t *port, uint8_t byte)
         if (++port->echo_pos == port->echo_len) {
             // Complete echo: drop exactly the bytes it added, older telemetry
             // must stay queued.
-            port->pend_len -= port->echo_len;
+            if (port->pend_len >= port->echo_len) {
+                port->pend_len -= port->echo_len;
+            } else {
+                port->pend_len = 0;
+            }
             if (port->pend_head > port->pend_len) port->pend_head = port->pend_len;
             port->echo_pos = port->echo_len = 0;
         }
         return true;
     }
 
-    // Not our echo -> everything held so far is genuine data.
-    port->echo_pos = port->echo_len = 0;
+    if (port->echo_pos == 0) {
+        // Telemetry byte arrived ahead of our echo: pass it through without
+        // disarming echo_len so the upcoming echo is still filtered.
+        return false;
+    }
+
+    // Mid-frame mismatch -> tentatively held bytes are genuine data.
+    // Re-sync if this byte starts the expected echo.
+    port->echo_pos = 0;
+    if (byte == port->echo_buf[0] && port->pend_len < ESP_UART_PEND_MAX) {
+        port->pend_buf[port->pend_len++] = byte;
+        port->echo_pos = 1;
+        if (port->echo_pos == port->echo_len) {
+            if (port->pend_len >= port->echo_len) {
+                port->pend_len -= port->echo_len;
+            } else {
+                port->pend_len = 0;
+            }
+            if (port->pend_head > port->pend_len) port->pend_head = port->pend_len;
+            port->echo_pos = port->echo_len = 0;
+        }
+        return true;
+    }
     return false;
 }
 
 static int espUartRxRead(esp32_uart_ctx_t *port, uint8_t *out, uint32_t maxlen)
 {
+    // Standard two-wire bay: original direct read path with zero overhead.
+    if (!port->single_wire) {
+        int r = uart_read_bytes(port->port, out, maxlen, 0);
+        return r > 0 ? r : 0;
+    }
+
     uint32_t n = 0;
 
-    // Confirmed bytes first (pending ones are only released once the echo
-    // verification is over).
-    while (n < maxlen && port->pend_head < port->pend_len) {
-        out[n++] = port->pend_buf[port->pend_head++];
-    }
-    if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
-
-    if (!port->single_wire || !port->echo_confirmed) {
-        // Nothing to filter (yet): one batched read, as before. While the echo
-        // has not been proven we only *watch* the stream for an exact copy of
-        // the frame we just sent - see espUartWatchEcho().
-        if (n < maxlen) {
-            int r = uart_read_bytes(port->port, out + n, maxlen - n, 0);
-            if (r > 0) {
-                if (port->single_wire) {
-                    for (int i = 0; i < r; i++) espUartWatchEcho(port, out[n + i]);
-                }
-                n += (uint32_t)r;
-            }
-        }
-        return (int)n;
-    }
-
-    while (n < maxlen) {
-        uint8_t byte;
-        if (uart_read_bytes(port->port, &byte, 1, 0) != 1) break;
-        if (espUartRxIsEcho(port, byte)) continue;
-        if (port->pend_len < ESP_UART_PEND_MAX) port->pend_buf[port->pend_len++] = byte;
-    }
-
-    // Release what has been collected unless an echo match is still open.
-    if (port->echo_len && esp_timer_get_time() > port->echo_deadline) {
-        port->echo_pos = port->echo_len = 0;
-    }
-    if (port->echo_len == 0) {
+    // Drain already-confirmed bytes first. Bytes in pend_buf are confirmed
+    // whenever echo_pos == 0 (nothing tentatively held at the tail).
+    taskENTER_CRITICAL(&port->echo_lock);
+    if (port->echo_pos == 0) {
         while (n < maxlen && port->pend_head < port->pend_len) {
             out[n++] = port->pend_buf[port->pend_head++];
         }
         if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
+    }
+    taskEXIT_CRITICAL(&port->echo_lock);
+
+    // Batched read into a small stack buffer outside the critical section,
+    // then run the echo state machine under echo_lock.
+    while (n < maxlen) {
+        uint8_t tmp[64];
+        uint32_t room;
+        taskENTER_CRITICAL(&port->echo_lock);
+        room = (port->pend_len < ESP_UART_PEND_MAX) ? (ESP_UART_PEND_MAX - port->pend_len) : 0;
+        taskEXIT_CRITICAL(&port->echo_lock);
+        if (room == 0) break;
+        if (room > sizeof(tmp)) room = sizeof(tmp);
+
+        int r = uart_read_bytes(port->port, tmp, room, 0);
+        if (r <= 0) break;
+
+        int64_t now = esp_timer_get_time();
+        taskENTER_CRITICAL(&port->echo_lock);
+        for (int i = 0; i < r; i++) {
+            if (espUartRxIsEchoLocked(port, tmp[i], now)) continue;
+            if (port->pend_len < ESP_UART_PEND_MAX) {
+                port->pend_buf[port->pend_len++] = tmp[i];
+            }
+        }
+        if (port->echo_len && now > port->echo_deadline) {
+            port->echo_pos = port->echo_len = 0;
+        }
+        if (port->echo_pos == 0) {
+            while (n < maxlen && port->pend_head < port->pend_len) {
+                out[n++] = port->pend_buf[port->pend_head++];
+            }
+            if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
+        }
+        taskEXIT_CRITICAL(&port->echo_lock);
+    }
+
+    // If an earlier partial echo timed out without any new bytes arriving,
+    // release the held bytes now.
+    if (n < maxlen) {
+        int64_t now = esp_timer_get_time();
+        taskENTER_CRITICAL(&port->echo_lock);
+        if (port->echo_len && now > port->echo_deadline) {
+            port->echo_pos = port->echo_len = 0;
+        }
+        if (port->echo_pos == 0) {
+            while (n < maxlen && port->pend_head < port->pend_len) {
+                out[n++] = port->pend_buf[port->pend_head++];
+            }
+            if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
+        }
+        taskEXIT_CRITICAL(&port->echo_lock);
     }
     return (int)n;
 }
@@ -382,8 +420,12 @@ static void espUartClearRxBuffer(void* ctx)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     uart_flush(port->port);
-    port->pend_head = port->pend_len = 0;
-    port->echo_pos = port->echo_len = 0;
+    if (port->single_wire) {
+        taskENTER_CRITICAL(&port->echo_lock);
+        port->pend_head = port->pend_len = 0;
+        port->echo_pos = port->echo_len = 0;
+        taskEXIT_CRITICAL(&port->echo_lock);
+    }
 }
 
 static void espUartSerialStop(void* ctx)

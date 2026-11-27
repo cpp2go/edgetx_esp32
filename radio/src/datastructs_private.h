@@ -1024,6 +1024,10 @@ PACK(struct RadioData {
   char wifi_ssid[32];
   char wifi_password[32];
   char ftppass[20];
+  // External module bay wired as a single shared S.Port signal wire (radio TX
+  // to the module's S.Port pin through a resistor, radio RX on the same pin):
+  // 0 = separate TX/RX wires (default), 1 = single wire, own echo is filtered.
+  uint8_t extModSPort;
 #endif
 
   // Real attributes

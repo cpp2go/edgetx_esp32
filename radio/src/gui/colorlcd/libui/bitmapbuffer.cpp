@@ -453,10 +453,12 @@ void BitmapBuffer::drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h,
     y += draw_ctx->buf_area->y1;
   }
 
-  // Solid opaque fills (backgrounds, bars) are the most common large
-  // primitive; two pixels per 32-bit store into the RGB565 buffer is markedly
-  // faster than LVGL's per-pixel software path on the PSRAM frame buffer.
-  if (opacity == 0 && format == BMP_RGB565 && data) {
+#if defined(ESP_PLATFORM)
+  // Solid opaque fills on off-screen RGB565 canvases (e.g. standalone Lua):
+  // two pixels per 32-bit store into PSRAM is markedly faster than LVGL's
+  // per-pixel path. Only safe when draw_ctx is null (otherwise coords are
+  // screen-relative and must obey draw_ctx->clip_area).
+  if (!draw_ctx && opacity == 0 && format == BMP_RGB565 && data) {
     const uint16_t color = COLOR_VAL(flags);
     const uint32_t color2 = color | ((uint32_t)color << 16);
     for (coord_t i = y; i < y + h; i++) {
@@ -475,6 +477,7 @@ void BitmapBuffer::drawFilledRect(coord_t x, coord_t y, coord_t w, coord_t h,
     }
     return;
   }
+#endif
 
   lv_area_t coords = {
       (lv_coord_t)x,

@@ -27,6 +27,7 @@ class Layer
   Window*     window;
   lv_group_t* group;
   lv_group_t* prevGroup;
+  bool        prevEditing;
 
  public:
   explicit Layer(Window* w, lv_group_t* g, lv_group_t* pg);

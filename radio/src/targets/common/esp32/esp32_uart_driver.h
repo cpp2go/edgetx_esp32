@@ -37,6 +37,10 @@ typedef struct {
     // they still match the frame that was just sent, so a normal two-wire bay
     // (no echo) loses nothing.
     bool single_wire;
+    // Optional run-time switch, evaluated every time the port is started (so a
+    // module restart picks up a changed setting). Single wire mode is active
+    // when either single_wire or this callback says so.
+    bool (*single_wire_cb)(void);
 } etx_esp32_uart_hw_def_t;
 
 extern const etx_serial_driver_t ESPUartSerialDriver;

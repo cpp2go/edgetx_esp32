@@ -460,10 +460,8 @@ void getADC()
     }
 
     // 3rd: apply filtering
-    if (v != s_anaLast[x]) {
-      s_anaLast[x] = v;
-      s_anaFilt[x] = apply_low_pass_filter(v, s_anaFilt[x], x < max_mains);
-    }
+    s_anaLast[x] = v;
+    s_anaFilt[x] = apply_low_pass_filter(v, s_anaFilt[x], x < max_mains);
 
     if (is_multipos) {
       const auto* calib = (const StepsCalibData*)&g_eeGeneral.calib[x];

@@ -348,6 +348,7 @@ static const struct YamlNode struct_RadioData[] = {
   YAML_STRING("wifi_ssid", 32),
   YAML_STRING("wifi_password", 32),
   YAML_STRING("ftppass", 20),
+  YAML_UNSIGNED( "extModSPort", 8 ),
   YAML_UNSIGNED( "manuallyEdited", 1 ),
   YAML_SIGNED( "timezoneMinutes", 3 ),
   YAML_UNSIGNED( "ppmunit", 2 ),

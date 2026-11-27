@@ -161,8 +161,14 @@ StandaloneLuaWindow::StandaloneLuaWindow(bool useLvgl, int initFn, int runFn) :
     lv_obj_clear_flag(lvobj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(lvobj, LV_OBJ_FLAG_CLICK_FOCUSABLE);
 
+#if !defined(ESP_PLATFORM)
+    // attach() binds the object to the group of the layer it pushes (below).
+    // On ESP32 the pre-push copy is skipped: it would flip edit mode on the
+    // page group we are about to leave, which is exactly the state Layer::pop
+    // captures and restores on exit.
     lv_group_add_obj(lv_group_get_default(), lvobj);
     lv_group_set_editing(lv_group_get_default(), true);
+#endif
   }
 
   // setup LUA event handler

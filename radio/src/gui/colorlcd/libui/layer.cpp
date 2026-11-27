@@ -21,7 +21,8 @@
 std::list<Layer> Layer::stack;
 
 Layer::Layer(Window* w, lv_group_t* g, lv_group_t* pg)
-    : window(w), group(g), prevGroup(pg) {}
+    : window(w), group(g), prevGroup(pg),
+      prevEditing(pg != nullptr && lv_group_get_editing(pg)) {}
 Layer::~Layer() { lv_group_del(group); }
 
 void _assign_lv_group(lv_group_t* g)
@@ -63,19 +64,23 @@ static void _ensure_group_focus(lv_group_t* g)
   }
 }
 
-// Returning from a sub-layer always ends edit mode: a layer (a standalone Lua
-// script sets it on its own group) leaves editing on, and with editing on the
-// encoder edits the focused value instead of moving the focus - on a plain list
-// page that looks exactly like a dead encoder.
-static void _restore_group(lv_group_t* g)
+// Returning from a sub-layer restores the edit mode the group had before the
+// layer was pushed, and re-focuses it if the focus got lost. A layer can leave
+// edit mode on (a standalone Lua script sets it on its own group), which must
+// not leak into the page below: with editing on, the encoder edits the focused
+// value instead of moving the focus, which on a plain list page looks exactly
+// like a dead encoder. Clearing it unconditionally is just as wrong though: a
+// page whose encoder navigation *needs* edit mode (the SD manager's file
+// browser, see TableField::setAutoEdit) would then look dead instead.
+static void _restore_group(lv_group_t* g, bool editing)
 {
   if (!g) return;
 
-  lv_group_set_editing(g, false);
+  lv_group_set_editing(g, editing);
   _ensure_group_focus(g);
 }
 #else
-static inline void _restore_group(lv_group_t*) {}
+static inline void _restore_group(lv_group_t*, bool) {}
 #endif
 
 void Layer::push(Window* w)
@@ -97,12 +102,13 @@ void Layer::pop(Window* w)
 
   if (back() == w) {
     lv_group_t* prevGroup = stack.back().prevGroup;
+    bool prevEditing = stack.back().prevEditing;
     if (prevGroup) {
       _assign_lv_group(prevGroup);
-      _restore_group(prevGroup);
+      _restore_group(prevGroup, prevEditing);
     } else if (!stack.empty()) {
       _assign_lv_group(stack.back().group);
-      _restore_group(stack.back().group);
+      _restore_group(stack.back().group, false);
     } else {
       lv_group_set_default(NULL);
     }
@@ -110,7 +116,7 @@ void Layer::pop(Window* w)
   } else {
     for (auto layer = stack.crbegin(); layer != stack.crend(); layer++) {
       if (layer->window == w) {
-        stack.erase(layer.base());
+        stack.erase(std::next(layer).base());
         return;
       }
     }
