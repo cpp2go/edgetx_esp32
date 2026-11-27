@@ -23,13 +23,15 @@
 #include "esp32_uart_driver.h"
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/task.h"
 #define TAG "UART"
 
-// Local RX batch buffer: getByte() refills this in one uart_read_bytes() call
-// and then dispatches byte-by-byte, avoiding a driver ring-buffer critical
-// section per byte on the hot telemetry path.
-#define ESP_UART_RX_BATCH  64
+// Largest frame we keep a copy of for echo verification (CRSF channel frames
+// are 26 bytes, the longest handset command is well below this).
+#define ESP_UART_ECHO_MAX  64
+// Bytes held back while an echo is being verified.
+#define ESP_UART_PEND_MAX  160
 
 typedef struct {
     uart_port_t port;
@@ -37,9 +39,22 @@ typedef struct {
     void *on_idle_cb_param;
     QueueHandle_t uart_queue;
     TaskHandle_t rx_task;
-    uint8_t  rx_buf[ESP_UART_RX_BATCH];
-    uint16_t rx_head;   // index of next byte to dispatch
-    uint16_t rx_len;    // valid bytes currently in rx_buf
+    bool single_wire;
+    bool echo_confirmed;  // the frame we sent really came back: single wire bay
+    // Echo verification: the last transmitted frame (single-wire bays receive
+    // their own transmissions back). Received bytes are only discarded while
+    // they still match this frame byte for byte.
+    uint8_t  echo_buf[ESP_UART_ECHO_MAX];
+    uint16_t echo_len;
+    uint16_t echo_pos;
+    int64_t  echo_deadline;   // us; the echo must arrive before this
+    uint32_t baudrate;
+    // Bytes waiting to be handed to the protocol driver. While an echo is
+    // being matched these also hold the tentatively dropped bytes, so they can
+    // be restored if the frame turns out not to be an echo.
+    uint8_t  pend_buf[ESP_UART_PEND_MAX];
+    uint16_t pend_head;
+    uint16_t pend_len;
 } esp32_uart_ctx_t;
 
 static esp32_uart_ctx_t uarts[SOC_UART_HP_NUM]; // TODO-OPENX1 init
@@ -100,7 +115,7 @@ static void espuart_uart_event_task(void *pvParameters)
                 break;
             //Event of HW FIFO overflow detected
             case UART_FIFO_OVF:
-                ESP_LOGW(TAG, "hw fifo overflow");
+                ESP_LOGI(TAG, "hw fifo overflow");
                 // If fifo overflow happened, you should consider adding flow control for your application.
                 // The ISR has already reset the rx FIFO,
                 // As an example, we directly flush the rx buffer here in order to read more data.
@@ -109,7 +124,7 @@ static void espuart_uart_event_task(void *pvParameters)
                 break;
             //Event of UART ring buffer full
             case UART_BUFFER_FULL:
-                ESP_LOGW(TAG, "ring buffer full");
+                ESP_LOGI(TAG, "ring buffer full");
                 // If buffer full happened, you should consider increasing your buffer size
                 // As an example, we directly flush the rx buffer here in order to read more data.
                 uart_flush_input(port->port);
@@ -124,9 +139,11 @@ static void espuart_uart_event_task(void *pvParameters)
                 break;
             //Event of UART parity check error
             case UART_PARITY_ERR:
+                ESP_LOGI(TAG, "uart parity error");
                 break;
             //Event of UART frame error
             case UART_FRAME_ERR:
+                ESP_LOGI(TAG, "uart frame error");
                 break;
             //UART_PATTERN_DET
             case UART_PATTERN_DET:
@@ -165,7 +182,14 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
     etx_esp32_uart_hw_def_t *hw = (etx_esp32_uart_hw_def_t *)hw_def;
     esp32_uart_ctx_t *port = &uarts[(int)hw->uart_port];
     port->port = hw->uart_port;
-    port->rx_head = port->rx_len = 0;
+    port->pend_head = port->pend_len = 0;
+    port->echo_len = port->echo_pos = 0;
+    port->echo_deadline = 0;
+    // Single-wire bay is a run-time setting (Model Setup > External RF >
+    // S.Port), read on every port start so a module restart picks up a change.
+    port->single_wire = hw->single_wire_cb && hw->single_wire_cb();
+    port->echo_confirmed = false;
+    port->baudrate = params->baudrate ? params->baudrate : 115200;
 
     uart_config_t uart_config = {
         .baud_rate = (int)params->baudrate,
@@ -183,18 +207,6 @@ void* espUartSerialStart(void *hw_def, const etx_serial_init* params)
         ESP_INTR_FLAG_IRAM);
     uart_param_config(port->port, &uart_config);
     uart_set_pin(port->port, hw->tx_pin, hw->rx_pin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-
-    // Single-wire bay (TX and RX share one wire): the UART would receive its own
-    // transmissions. RS485 half duplex mode makes the receiver ignore the bus
-    // while the transmitter is sending, so the echo never reaches the protocol
-    // driver. No RTS pin is needed. The switch is evaluated on every start, so
-    // a module restart picks up a changed setting.
-    if (hw->single_wire_cb && hw->single_wire_cb()) {
-        esp_err_t err = uart_set_mode(port->port, UART_MODE_RS485_HALF_DUPLEX);
-        if (err != ESP_OK) {
-            ESP_LOGW(TAG, "uart%d half duplex mode failed (%d)", (int)port->port, (int)err);
-        }
-    }
 
     // The event task runs the telemetry frame polling synchronously (see
     // telemetryFrameTrigger_ISR), so it must not share the UI core: a
@@ -221,10 +233,133 @@ void espUartSendByte(void* ctx, uint8_t byte)
     uart_write_bytes(port->port, &data, 1);
 }
 
+// Remember what was just transmitted so the echo can be recognised. Only
+// buffer-sent frames are tracked: byte-wise protocols (PPM-style serial) have
+// no frame boundaries to compare against.
+static void espUartArmEcho(esp32_uart_ctx_t *port, const uint8_t *data, uint32_t size)
+{
+    if (!port->single_wire || size == 0 || size > ESP_UART_ECHO_MAX) {
+        port->echo_len = port->echo_pos = 0;
+        return;
+    }
+    memcpy(port->echo_buf, data, size);
+    port->echo_len = (uint16_t)size;
+    port->echo_pos = 0;
+    // Only used once the echo has been seen: see espUartRxIsEcho().
+    int64_t tx_us = (int64_t)size * 10 * 1000000 / port->baudrate;
+    port->echo_deadline = esp_timer_get_time() + tx_us + 20000;
+}
+
 void espUartSendBuffer(void* ctx, const uint8_t * data, uint32_t size)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
+    espUartArmEcho(port, data, size);
     uart_write_bytes(port->port, data, size);
+}
+
+// Before any echo has been observed the stream is never held back: a full
+// duplex (two-wire) bay answers our frames with bytes that may well start like
+// them (CRSF uses the same 0xC8 header in both directions), and buffering those
+// "just in case" added a visible delay to every single reply - that is what made
+// the module queries and the module on/off so slow. Watching without holding
+// costs nothing and still proves the wiring as soon as one frame comes back
+// identical.
+static inline void espUartWatchEcho(esp32_uart_ctx_t *port, uint8_t byte)
+{
+    if (port->echo_pos >= port->echo_len) return;
+
+    if (byte == port->echo_buf[port->echo_pos]) {
+        if (++port->echo_pos == port->echo_len) {
+            // Our own frame came back byte for byte: single wire bay.
+            port->echo_confirmed = true;
+            port->echo_pos = port->echo_len = 0;
+        }
+    } else {
+        port->echo_pos = port->echo_len = 0;
+    }
+}
+
+// Single-wire bay (echo confirmed): discard received bytes while they still
+// match the frame we just sent, so a two-wire bay is never touched.
+static inline bool espUartRxIsEcho(esp32_uart_ctx_t *port, uint8_t byte)
+{
+    if (port->echo_pos >= port->echo_len) return false;
+
+    if (esp_timer_get_time() > port->echo_deadline) {
+        // Too late to be our own transmission -> release what was held.
+        port->echo_pos = port->echo_len = 0;
+        return false;
+    }
+
+    if (byte == port->echo_buf[port->echo_pos]) {
+        if (port->pend_len >= ESP_UART_PEND_MAX) {
+            // Cannot hold any more: keep the data instead of losing it.
+            port->echo_pos = port->echo_len = 0;
+            return false;
+        }
+        // Hold the match back instead of dropping it right away: if the frame
+        // turns out not to be an echo these bytes are real telemetry.
+        port->pend_buf[port->pend_len++] = byte;
+        if (++port->echo_pos == port->echo_len) {
+            // Complete echo: drop exactly the bytes it added, older telemetry
+            // must stay queued.
+            port->pend_len -= port->echo_len;
+            if (port->pend_head > port->pend_len) port->pend_head = port->pend_len;
+            port->echo_pos = port->echo_len = 0;
+        }
+        return true;
+    }
+
+    // Not our echo -> everything held so far is genuine data.
+    port->echo_pos = port->echo_len = 0;
+    return false;
+}
+
+static int espUartRxRead(esp32_uart_ctx_t *port, uint8_t *out, uint32_t maxlen)
+{
+    uint32_t n = 0;
+
+    // Confirmed bytes first (pending ones are only released once the echo
+    // verification is over).
+    while (n < maxlen && port->pend_head < port->pend_len) {
+        out[n++] = port->pend_buf[port->pend_head++];
+    }
+    if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
+
+    if (!port->single_wire || !port->echo_confirmed) {
+        // Nothing to filter (yet): one batched read, as before. While the echo
+        // has not been proven we only *watch* the stream for an exact copy of
+        // the frame we just sent - see espUartWatchEcho().
+        if (n < maxlen) {
+            int r = uart_read_bytes(port->port, out + n, maxlen - n, 0);
+            if (r > 0) {
+                if (port->single_wire) {
+                    for (int i = 0; i < r; i++) espUartWatchEcho(port, out[n + i]);
+                }
+                n += (uint32_t)r;
+            }
+        }
+        return (int)n;
+    }
+
+    while (n < maxlen) {
+        uint8_t byte;
+        if (uart_read_bytes(port->port, &byte, 1, 0) != 1) break;
+        if (espUartRxIsEcho(port, byte)) continue;
+        if (port->pend_len < ESP_UART_PEND_MAX) port->pend_buf[port->pend_len++] = byte;
+    }
+
+    // Release what has been collected unless an echo match is still open.
+    if (port->echo_len && esp_timer_get_time() > port->echo_deadline) {
+        port->echo_pos = port->echo_len = 0;
+    }
+    if (port->echo_len == 0) {
+        while (n < maxlen && port->pend_head < port->pend_len) {
+            out[n++] = port->pend_buf[port->pend_head++];
+        }
+        if (port->pend_head >= port->pend_len) port->pend_head = port->pend_len = 0;
+    }
+    return (int)n;
 }
 
 void espUartWaitForTxCompleted(void* ctx)
@@ -242,24 +377,15 @@ static bool espUartTxCompleted(void* ctx)
 static int espUartGetByte(void* ctx, uint8_t* data)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
-    if (port->rx_head >= port->rx_len) {
-        int r = uart_read_bytes(port->port, port->rx_buf, ESP_UART_RX_BATCH, 0);
-        if (r <= 0) {
-            port->rx_head = port->rx_len = 0;
-            return 0;
-        }
-        port->rx_len = (uint16_t)r;
-        port->rx_head = 0;
-    }
-    *data = port->rx_buf[port->rx_head++];
-    return 1;
+    return espUartRxRead(port, data, 1);
 }
 
 static void espUartClearRxBuffer(void* ctx)
 {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
     uart_flush(port->port);
-    port->rx_head = port->rx_len = 0;
+    port->pend_head = port->pend_len = 0;
+    port->echo_pos = port->echo_len = 0;
 }
 
 static void espUartSerialStop(void* ctx)
@@ -275,7 +401,8 @@ static void espUartSerialStop(void* ctx)
         port->rx_task = NULL;
     }
     uart_driver_delete(port->port);
-    port->rx_head = port->rx_len = 0;
+    port->pend_head = port->pend_len = 0;
+    port->echo_pos = port->echo_len = 0;
 }
 
 int espUartGetBufferedBytes(void* ctx) {
@@ -284,12 +411,32 @@ int espUartGetBufferedBytes(void* ctx) {
     if (ESP_OK != uart_get_buffered_data_len(port->port, &size)) {
       size = 0U;
     }
-    return (int)size + (int)(port->rx_len - port->rx_head);
+    // Bytes held back for echo verification are not available yet.
+    return (int)size + (port->echo_len ? 0 : (int)(port->pend_len - port->pend_head));
 }
 
 int espUartCopyRxBuffer(void* ctx, uint8_t* buf, uint32_t len) {
     esp32_uart_ctx_t *port = ctx_to_port(ctx);
-    int r = uart_read_bytes(port->port, buf, len, 0);
+    int r = espUartRxRead(port, buf, len);
+#if defined(UI_FRAME_PROFILER)
+    // Diagnostic for missing telemetry: dump what actually arrives on the UART
+    // so a valid CRSF stream can be told apart from noise / a wrong baudrate.
+    if (r > 0) {
+        static TickType_t lastDump[UART_NUM_MAX];
+        TickType_t now = xTaskGetTickCount();
+        if (port->port < UART_NUM_MAX &&
+            (now - lastDump[port->port]) >= pdMS_TO_TICKS(1000)) {
+            lastDump[port->port] = now;
+            char hex[3 * 24 + 1];
+            int n = r > 24 ? 24 : r;
+            for (int i = 0; i < n; i++) {
+                snprintf(hex + i * 3, 4, "%02x ", buf[i]);
+            }
+            hex[n * 3] = '\0';
+            ESP_LOGI(TAG, "uart%d rx %d bytes: %s", (int)port->port, r, hex);
+        }
+    }
+#endif
     return r;
 }
 

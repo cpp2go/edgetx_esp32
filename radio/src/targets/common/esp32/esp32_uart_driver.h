@@ -34,8 +34,9 @@ typedef struct {
     size_t queueSize;
     // Optional run-time switch, evaluated every time the port is started (so a
     // module restart picks up a changed setting). When it returns true the bay
-    // is wired as a single shared signal wire and the UART runs in hardware
-    // half duplex mode, so it does not receive its own transmissions.
+    // is wired as a single shared signal wire: the port receives its own
+    // transmissions back, and the driver drops exactly those bytes (see
+    // espUartRxIsEcho() in esp32_uart_driver.cpp).
     bool (*single_wire_cb)(void);
 } etx_esp32_uart_hw_def_t;
 

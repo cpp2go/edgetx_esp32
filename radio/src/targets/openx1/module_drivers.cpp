@@ -65,8 +65,9 @@ static const etx_module_t _internal_module = {
 #if defined(HARDWARE_EXTERNAL_MODULE)
 // Model Setup > External RF > "S.Port": the module bay is wired as a single
 // shared signal wire (radio TX through a resistor to the module's S.Port pin,
-// radio RX on the same pin). When on, the UART driver runs the port in hardware
-// half duplex mode so our own transmissions are not received back.
+// radio RX on the same pin). When on, everything the radio sends comes back
+// into its own receiver, so the driver drops exactly the bytes that match the
+// frame it just sent (see espUartRxIsEcho() in the UART driver).
 // Off (the default) leaves a normal two-wire bay completely untouched.
 static bool extmod_single_wire(void)
 {
